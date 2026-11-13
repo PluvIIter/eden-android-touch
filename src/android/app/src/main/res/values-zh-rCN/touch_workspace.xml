@@ -19,7 +19,6 @@
     <string name="touch_workspace_base_message">后续自动适配将以当前安全区为基准，其他已保存的屏幕配置保持不变。</string>
     <string name="touch_workspace_set_base">设为基准</string>
     <string name="touch_workspace_overlap">此区域与其他区域重叠，请先调整位置或尺寸。</string>
-    <string name="touch_workspace_back_restores">按返回键可恢复工具</string>
     <string name="touch_workspace_copy_name">%1$s 副本</string>
     <string name="touch_workspace_area_layer">区域始终位于按钮和普通摇杆下方。</string>
     <string name="touch_workspace_select_swipe">请先选中一个已启用的滑动区，再进行单控件调试。</string>

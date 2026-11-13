@@ -63,6 +63,7 @@ jobs:
         run: |
           ./gradlew :app:testMainlineDebugUnitTest \
             --tests '*TouchWorkspaceScreenshotTest' \
+            --tests '*TouchWorkspaceInteractionTest' \
             --build-cache --max-workers=2 --stacktrace \
             '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8' \
             -Pkotlin.compiler.execution.strategy=in-process \

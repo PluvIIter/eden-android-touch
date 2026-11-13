@@ -19,7 +19,6 @@
     <string name="touch_workspace_base_message">Future automatic adaptation will use this safe area. Other saved screen configurations remain unchanged.</string>
     <string name="touch_workspace_set_base">Set as base</string>
     <string name="touch_workspace_overlap">This area overlaps another area. Adjust its position or size first.</string>
-    <string name="touch_workspace_back_restores">Press Back to restore the tools</string>
     <string name="touch_workspace_copy_name">%1$s copy</string>
     <string name="touch_workspace_area_layer">Areas stay below buttons and ordinary sticks.</string>
     <string name="touch_workspace_select_swipe">Select an enabled swipe area for live debugging.</string>

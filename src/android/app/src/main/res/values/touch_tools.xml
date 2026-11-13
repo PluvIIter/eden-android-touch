@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="touch_tools_fold">Fold</string>
-    <string name="touch_tools_show_tools">Show tools</string>
     <string name="touch_tools_drag">Drag floating tool window</string>
     <string name="touch_tools_add">Add</string>
     <string name="touch_tools_undo">Undo</string>
@@ -9,7 +7,6 @@
     <string name="touch_tools_controls">Controls</string>
     <string name="touch_tools_save">Save</string>
     <string name="touch_tools_test">Test</string>
-    <string name="touch_tools_more">More</string>
     <string name="touch_tools_return_edit">Return to edit</string>
     <string name="touch_tools_parameters">Parameters</string>
     <string name="touch_tools_undo_debug">Undo this debug</string>
@@ -18,7 +15,6 @@
     <string name="touch_tools_live_debug">Single-control debug</string>
     <string name="touch_tools_set_base">Set screen as base</string>
     <string name="touch_tools_tool_opacity">Tool opacity</string>
-    <string name="touch_tools_hide_tools">Hide tools</string>
     <string name="touch_tools_draft">Draft · unsaved</string>
     <string name="touch_tools_test_draft">Testing · unsaved</string>
     <string name="touch_tools_tool_background">Tool background</string>
@@ -133,7 +129,6 @@
     <string name="touch_tools_calibration_hint">Joystick-based open-loop estimate. Measure actual camera response in your game; this editor does not read camera angles.</string>
     <string name="touch_tools_return_keep">Return to editing · keep draft</string>
     <string name="touch_tools_undo_debug_session">Undo this debug session</string>
-    <string name="touch_tools_hide_restore">Hide all tools · Back restores</string>
     <string name="touch_tools_cancel_tuning">Cancel tuning</string>
     <string name="touch_tools_fullscreen_game_test">Full-screen game test</string>
     <string name="touch_tools_fullscreen_local_test">Full-screen local test</string>

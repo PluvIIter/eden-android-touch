@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="touch_tools_fold">折叠</string>
-    <string name="touch_tools_show_tools">显示工具</string>
     <string name="touch_tools_drag">拖动浮动工具</string>
     <string name="touch_tools_add">添加</string>
     <string name="touch_tools_undo">撤销</string>
@@ -9,7 +7,6 @@
     <string name="touch_tools_controls">控件列表</string>
     <string name="touch_tools_save">保存</string>
     <string name="touch_tools_test">测试</string>
-    <string name="touch_tools_more">更多</string>
     <string name="touch_tools_return_edit">返回编辑</string>
     <string name="touch_tools_parameters">参数</string>
     <string name="touch_tools_undo_debug">撤销本次调试</string>
@@ -18,7 +15,6 @@
     <string name="touch_tools_live_debug">单控件调试</string>
     <string name="touch_tools_set_base">设为布局基准</string>
     <string name="touch_tools_tool_opacity">工具不透明度</string>
-    <string name="touch_tools_hide_tools">隐藏工具</string>
     <string name="touch_tools_draft">草稿 · 未保存</string>
     <string name="touch_tools_test_draft">测试中 · 未保存</string>
     <string name="touch_tools_tool_background">工具背景</string>
@@ -133,7 +129,6 @@
     <string name="touch_tools_calibration_hint">这是基于摇杆的开环估计。请在游戏内实测镜头响应；编辑器不会读取实际镜头角度。</string>
     <string name="touch_tools_return_keep">返回编辑 · 保留草稿</string>
     <string name="touch_tools_undo_debug_session">撤销本次调试</string>
-    <string name="touch_tools_hide_restore">隐藏全部工具 · 返回可恢复</string>
     <string name="touch_tools_cancel_tuning">取消调校</string>
     <string name="touch_tools_fullscreen_game_test">全屏游戏测试</string>
     <string name="touch_tools_fullscreen_local_test">全屏本地测试</string>
