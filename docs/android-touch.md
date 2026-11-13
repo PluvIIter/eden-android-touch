@@ -58,8 +58,9 @@ Gradle dependencies/build outputs, CPM dependencies and a 2 GB ccache are reused
 - Pure suite: 96 tests passed on the implementation host.
 - New Kotlin sources: checked with the upstream ktlint 0.47.1 rules and disabled-rule settings.
 - All new touch sources and the existing NativeInput declarations were directly type-checked against Android/AndroidX/Material class jars. This check used external compile-only symbols for generated resources and unrelated application dependencies; it is not a resource-link or whole-application build.
-- Existing host integration changes in EmulationFragment, EmulationActivity, InputOverlay and settings were reviewed, but not whole-app compiled.
-- Full Gradle configuration was blocked by the host sandbox denying creation of the Android plugin's user configuration directory. No APK was produced, and no Android SDK/NDK or attached device was available for validation.
+- The complete `mainlineDebug` application, including C++ libraries and Android resources, now builds successfully in GitHub Actions. Local SDK setup remains unavailable on the implementation host.
+- `Android Touch UI` renders the actual Android `TouchWorkspace` with Robolectric native graphics and the real Eden theme/resources. Eight locale/theme/orientation cases produce sixteen toolbar/property PNGs and check Chinese text, accessible Save, complete property-card bounds, visible tabs and uncut Cancel/Done actions. These are Android View renders, not HTML mockups or physical-device screenshots.
+- Android device input, keyboard/window behavior and actual game-camera feel still require the acceptance pass below.
 
 ## Device acceptance still required
 
@@ -72,4 +73,4 @@ Gradle dependencies/build outputs, CPM dependencies and a 2 GB ccache are reused
 7. Verify document-provider import/export, process recreation, corrupt/oversized files, dependency conflicts and storage failure handling.
 8. Calibrate swipe deadzone, response curve and maximum speed for each game/device. The generic stick interface is an open-loop approximation, not a universal angle-accurate 1:1 camera interface.
 
-New UI labels currently use English; translation into the application's locale resources remains a separate localization pass. Automated tests do not establish visual conformance or actual game-camera feel.
+Touch interface labels use Android English and Simplified Chinese resources, and the manager applies Eden's application-language context. Newly initialized built-in names are localized; existing user template/control names are intentionally preserved. Automated rendering checks do not replace physical-device interaction testing or actual game-camera calibration.
