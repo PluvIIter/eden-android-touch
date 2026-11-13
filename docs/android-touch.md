@@ -15,7 +15,7 @@ It uses independent configuration; existing native overlay positions are not mig
 - `model`: serializable layouts, controls, screen configurations and independently referenced swipe presets; geometry is derived from saved screens without mutating them.
 - `store`: validated, revision-checked atomic persistence; shared-reference operations; immutable edit transactions; dependency-aware JSON import/export with explicit collision resolution.
 - `runtime`: Android-independent pointer capture, source aggregation, immediate turbo, stick arbitration, gestures and time-based relative swipe conversion.
-- `ui`: one full-size workspace for offline editing, in-game editing and testing. Floating tools never reserve or resize canvas space.
+- `ui`: one full-size workspace for offline editing, in-game editing and testing. Floating tools never reserve or resize canvas space. The main toolbar exposes every action; tools have no hide, fold or overflow mode. Tapping a control opens its properties, and independent draggable tool windows coexist with individual close/cancel actions and scoped undo records.
 - `TouchNativeSink` / `TouchNativePort`: injectable sink and production JNI adapter. Hardware and gyroscope routing are unchanged.
 - `TouchDraftState`: file-backed recovery token in Android saved instance state, avoiding putting an entire library into a Binder bundle. Restoring a stale library revision is rejected.
 
@@ -39,7 +39,7 @@ bash .ci/android/test-touch.sh
 
 This script requires Java 17+ and curl. It downloads pinned Kotlin 1.9.20, serialization 1.6.3 and JUnit 4.13.2 dependencies from Maven Central into the ignored `.cache/touch-tests` directory. `TOUCH_TEST_CACHE` and `MAVEN_CENTRAL_URL` may select another writable cache or mirror. It does not invoke Android Gradle, load JNI or verify APK resources.
 
-The current suite contains 96 tests covering persistence/revision conflicts, import dependency identity, shared references, input source ownership, pointer cancellation, turbo, relative swipe sampling, gestures, native port cleanup, geometry restoration and serializable editor/tool state.
+The current pure suite contains 123 tests covering persistence/revision conflicts, import dependency identity and complexity, recovery-file lifecycle, shared references, input source ownership, pointer cancellation, effective turbo scheduling, relative swipe sampling and nonlinear smoothing, gestures, native port cleanup, geometry restoration and concurrent-window scoped undo state.
 
 ## GitHub Actions APK
 
@@ -55,17 +55,17 @@ Gradle dependencies/build outputs, CPM dependencies and a 2 GB ccache are reused
 
 ## Verification status
 
-- Pure suite: 96 tests passed on the implementation host.
+- Pure suite: 123 tests passed on the implementation host.
 - New Kotlin sources: checked with the upstream ktlint 0.47.1 rules and disabled-rule settings.
 - All new touch sources and the existing NativeInput declarations were directly type-checked against Android/AndroidX/Material class jars. This check used external compile-only symbols for generated resources and unrelated application dependencies; it is not a resource-link or whole-application build.
 - The complete `mainlineDebug` application, including C++ libraries and Android resources, now builds successfully in GitHub Actions. Local SDK setup remains unavailable on the implementation host.
-- `Android Touch UI` renders the actual Android `TouchWorkspace` with Robolectric native graphics and the real Eden theme/resources. Eight locale/theme/orientation cases produce sixteen toolbar/property PNGs and check Chinese text, accessible Save, complete property-card bounds, visible tabs and uncut Cancel/Done actions. These are Android View renders, not HTML mockups or physical-device screenshots.
+- `Android Touch UI` renders the actual Android `TouchWorkspace` with Robolectric native graphics and the real Eden theme/resources. Eight locale/theme/orientation cases produce toolbar/property/coexisting-window PNGs and check Chinese text, direct toolbar actions, accessible control semantics, complete property-card bounds, visible tabs and uncut Cancel/Done actions. Additional interaction cases drive real MotionEvents, form inputs, controls-list changes, concurrent windows, scoped cancel and undo/redo. These are Android View renders, not HTML mockups or physical-device screenshots.
 - Android device input, keyboard/window behavior and actual game-camera feel still require the acceptance pass below.
 
 ## Device acceptance still required
 
 1. Launch both offline and in-game editors; verify identical control coordinates, system-bar/cutout changes, portrait/landscape round trips and foldable windows.
-2. Drag/resize while holding additional pointers. Confirm every floating tool disappears from hit testing and the final old UP cannot click restored tools.
+2. Drag/resize while holding additional pointers. Confirm tool windows remain visible and independently movable, and an existing canvas pointer remains captured when crossing a tool boundary.
 3. Verify mapping chip grids, accessibility, large fonts, keyboard-overlay behavior and Back ordering.
 4. Exercise simultaneous movement, camera and buttons; overlapping-source releases; per-child turbo; group sliding; native touchscreen passthrough and physical-controller auto-hide.
 5. Background, lose focus, open drawers, pause/resume, enter/leave PiP, stop/relaunch and change templates. Confirm zero stuck input or queued motion.

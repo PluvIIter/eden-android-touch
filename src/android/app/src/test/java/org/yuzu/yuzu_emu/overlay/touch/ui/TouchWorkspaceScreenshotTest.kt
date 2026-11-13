@@ -127,6 +127,7 @@ class TouchWorkspaceScreenshotTest {
                 assertTrue("Opening another tool closed properties", workspace.tools.exportState().windows.map { it.key }.containsAll(openKeys))
             }
             assertTrue("Independent tool windows must coexist", workspace.tools.exportState().windows.size >= 4)
+            writePng(workspace, "$name-coexisting-tools")
             val count = workspace.tools.exportState().windows.size
             workspace.tools.closeTopWindow(false)
             settle(workspace, width, height)
