@@ -37,11 +37,11 @@ jobs:
         with:
           cache-read-only: false
 
-      - uses: android-actions/setup-android@v3
       - name: Install build tools
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ccache
+          sdkmanager --licenses <<< "$(printf 'y\n%.0s' {1..20})" > /dev/null
           sdkmanager --channel=3 "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
 
       - uses: actions/cache/restore@v4
@@ -72,7 +72,7 @@ jobs:
             '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF -DCMAKE_JOB_POOLS=compile=2;link=1 -DCMAKE_JOB_POOL_COMPILE=compile -DCMAKE_JOB_POOL_LINK=link' --stacktrace
 
       - uses: actions/cache/save@v4
-        if: always()
+        if: always() && steps.dependencies.outputs.cache-primary-key != ''
         with:
           path: |
             .cache/cpm
@@ -89,7 +89,7 @@ jobs:
 
       - name: Cache statistics
         if: always()
-        run: ccache --show-stats
+        run: command -v ccache >/dev/null && ccache --show-stats || true
 
       - uses: actions/upload-artifact@v4
         with:
