@@ -41,8 +41,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ccache
-          sdkmanager --licenses <<< "$(printf 'y\n%.0s' {1..20})" > /dev/null
-          sdkmanager --channel=3 "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
+          SDKMANAGER="${ANDROID_HOME:?}/cmdline-tools/latest/bin/sdkmanager"
+          "$SDKMANAGER" --licenses <<< "$(printf 'y\n%.0s' {1..20})" > /dev/null
+          "$SDKMANAGER" --channel=3 "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
 
       - uses: actions/cache/restore@v4
         id: dependencies
