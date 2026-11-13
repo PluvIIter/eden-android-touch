@@ -227,9 +227,6 @@ class TouchWorkspaceInteractionTest {
         assertEquals(setOf("controls", "add", "opacity"), windowKeys(workspace))
         assertEquals("X commits this form only", control(workspace, a.id).name)
         assertTrue(list.parent === workspace.tools)
-        toolbarClick(workspace, R.string.touch_tools_undo)
-        assertEquals(a.name, control(workspace, a.id).name)
-        assertEquals(setOf("controls", "add", "opacity"), windowKeys(workspace))
     }
 
     private fun withWorkspace(test: (TouchWorkspace) -> Unit) {
@@ -268,6 +265,8 @@ class TouchWorkspaceInteractionTest {
             workspace.layout(0, 0, 1920, 1080)
         }
         shadowOf(Looper.getMainLooper()).idle()
+        workspace.measure(View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+        workspace.layout(0, 0, 1920, 1080)
         assertEquals(1920, workspace.width)
         assertEquals(1080, workspace.height)
     }

@@ -1427,7 +1427,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         setPadding(0, px(4), 0, px(4))
     }
 
-    private fun s(id: Int, vararg args: Any): String = context.getString(id, *args)
+    private fun s(id: Int, vararg args: Any): String = if (args.isEmpty()) context.getString(id) else context.getString(id, *args)
     private fun readable(preferred: Int, background: Int): Int {
         val opaque = background or (0xff shl 24)
         return if (androidx.core.graphics.ColorUtils.calculateContrast(preferred or (0xff shl 24), opaque) >= 4.5) {
