@@ -58,6 +58,7 @@ android {
         unitTests.all {
             val screenshots = layout.buildDirectory.dir("reports/touch-ui")
             it.systemProperty("touch.ui.screenshotDir", screenshots.get().asFile.absolutePath)
+            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
             it.outputs.dir(screenshots)
         }
     }
