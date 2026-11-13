@@ -40,7 +40,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache
+          sudo apt-get install -y --no-install-recommends ccache glslang-tools
           SDKMANAGER="${ANDROID_HOME:?}/cmdline-tools/latest/bin/sdkmanager"
           "$SDKMANAGER" --licenses <<< "$(printf 'y\n%.0s' {1..20})" > /dev/null
           "$SDKMANAGER" --channel=3 "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
@@ -67,10 +67,13 @@ jobs:
       - name: Build one APK
         working-directory: src/android
         run: |
-          ./gradlew :app:assembleMainlineDebug --build-cache --max-workers=2 \
-            '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8' \
-            -Pkotlin.compiler.execution.strategy=in-process \
-            '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF -DCMAKE_JOB_POOLS=compile=2;link=1 -DCMAKE_JOB_POOL_COMPILE=compile -DCMAKE_JOB_POOL_LINK=link' --stacktrace
+          args=(--build-cache --max-workers=2
+            '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8'
+            -Pkotlin.compiler.execution.strategy=in-process
+            '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF -DCMAKE_JOB_POOLS=compile=2;link=1 -DCMAKE_JOB_POOL_COMPILE=compile -DCMAKE_JOB_POOL_LINK=link'
+            --stacktrace)
+          ./gradlew ':app:configureCMakeDebug[arm64-v8a]' "${args[@]}"
+          ./gradlew :app:assembleMainlineDebug "${args[@]}"
 
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-primary-key != ''
