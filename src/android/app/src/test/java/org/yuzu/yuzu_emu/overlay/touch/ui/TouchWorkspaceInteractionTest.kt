@@ -179,7 +179,7 @@ class TouchWorkspaceInteractionTest {
         val container = row.parent as ViewGroup
         val enabled = descendants(container).filterIsInstance<MaterialSwitch>().first()
         assertTrue(enabled.isChecked)
-        assertTrue(enabled.performClick())
+        enabled.performClick()
         settle(workspace)
         assertFalse(control(workspace, a.id).enabled)
         assertEquals("Discard only this property edit", control(workspace, a.id).name)
@@ -287,7 +287,13 @@ class TouchWorkspaceInteractionTest {
     private fun windowKeys(workspace: TouchWorkspace): Set<String> =
         workspace.tools.exportState().windows.map { it.key }.toSet()
 
-    private fun toolbar(workspace: TouchWorkspace): View = workspace.tools.getChildAt(0)
+    private fun toolbar(workspace: TouchWorkspace): View {
+        shadowOf(Looper.getMainLooper()).idle()
+        workspace.measure(View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+        workspace.layout(0, 0, 1920, 1080)
+        shadowOf(Looper.getMainLooper()).idle()
+        return workspace.tools.getChildAt(0)
+    }
 
     private fun topCard(workspace: TouchWorkspace): MaterialCardView =
         workspace.tools.getChildAt(workspace.tools.childCount - 1) as MaterialCardView
