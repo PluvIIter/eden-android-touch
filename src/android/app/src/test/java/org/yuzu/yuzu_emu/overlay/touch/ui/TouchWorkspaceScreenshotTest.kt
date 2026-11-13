@@ -73,6 +73,11 @@ class TouchWorkspaceScreenshotTest {
         val controller = Robolectric.buildActivity(AppCompatActivity::class.java)
         val activity = controller.get()
         activity.setTheme(R.style.Theme_Eden_Main)
+        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+        activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         try {
             controller.setup().visible()
             assertEquals(2f, activity.resources.displayMetrics.density, 0.01f)
@@ -171,10 +176,19 @@ class TouchWorkspaceScreenshotTest {
         val bounds = Rect(0, 0, view.width, view.height)
         workspace.offsetDescendantRectToMyCoords(view, bounds)
         assertTrue("$label extends beyond the workspace: $bounds", Rect(0, 0, workspace.width, workspace.height).contains(bounds))
-        val visible = Rect()
-        assertTrue("$label is hidden", view.getLocalVisibleRect(visible))
-        assertEquals("$label is horizontally clipped", view.width, visible.width())
-        assertEquals("$label is vertically clipped", view.height, visible.height())
+        var child = view
+        val visible = android.graphics.RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
+        while (child !== workspace) {
+            assertEquals("$label is hidden by an ancestor", View.VISIBLE, child.visibility)
+            val parent = child.parent as? ViewGroup ?: error("$label is outside the workspace")
+            visible.offset(child.x - parent.scrollX, child.y - parent.scrollY)
+            if (parent.clipChildren) {
+                assertTrue("$label has no visible area", visible.intersect(0f, 0f, parent.width.toFloat(), parent.height.toFloat()))
+            }
+            child = parent
+        }
+        assertEquals("$label is horizontally clipped inside the workspace", view.width.toFloat(), visible.width(), 0.5f)
+        assertEquals("$label is vertically clipped inside the workspace", view.height.toFloat(), visible.height(), 0.5f)
     }
 
     private fun assertChinese(workspace: TouchWorkspace) {
