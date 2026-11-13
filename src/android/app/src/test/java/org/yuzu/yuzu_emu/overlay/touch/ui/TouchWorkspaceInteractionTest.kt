@@ -288,10 +288,12 @@ class TouchWorkspaceInteractionTest {
         workspace.tools.exportState().windows.map { it.key }.toSet()
 
     private fun toolbar(workspace: TouchWorkspace): View {
-        shadowOf(Looper.getMainLooper()).idle()
-        workspace.measure(View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
-        workspace.layout(0, 0, 1920, 1080)
-        shadowOf(Looper.getMainLooper()).idle()
+        repeat(3) {
+            shadowOf(Looper.getMainLooper()).idle()
+            descendants(workspace).forEach { it.forceLayout() }
+            workspace.measure(View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+            workspace.layout(0, 0, 1920, 1080)
+        }
         return workspace.tools.getChildAt(0)
     }
 
@@ -377,7 +379,7 @@ class TouchWorkspaceInteractionTest {
     }
 
     private fun assertFullyVisible(workspace: TouchWorkspace, view: View) {
-        assertTrue("Action has no measured size", view.width > 0 && view.height > 0)
+        assertTrue("Action ${view.contentDescription ?: (view as? android.widget.TextView)?.text} has no measured size ${view.width}x${view.height}; parent=${(view.parent as View).width}x${(view.parent as View).height}", view.width > 0 && view.height > 0)
         val bounds = Rect(0, 0, view.width, view.height)
         workspace.offsetDescendantRectToMyCoords(view, bounds)
         assertTrue("Action extends beyond workspace: $bounds", Rect(0, 0, workspace.width, workspace.height).contains(bounds))
