@@ -41,6 +41,18 @@ This script requires Java 17+ and curl. It downloads pinned Kotlin 1.9.20, seria
 
 The current suite contains 96 tests covering persistence/revision conflicts, import dependency identity, shared references, input source ownership, pointer cancellation, turbo, relative swipe sampling, gestures, native port cleanup, geometry restoration and serializable editor/tool state.
 
+## GitHub Actions APK
+
+Run **Android APK** manually from the repository's Actions tab on `master`, or use:
+
+```sh
+gh workflow run android-apk.yml --ref master
+```
+
+The workflow builds only the ARM64 `mainlineDebug` APK (Android 13+), signed with the checked-in development key. It does not build an AAB, run a variant matrix, or publish a release. Download the `eden-touch-arm64-<run number>` artifact from the run; artifacts expire after seven days. A newer run on the same branch cancels the older run.
+
+Gradle dependencies/build outputs, CPM dependencies and a 2 GB ccache are reused between runs. Completed native build outputs are reused only for an exact native-source/toolchain fingerprint, so Kotlin-only changes can avoid most native compilation. No cache is required for correctness; a miss performs a cold build. SDK packages are pinned to the versions required by the app. Initial compilation can be slow; parallel compilation is limited to two jobs to fit a standard private-repository runner.
+
 ## Verification status
 
 - Pure suite: 96 tests passed on the implementation host.
