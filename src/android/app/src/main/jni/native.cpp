@@ -286,6 +286,9 @@ Core::SystemResultStatus EmulationSession::InitializeEmulation(const std::string
                                                                const bool frontend_initiated) {
     std::scoped_lock lock(m_mutex);
 
+    m_execution_started = false;
+    m_is_paused = false;
+
     // Create the render window.
     m_window = std::make_unique<EmuWindow_Android>(m_native_window, m_vulkan_library);
 
@@ -340,6 +343,9 @@ Core::SystemResultStatus EmulationSession::InitializeEmulation(const std::string
 
     // Complete initialization.
     m_system.GPU().Start();
+    if (m_startup_paused) {
+        m_system.Pause();
+    }
     m_system.GetCpuManager().OnGpuReady();
     m_system.RegisterExitCallback([&] { HaltEmulation(); });
 
@@ -359,6 +365,8 @@ Core::SystemResultStatus EmulationSession::InitializeEmulation(const std::string
 
 void EmulationSession::ShutdownEmulation() {
     std::scoped_lock lock(m_mutex);
+    m_execution_started = false;
+    m_is_paused = false;
 
     if (m_next_program_index != -1) {
         ChangeProgram(m_next_program_index);
@@ -390,22 +398,31 @@ void EmulationSession::ShutdownEmulation() {
 void EmulationSession::SetStartupPaused(bool paused) {
     std::scoped_lock lock(m_mutex);
     m_startup_paused = paused;
-    if (paused && m_execution_started) {
-        m_system.Pause();
-        m_is_paused = true;
+    if (m_execution_started) {
+        if (paused) {
+            m_system.Pause();
+            m_is_paused = true;
+        }
+
     }
 }
 
 void EmulationSession::PauseEmulation() {
     std::scoped_lock lock(m_mutex);
-    m_system.Pause();
-    m_is_paused = true;
+    m_startup_paused = true;
+    if (m_execution_started) {
+        m_system.Pause();
+        m_is_paused = true;
+    }
 }
 
 void EmulationSession::UnPauseEmulation() {
     std::scoped_lock lock(m_mutex);
-    m_system.Run();
-    m_is_paused = false;
+    m_startup_paused = false;
+    if (m_execution_started) {
+        m_system.Run();
+        m_is_paused = false;
+    }
 }
 
 void EmulationSession::HaltEmulation() {
@@ -431,10 +448,14 @@ void EmulationSession::RunEmulation() {
 
     {
         std::scoped_lock lock(m_mutex);
-        m_execution_started = true;
-        m_is_paused = m_startup_paused;
-        if (!m_startup_paused) {
-            void(m_system.Run());
+        if (m_is_running) {
+            m_execution_started = true;
+            if (m_startup_paused) {
+                m_system.Pause();
+            } else {
+                void(m_system.Run());
+            }
+            m_is_paused = m_startup_paused;
         }
     }
 

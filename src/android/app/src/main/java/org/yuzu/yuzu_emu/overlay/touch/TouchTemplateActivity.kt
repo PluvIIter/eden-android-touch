@@ -429,7 +429,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         val replacements = library.templates.filterNot { it.id == template.id }
         if (replacements.isEmpty()) { toast(R.string.touch_manager_keep_layout); return }
         val choices = listOf(getString(R.string.touch_manager_unlink_games)) + replacements.map { getString(R.string.touch_manager_replace_with, it.name) }
-        MaterialAlertDialogBuilder(this).setTitle(getString(R.string.touch_manager_delete_named, template.name))
+        MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(getString(R.string.touch_manager_delete_named, template.name))
             .setItems(choices.toTypedArray()) { _, index ->
                 val replacement = replacements.getOrNull(index - 1)?.id
                 confirm(getString(R.string.touch_manager_delete_layout), templateImpact(template.id) + "\n\n" + choices[index]) {
@@ -447,7 +447,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         }
         val replacements = library.presets.filterNot { it.id == preset.id }
         val choices = replacements.map { getString(R.string.touch_manager_replace_with, it.name) } + getString(R.string.touch_manager_delete_areas)
-        MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_replace_references)
+        MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(R.string.touch_manager_replace_references)
             .setItems(choices.toTypedArray()) { _, index ->
                 val replacement = replacements.getOrNull(index)?.id
                 confirm(getString(R.string.touch_manager_delete_shared_preset), presetImpact(preset.id) + "\n\n" + choices[index]) {
@@ -475,13 +475,13 @@ class TouchTemplateActivity : AppCompatActivity() {
     }
 
     private fun confirm(title: String, message: String, action: () -> Unit) {
-        MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message)
+        MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(title).setMessage(message)
             .setPositiveButton(R.string.touch_manager_confirm) { _, _ -> runCatching(action).onFailure { report(it) } }
             .setNegativeButton(R.string.touch_manager_cancel, null).show()
     }
 
     private fun showDetails(title: String, message: String) {
-        MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message).setPositiveButton(R.string.touch_manager_close, null).show()
+        MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(title).setMessage(message).setPositiveButton(R.string.touch_manager_close, null).show()
     }
 
     private fun editPreset(presetId: String) {
@@ -516,7 +516,7 @@ class TouchTemplateActivity : AppCompatActivity() {
 
     private fun showImportPreview(value: String, preview: TouchImportPreview) {
         val summary = importSummary(preview)
-        val builder = MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_import_preview)
+        val builder = MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(R.string.touch_manager_import_preview)
             .setMessage(summary + "\n\n" + getString(R.string.touch_manager_import_no_association))
             .setPositiveButton(if (preview.conflicts.isEmpty()) R.string.touch_manager_import else R.string.touch_manager_import_copies) { _, _ -> import(value, ImportConflictResolution.COPY) }
             .setNegativeButton(R.string.touch_manager_cancel, null)
@@ -551,10 +551,10 @@ class TouchTemplateActivity : AppCompatActivity() {
                 showManager()
                 val imported = library.templates.filter { it.id in result.templateIds.values }
                 if (imported.isNotEmpty()) {
-                    MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_import_complete)
+                    MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(R.string.touch_manager_import_complete)
                         .setMessage(R.string.touch_manager_import_no_association)
                         .setPositiveButton(if (gameId == null) R.string.touch_manager_open_layout else R.string.touch_manager_use_game) { _, _ ->
-                            MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_choose_imported)
+                            MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(R.string.touch_manager_choose_imported)
                                 .setItems(imported.map { it.name }.toTypedArray()) { _, index ->
                                     if (gameId == null) {
                                         edit(imported[index].id)
@@ -580,7 +580,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     private fun background(action: suspend () -> Unit) {
         if (busy) return
         busy = true
-        val progress = MaterialAlertDialogBuilder(this)
+        val progress = MaterialAlertDialogBuilder(this@TouchTemplateActivity)
             .setTitle(R.string.touch_manager_working)
             .setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) })
             .setCancelable(false)
@@ -613,7 +613,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         }
         val input = TextInputEditText(container.context).apply { setText(initial); setSingleLine(); selectAll() }
         container.addView(input)
-        val dialog = MaterialAlertDialogBuilder(this).setTitle(title).setView(container)
+        val dialog = MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(title).setView(container)
             .setPositiveButton(R.string.touch_manager_save, null).setNegativeButton(R.string.touch_manager_cancel, null).create()
         dialog.setOnShowListener {
             dialog.getButton(-1).setOnClickListener {

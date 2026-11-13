@@ -719,6 +719,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 if (touchResumeAfterEditing && this::emulationState.isInitialized) {
                     resumeEmulationFromUi()
                 } else {
+                    touchPauseRequested = false
+                    NativeLibrary.setStartupPaused(false)
+                    touchStartupPauseJob?.cancel()
+                    touchStartupPauseJob = null
                     updatePauseMenuEntry(this::emulationState.isInitialized && emulationState.isPaused)
                     updatePausedFrameVisibility()
                 }
@@ -2610,7 +2614,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
         @Synchronized
         fun resume() {
-            if (state != State.PAUSED) {
+            if (state != State.PAUSED && !(state == State.RUNNING && NativeLibrary.isRunning())) {
                 Log.warning("[EmulationFragment] Resume called while emulation is not paused.")
                 return
             }
