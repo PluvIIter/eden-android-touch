@@ -20,4 +20,7 @@
     <string name="touch_canvas_idle">No active touch</string>
     <string name="touch_canvas_captured">Captured · %1$d touches</string>
     <string name="touch_canvas_curve_accessibility">Response curve preview. This is not measured game camera feedback.</string>
+    <string name="touch_canvas_control_accessibility">%1$s, %2$s, output %3$s, %4$s. Activate to edit properties.</string>
+    <string name="touch_canvas_enabled">Enabled</string>
+    <string name="touch_canvas_turbo_effective">Turbo effective: %1$.1f Hz</string>
 </resources>

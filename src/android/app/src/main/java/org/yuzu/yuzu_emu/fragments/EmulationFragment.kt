@@ -62,6 +62,7 @@ import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -118,7 +119,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     private var emulationActivity: EmulationActivity? = null
     private var touchWorkspace: TouchWorkspace? = null
     private var touchLibrary: TouchLibrary? = null
+    private var touchTemplateAvailable = true
     private var touchResumeAfterEditing = false
+    private var touchPauseRequested = false
+    private var touchStartupPauseJob: Job? = null
     private var touchRestoredState: Bundle? = null
 
     private var perfStatsUpdater: (() -> Unit)? = null
@@ -649,6 +653,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     override fun onSaveInstanceState(outState: Bundle) {
         runCatching {
             TouchDraftState.save(requireContext(), outState, touchWorkspace)
+            outState.putBoolean("touch_resume_after_editing", touchResumeAfterEditing)
         }
         super.onSaveInstanceState(outState)
     }
@@ -659,12 +664,21 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         runCatching {
             val library = TouchTemplateActivity.repository(requireContext()).load()
             val id = TouchGameOverlay.gameId(game!!.programId)
-            val template = library.templateFor(id) ?: return
-            if (library != touchLibrary || workspace.gameId != id) {
+            val template = library.templateFor(id)
+            if (template == null) {
+                workspace.retireLayout()
+                workspace.gameId = id
+                touchTemplateAvailable = false
+                touchLibrary = library
+                return
+            }
+            if (!touchTemplateAvailable || library != touchLibrary || workspace.gameId != id) {
                 workspace.releaseInputs()
                 workspace.bind(library, template.id, true, TouchNativeSink())
                 workspace.setEditing(false)
                 workspace.gameId = id
+                touchTemplateAvailable = true
+                workspace.controlsVisible = BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean()
                 touchLibrary = library
             }
         }.onFailure { Toast.makeText(requireContext(), R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show() }
@@ -680,6 +694,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 requireContext(), library, game!!.programId
             ) ?: return
             touchWorkspace = workspace
+            touchTemplateAvailable = true
             workspace.gameId = TouchGameOverlay.gameId(game!!.programId)
             workspace.touchscreenEnabled = BooleanSetting.TOUCHSCREEN.getBoolean()
             workspace.controlsVisible = BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean()
@@ -690,21 +705,29 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 runCatching {
                     touchLibrary = repository.save(draft, workspace.draftBaselineRevision)
                     workspace.acceptSaved(touchLibrary!!)
+                    TouchDraftState.discard(requireContext(), workspace)
                 }.onFailure {
                     Toast.makeText(requireContext(), R.string.touch_workspace_save_failed, Toast.LENGTH_LONG).show()
                     throw it
                 }
             }
             workspace.onExit = {
+                TouchDraftState.discard(requireContext(), workspace)
                 workspace.releaseInputs()
                 workspace.setEditing(false)
                 binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
-                if (touchResumeAfterEditing && this::emulationState.isInitialized) resumeEmulationFromUi()
+                if (touchResumeAfterEditing && this::emulationState.isInitialized) {
+                    resumeEmulationFromUi()
+                } else {
+                    updatePauseMenuEntry(this::emulationState.isInitialized && emulationState.isPaused)
+                    updatePausedFrameVisibility()
+                }
+                touchResumeAfterEditing = false
             }
             workspace.onTestState = { running ->
                 workspace.releaseInputs()
                 if (this::emulationState.isInitialized) {
-                    if (running) resumeEmulationFromUi() else pauseEmulationAndCaptureFrame()
+                    if (running) resumeEmulationFromUi() else requestTouchEditorPause()
                 }
             }
             requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,
@@ -719,6 +742,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                         }
                     }
                 })
+            touchResumeAfterEditing = touchRestoredState?.getBoolean("touch_resume_after_editing") ?: false
             TouchDraftState.restore(requireContext(), touchRestoredState, workspace)
             touchRestoredState = null
             binding.surfaceInputOverlay.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
@@ -775,11 +799,11 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         driverInUse = driverViewModel.selectedDriverVersion.value
 
         updateQuickOverlayMenuEntry(BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean())
-        onPhysicalControllerStateChanged(InputHandler.androidControllers.isNotEmpty())
 
         binding.surfaceEmulation.holder.addCallback(this)
         binding.doneControlConfig.setOnClickListener { stopConfiguringControls() }
         setupTouchWorkspace()
+        onPhysicalControllerStateChanged(InputHandler.androidControllers.isNotEmpty())
 
         binding.drawerLayout.addDrawerListener(object : DrawerListener {
             override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
@@ -1062,11 +1086,14 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
         emulationViewModel.emulationStarted.collect(viewLifecycleOwner) {
             if (it) {
-                binding.drawerLayout.setDrawerLockMode(IntSetting.LOCK_DRAWER.getInt())
+                binding.drawerLayout.setDrawerLockMode(
+                    if (touchWorkspace?.isEditing == true || touchWorkspace?.isTesting == true)
+                        DrawerLayout.LOCK_MODE_LOCKED_CLOSED else IntSetting.LOCK_DRAWER.getInt()
+                )
                 if (touchWorkspace == null) ViewUtils.showView(binding.surfaceInputOverlay)
                 else {
                     binding.surfaceInputOverlay.visibility = View.GONE
-                    touchWorkspace?.resumeInputs()
+                    if (!touchPauseRequested && !emulationState.isPaused) touchWorkspace?.resumeInputs()
                 }
                 ViewUtils.hideView(binding.loadingIndicator)
 
@@ -1172,7 +1199,9 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
         updateScreenLayout()
         val showInputOverlay = BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean()
-        if (emulationActivity?.isInPictureInPictureMode == true) {
+        val inPictureInPicture = emulationActivity?.isInPictureInPictureMode == true
+        updateTouchWorkspacePictureInPicture(inPictureInPicture)
+        if (inPictureInPicture) {
             if (b.drawerLayout.isOpen) {
                 b.drawerLayout.close()
             }
@@ -1186,13 +1215,29 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 showInputOverlay && emulationViewModel.emulationStarted.value &&
                     !hasPhysicalControllerConnected
             }
-            b.surfaceInputOverlay.setVisible(shouldShowOverlay)
+            b.surfaceInputOverlay.setVisible(shouldShowOverlay && touchWorkspace == null)
             if (!isInFoldableLayout) {
                 if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
                     b.surfaceInputOverlay.layout = OverlayLayout.Portrait
                 } else {
                     b.surfaceInputOverlay.layout = OverlayLayout.Landscape
                 }
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        updateTouchWorkspacePictureInPicture(isInPictureInPictureMode)
+    }
+
+    private fun updateTouchWorkspacePictureInPicture(inPictureInPicture: Boolean) {
+        touchWorkspace?.let { workspace ->
+            if (inPictureInPicture) workspace.suspendInputs()
+            workspace.setVisible(!inPictureInPicture, gone = false)
+            if (!inPictureInPicture && this::emulationState.isInitialized &&
+                emulationState.isRunning && !touchPauseRequested && !workspace.isEditing) {
+                workspace.resumeInputs()
             }
         }
     }
@@ -1458,9 +1503,30 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         }
     }
 
-    private fun pauseEmulationAndCaptureFrame() {
+    private fun requestTouchEditorPause() {
+        touchPauseRequested = true
+        NativeLibrary.setStartupPaused(true)
         touchWorkspace?.suspendInputs()
-        emulationState.pause()
+        if (touchStartupPauseJob?.isActive == true) return
+        if (NativeLibrary.isPaused()) {
+            pauseEmulationAndCaptureFrame()
+            return
+        }
+        touchStartupPauseJob = viewLifecycleOwner.lifecycleScope.launch {
+            while (touchPauseRequested && !emulationViewModel.isEmulationStopping.value &&
+                !emulationViewModel.emulationStopped.value) {
+                if (NativeLibrary.isRunning() && NativeLibrary.isPaused()) {
+                    pauseEmulationAndCaptureFrame(reapply = true)
+                    break
+                }
+                delay(16)
+            }
+        }
+    }
+
+    private fun pauseEmulationAndCaptureFrame(reapply: Boolean = false) {
+        touchWorkspace?.suspendInputs()
+        emulationState.pause(reapply)
         updatePauseMenuEntry(true)
         capturePausedFrameFromCore()
         updatePausedFrameVisibility()
@@ -1510,6 +1576,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     private fun resumeEmulationFromUi() {
+        touchPauseRequested = false
+        NativeLibrary.setStartupPaused(false)
+        touchStartupPauseJob?.cancel()
+        touchStartupPauseJob = null
         clearPausedFrame()
         emulationState.resume()
         touchWorkspace?.resumeInputs()
@@ -1628,6 +1698,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     override fun onDestroyView() {
+        touchStartupPauseJob?.cancel()
+        touchStartupPauseJob = null
+        touchPauseRequested = false
+        NativeLibrary.setStartupPaused(false)
         touchWorkspace?.releaseInputs()
         touchWorkspace = null
         touchLibrary = null
@@ -1655,7 +1729,8 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         NativeLibrary.refreshThreadPolicies()
         val b = _binding ?: return
         refreshTouchWorkspace()
-        if (this::emulationState.isInitialized && emulationState.isRunning && touchWorkspace?.isEditing != true) {
+        if (this::emulationState.isInitialized && emulationState.isRunning &&
+            !touchPauseRequested && touchWorkspace?.isEditing != true) {
             touchWorkspace?.resumeInputs()
         }
         updateStatsPosition(IntSetting.PERF_OVERLAY_POSITION.getInt())
@@ -2335,9 +2410,16 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     @SuppressLint("SourceLockedOrientationActivity")
     private fun startConfiguringControls() {
         touchWorkspace?.let { workspace ->
+            refreshTouchWorkspace()
+            if (!touchTemplateAvailable) {
+                startActivity(TouchTemplateActivity.intent(
+                    requireContext(), TouchGameOverlay.gameId(game?.programId ?: "")
+                ))
+                return
+            }
             touchResumeAfterEditing = this::emulationState.isInitialized && emulationState.isRunning
             workspace.releaseInputs()
-            if (this::emulationState.isInitialized) pauseEmulationAndCaptureFrame()
+            if (this::emulationState.isInitialized) requestTouchEditorPause()
             binding.drawerLayout.closeDrawers()
             binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
             binding.doneControlConfig.setVisible(false)
@@ -2496,8 +2578,9 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         }
 
         @Synchronized
-        fun pause() {
-            if (state != State.PAUSED) {
+        fun pause(reapply: Boolean = false) {
+            if (state == State.STOPPED && !NativeLibrary.isRunning()) return
+            if (state != State.PAUSED || reapply) {
                 Log.debug("[EmulationFragment] Pausing emulation.")
 
                 NativeLibrary.pauseEmulation()
@@ -2690,7 +2773,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     fun handleScreenTap(isLongTap: Boolean) {
-        if (!isAdded || _binding == null) return
+        if (!isAdded || _binding == null || touchWorkspace != null) return
         if (binding.surfaceInputOverlay.isGamelessMode()) return
         if (!BooleanSetting.ENABLE_INPUT_OVERLAY_AUTO_HIDE.getBoolean()) return
         // failsafe
@@ -2708,6 +2791,12 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
     private fun initializeOverlayAutoHide() {
         if (!isAdded || _binding == null) return
+        if (touchWorkspace != null) {
+            handler.removeCallbacksAndMessages(null)
+            binding.surfaceInputOverlay.touchEventListener = null
+            touchWorkspace?.onTouchActivity = null
+            return
+        }
         if (binding.surfaceInputOverlay.isGamelessMode()) return
 
         val autoHideSeconds = IntSetting.INPUT_OVERLAY_AUTO_HIDE.getInt()
@@ -2738,11 +2827,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             }
         }
         binding.surfaceInputOverlay.touchEventListener = touchListener
-        touchWorkspace?.onTouchActivity = touchListener
     }
 
     private fun autoHideOverlay() {
-        if (touchWorkspace?.isEditing == true || touchWorkspace?.isTesting == true) return
+        if (touchWorkspace != null) return
         toggleOverlay(false)
         wasInputOverlayAutoHidden = true
     }
@@ -2760,12 +2848,13 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             BooleanSetting.SHOW_INPUT_OVERLAY.setBoolean(enable)
             updateQuickOverlayMenuEntry(enable)
             binding.surfaceInputOverlay.refreshControls()
-            touchWorkspace?.controlsVisible = enable
+            touchWorkspace?.controlsVisible = enable && touchTemplateAvailable
             if (touchWorkspace != null) binding.surfaceInputOverlay.visibility = View.GONE
         }
     }
 
     fun onControllerInputDetected() {
+        if (touchWorkspace != null) return
         if (!BooleanSetting.HIDE_OVERLAY_ON_CONTROLLER_INPUT.getBoolean()) return
         if (!BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean()) return
         if (controllerInputReceived) return
@@ -2784,7 +2873,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     fun onPhysicalControllerStateChanged(hasConnectedControllers: Boolean) {
         hasPhysicalControllerConnected = hasConnectedControllers
         controllerInputReceived = false
-        if (!isAdded || _binding == null) return
+        if (!isAdded || _binding == null || touchWorkspace != null) return
         if (binding.surfaceInputOverlay.isGamelessMode()) return
 
         if (hasConnectedControllers) {

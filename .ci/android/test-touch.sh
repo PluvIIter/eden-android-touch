@@ -43,6 +43,7 @@ CP="$CACHE/stdlib.jar:$CACHE/serialization-core.jar:$CACHE/serialization-json.ja
     "$TEST/TouchNativeSinkTest.kt"
 "$JAVA" -cp "$CACHE/tests.jar:$CP" org.junit.runner.JUnitCore \
     org.yuzu.yuzu_emu.overlay.touch.store.TouchStoreTest \
+    org.yuzu.yuzu_emu.overlay.touch.store.TouchStoreReviewTest \
     org.yuzu.yuzu_emu.overlay.touch.runtime.TouchRuntimeTest \
     org.yuzu.yuzu_emu.overlay.touch.runtime.SwipeMotionTest \
     org.yuzu.yuzu_emu.overlay.touch.TouchNativeSinkTest \

@@ -20,4 +20,7 @@
     <string name="touch_canvas_idle">当前无触控输入</string>
     <string name="touch_canvas_captured">已捕获 · %1$d 个触点</string>
     <string name="touch_canvas_curve_accessibility">响应曲线预览，不代表游戏镜头的实际反馈。</string>
+    <string name="touch_canvas_control_accessibility">%1$s，%2$s，输出 %3$s，%4$s。激活以编辑属性。</string>
+    <string name="touch_canvas_enabled">已启用</string>
+    <string name="touch_canvas_turbo_effective">连点实际频率：%1$.1f Hz</string>
 </resources>

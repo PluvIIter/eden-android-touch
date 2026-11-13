@@ -35,7 +35,8 @@ data class RuntimeSnapshot(
     val buttons: Set<Int>,
     val sticks: Map<StickTarget, StickVector>,
     val stickOwners: Map<StickTarget, String?>,
-    val saturatedControls: Set<String>
+    val saturatedControls: Set<String>,
+    val effectiveTurboHz: Map<String, Float> = emptyMap()
 )
 
 internal class InputAggregator(private val sink: InputSink) {
@@ -44,29 +45,40 @@ internal class InputAggregator(private val sink: InputSink) {
     private val buttonSources = mutableMapOf<String, Set<Int>>()
     private val stickSources = mutableMapOf<String, StickSource>()
     private var order = 0L
+    private var buttonsDirty = false
+    private var sticksDirty = false
+    private val targets = StickTarget.values()
     var buttons: Set<Int> = emptySet()
         private set
     val sticks = StickTarget.values().associateWith { StickVector() }.toMutableMap()
 
     fun buttons(source: String, pressed: Set<Int>) {
+        if (buttonSources[source].orEmpty() == pressed) return
         if (pressed.isEmpty()) buttonSources.remove(source) else buttonSources[source] = pressed.toSet()
+        buttonsDirty = true
     }
 
     fun acquire(source: String, target: StickTarget, vector: StickVector = StickVector()) {
         check(source !in stickSources)
         stickSources[source] = StickSource(target, ++order, vector)
+        sticksDirty = true
     }
 
     fun vector(source: String, vector: StickVector) {
-        stickSources[source]?.vector = vector
+        val state = stickSources[source] ?: return
+        if (state.vector == vector) return
+        state.vector = vector
+        sticksDirty = true
     }
 
     fun remove(source: String) {
-        buttonSources.remove(source)
-        stickSources.remove(source)
+        if (buttonSources.remove(source) != null) buttonsDirty = true
+        if (stickSources.remove(source) != null) sticksDirty = true
     }
 
     fun clear() {
+        buttonsDirty = buttonsDirty || buttonSources.isNotEmpty()
+        sticksDirty = sticksDirty || stickSources.isNotEmpty()
         buttonSources.clear()
         stickSources.clear()
     }
@@ -76,18 +88,31 @@ internal class InputAggregator(private val sink: InputSink) {
     }
 
     fun flush() {
-        val pressed = buttonSources.values.flatten().toSet()
-        if (buttons != pressed) {
-            buttons = pressed
-            sink.buttons(pressed)
+        if (buttonsDirty) {
+            val pressed = HashSet<Int>()
+            for (source in buttonSources.values) pressed.addAll(source)
+            if (buttons != pressed) {
+                buttons = pressed
+                sink.buttons(pressed)
+            }
+            buttonsDirty = false
         }
-        for (target in StickTarget.values()) {
-            val vector = stickSources.values.filter { it.target == target }
-                .maxByOrNull { it.order }?.vector ?: StickVector()
+        if (!sticksDirty) return
+        for (target in targets) {
+            var owner: StickSource? = null
+            for (source in stickSources.values) {
+                if (source.target == target && (owner == null || source.order > owner.order)) owner = source
+            }
+            val vector = owner?.vector ?: ZERO
             if (sticks[target] != vector) {
                 sticks[target] = vector
                 sink.stick(target, vector.x, vector.y)
             }
         }
+        sticksDirty = false
+    }
+
+    companion object {
+        private val ZERO = StickVector()
     }
 }

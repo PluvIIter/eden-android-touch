@@ -24,6 +24,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -62,15 +67,17 @@ class TouchTemplateActivity : AppCompatActivity() {
     private lateinit var library: TouchLibrary
     private var workspace: TouchWorkspace? = null
     private var exporting: String? = null
+    private var exportRecovery: File? = null
     private var selectedTab = 0
     private var searchQuery = ""
+    private var busy = false
     private val gameId get() = intent.getStringExtra(EXTRA_GAME_ID)?.let { TouchReferences.baseGameId(it) }
 
     private class ManagerException(val messageId: Int) : IOException()
 
     private val importFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            runCatching {
+            background {
                 val value = contentResolver.openInputStream(uri)?.use { stream ->
                     val output = ByteArrayOutputStream()
                     val buffer = ByteArray(8192)
@@ -84,20 +91,26 @@ class TouchTemplateActivity : AppCompatActivity() {
                     }
                     output.toString(Charsets.UTF_8.name())
                 } ?: throw ManagerException(R.string.touch_manager_error_read)
-                showImportPreview(value)
-            }.onFailure { report(it) }
+                val current = repository.load()
+                val preview = TouchImportExport.preview(current, value)
+                withContext(Dispatchers.Main) {
+                    library = current
+                    showImportPreview(value, preview)
+                }
+            }
         }
     }
 
     private val exportFile = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val value = exporting
         exporting = null
+        clearExportRecovery()
         if (uri != null && value != null) {
-            runCatching {
+            background {
                 contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(value) }
                     ?: throw ManagerException(R.string.touch_manager_error_write)
-                toast(R.string.touch_manager_exported)
-            }.onFailure { report(it) }
+                withContext(Dispatchers.Main) { toast(R.string.touch_manager_exported) }
+            }
         }
     }
 
@@ -125,7 +138,10 @@ class TouchTemplateActivity : AppCompatActivity() {
         val pendingExport = savedInstanceState?.getString("touch_export_token")
         if (pendingExport?.matches(Regex("[0-9a-f-]{36}")) == true) {
             val file = File(filesDir, "touch/exports/$pendingExport")
-            if (file.isFile) exporting = file.readText(Charsets.UTF_8)
+            if (file.isFile) {
+                exporting = file.readText(Charsets.UTF_8)
+                exportRecovery = file
+            }
         }
         showManager()
         if (savedInstanceState?.containsKey("touch_workspace_draft") == true) {
@@ -145,9 +161,9 @@ class TouchTemplateActivity : AppCompatActivity() {
             exporting?.let { value ->
                 val directory = File(filesDir, "touch/exports")
                 check(directory.isDirectory || directory.mkdirs())
-                val token = java.util.UUID.randomUUID().toString()
-                File(directory, token).writeText(value, Charsets.UTF_8)
-                outState.putString("touch_export_token", token)
+                val file = exportRecovery ?: File(directory, java.util.UUID.randomUUID().toString()).also { exportRecovery = it }
+                file.writeText(value, Charsets.UTF_8)
+                outState.putString("touch_export_token", file.name)
             }
         }.onFailure { report(it) }
         super.onSaveInstanceState(outState)
@@ -251,7 +267,8 @@ class TouchTemplateActivity : AppCompatActivity() {
             template.name,
             getString(R.string.touch_manager_layout_metadata, template.controls.size, template.screens.size),
             { edit(template.id) },
-            { anchor -> templateMenu(template, anchor) }
+            { anchor -> templateMenu(template, anchor) },
+            if (gameId == null) null else ({ persist(TouchReferences.associateGame(library, gameId!!, template.id)) })
         ) { tags ->
             if (refs.isDefault) tags.addView(tag(getString(R.string.touch_manager_global_default)))
             tags.addView(
@@ -277,7 +294,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         tags.addView(tag(getString(R.string.touch_manager_shared_reference)))
     }
 
-    private fun objectCard(name: String, metadata: String, edit: () -> Unit, more: (View) -> Unit, tags: (ChipGroup) -> Unit): MaterialCardView {
+    private fun objectCard(name: String, metadata: String, edit: () -> Unit, more: (View) -> Unit, applyToGame: (() -> Unit)? = null, tags: (ChipGroup) -> Unit): MaterialCardView {
         val card = MaterialCardView(ContextThemeWrapper(this, R.style.EdenCard)).apply {
             radius = dp(16).toFloat()
             cardElevation = 0f
@@ -302,7 +319,8 @@ class TouchTemplateActivity : AppCompatActivity() {
         body.addView(heading)
         body.addView(label(metadata, true))
         body.addView(ChipGroup(this).apply { chipSpacingHorizontal = dp(8); tags(this) }, margins(-1, -2, 0, 8, 0, 8))
-        body.addView(
+        val buttons = column()
+        buttons.addView(
             MaterialButton(this).apply {
                 setText(R.string.touch_manager_edit)
                 setIconResource(R.drawable.ic_edit)
@@ -312,6 +330,10 @@ class TouchTemplateActivity : AppCompatActivity() {
             },
             LinearLayout.LayoutParams(-2, -2)
         )
+        if (applyToGame != null) {
+            buttons.addView(textButton(R.string.touch_manager_use_game) { applyToGame() })
+        }
+        body.addView(buttons)
         card.addView(body)
         return card
     }
@@ -462,7 +484,12 @@ class TouchTemplateActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message).setPositiveButton(R.string.touch_manager_close, null).show()
     }
 
-    private fun editPreset(presetId: String) { edit(library.templates.first().id); workspace?.editPreset(presetId) }
+    private fun editPreset(presetId: String) {
+        val owner = library.templates.firstOrNull { template -> template.controls.any { it.swipePresetId == presetId } }
+            ?: library.templates.first()
+        edit(owner.id)
+        workspace?.editPreset(presetId, standalone = true)
+    }
 
     private fun edit(templateId: String) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -477,18 +504,17 @@ class TouchTemplateActivity : AppCompatActivity() {
                 runCatching {
                     library = repository.save(draft, draftBaselineRevision)
                     workspace?.acceptSaved(library)
+                    TouchDraftState.discard(this@TouchTemplateActivity, workspace)
                     toast(R.string.touch_manager_saved)
                 }.onFailure { report(it); throw it }
             }
-            onExit = { showManager() }
+            onExit = { TouchDraftState.discard(this@TouchTemplateActivity, workspace); showManager() }
             setEditing(true)
         }
         setContentView(workspace!!)
     }
 
-    private fun showImportPreview(value: String) {
-        library = repository.load()
-        val preview = TouchImportExport.preview(library, value)
+    private fun showImportPreview(value: String, preview: TouchImportPreview) {
         val summary = importSummary(preview)
         val builder = MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_import_preview)
             .setMessage(summary + "\n\n" + getString(R.string.touch_manager_import_no_association))
@@ -517,28 +543,61 @@ class TouchTemplateActivity : AppCompatActivity() {
     }
 
     private fun import(value: String, resolution: ImportConflictResolution) {
-        runCatching {
-            val result = repository.importBundle(value, library.revision, resolution)
-            library = result.library
-            showManager()
-            val imported = library.templates.filter { it.id in result.templateIds.values }
-            if (imported.isNotEmpty()) {
-                MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_import_complete)
-                    .setMessage(R.string.touch_manager_import_no_association)
-                    .setPositiveButton(if (gameId == null) R.string.touch_manager_open_layout else R.string.touch_manager_use_game) { _, _ ->
-                        MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_choose_imported)
-                            .setItems(imported.map { it.name }.toTypedArray()) { _, index ->
-                                if (gameId == null) {
-                                    edit(imported[index].id)
-                                } else {
-                                    persist(TouchReferences.associateGame(library, gameId!!, imported[index].id))
-                                }
-                            }.setNegativeButton(R.string.touch_manager_cancel, null).show()
-                    }.setNegativeButton(R.string.touch_manager_done, null).show()
-            } else {
-                toast(R.string.touch_manager_presets_imported)
+        val revision = library.revision
+        background {
+            val result = repository.importBundle(value, revision, resolution)
+            withContext(Dispatchers.Main) {
+                library = result.library
+                showManager()
+                val imported = library.templates.filter { it.id in result.templateIds.values }
+                if (imported.isNotEmpty()) {
+                    MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_import_complete)
+                        .setMessage(R.string.touch_manager_import_no_association)
+                        .setPositiveButton(if (gameId == null) R.string.touch_manager_open_layout else R.string.touch_manager_use_game) { _, _ ->
+                            MaterialAlertDialogBuilder(this).setTitle(R.string.touch_manager_choose_imported)
+                                .setItems(imported.map { it.name }.toTypedArray()) { _, index ->
+                                    if (gameId == null) {
+                                        edit(imported[index].id)
+                                    } else {
+                                        persist(TouchReferences.associateGame(library, gameId!!, imported[index].id))
+                                    }
+                                }.setNegativeButton(R.string.touch_manager_cancel, null).show()
+                        }.setNegativeButton(R.string.touch_manager_done, null).show()
+                } else {
+                    toast(R.string.touch_manager_presets_imported)
+                }
             }
-        }.onFailure { report(it) }
+        }
+    }
+
+    private fun clearExportRecovery() {
+        val file = exportRecovery ?: return
+        val directory = File(filesDir, "touch/exports").canonicalFile
+        if (file.canonicalFile.parentFile == directory && file.name.matches(Regex("[0-9a-f-]{36}"))) file.delete()
+        exportRecovery = null
+    }
+
+    private fun background(action: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        val progress = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.touch_manager_working)
+            .setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) })
+            .setCancelable(false)
+            .create()
+        progress.show()
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { action() }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                report(error)
+            } finally {
+                busy = false
+                progress.dismiss()
+            }
+        }
     }
 
     private fun persist(draft: TouchLibrary): Boolean = runCatching {

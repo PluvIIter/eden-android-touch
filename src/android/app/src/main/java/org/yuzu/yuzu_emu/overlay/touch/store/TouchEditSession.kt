@@ -100,13 +100,31 @@ class TouchEditSession(library: TouchLibrary) {
         var copiedId = ""
         update { library ->
             val original = library.templates.firstOrNull { it.id == templateId } ?: error("Unknown template")
+            val referenced = original.controls.filter { it.type == ControlType.SWIPE }.mapNotNull { it.swipePresetId }.toSet()
+            val game = TouchReferences.baseGameId(titleId)
+            require(
+                library.templates.filterNot { it.id == templateId }.associateBy { it.id } ==
+                    baseline.templates.filterNot { it.id == templateId }.associateBy { it.id } &&
+                    library.presets.filterNot { it.id in referenced }.associateBy { it.id } ==
+                    baseline.presets.filterNot { it.id in referenced }.associateBy { it.id } &&
+                    library.defaultTemplateId == baseline.defaultTemplateId &&
+                    library.gameTemplates.filterKeys { it != game } == baseline.gameTemplates.filterKeys { it != game }
+            ) {
+                "Copy for one game cannot publish unrelated edits; save or cancel them separately"
+            }
+            val currentPresetIds = library.presets.mapTo(mutableSetOf()) { it.id }
+            require(baseline.presets.all { it.id in currentPresetIds }) {
+                "Copy for one game cannot remove shared presets"
+            }
+            val baselinePresets = baseline.presets.associateBy { it.id }
+            val changedShared = library.presets.filter { preset ->
+                preset.id in referenced && baselinePresets[preset.id]?.let { it != preset } == true
+            }
+            require(copyModifiedPresets || changedShared.isEmpty()) { "Modified shared presets must be copied for an independent game layout" }
             var copy = TouchReferences.copyTemplate(original)
             copiedId = copy.id
-            val referenced = original.controls.filter { it.type == ControlType.SWIPE }.mapNotNull { it.swipePresetId }.toSet()
             val modified = if (copyModifiedPresets) {
-                library.presets.filter { preset ->
-                    preset.id in referenced && baseline.presets.any { it.id == preset.id && it != preset }
-                }
+                changedShared
             } else {
                 emptyList()
             }
@@ -124,7 +142,7 @@ class TouchEditSession(library: TouchLibrary) {
             val shared = library.copy(
                 templates = library.templates.map { if (it.id == templateId && oldTemplate != null) oldTemplate else it } + copy,
                 presets = library.presets.map { preset ->
-                    if (preset.id in presetIds) baseline.presets.first { it.id == preset.id } else preset
+                    if (preset.id in presetIds) baselinePresets.getValue(preset.id) else preset
                 } + modified.map { it.copy(id = presetIds.getValue(it.id), name = "${it.name} copy") }
             )
             TouchReferences.associateGame(shared, titleId, copy.id)

@@ -41,7 +41,7 @@
     <string name="touch_tools_free_stick">自由摇杆</string>
     <string name="touch_tools_create_default_preset">放置时将创建默认划屏参数模板。</string>
     <string name="touch_tools_tap_default">点按输出（默认 A）</string>
-    <string name="touch_tools_place_hint">下一步将隐藏工具。所有手指抬起后，重新落指放置控件或拖出区域；按返回可恢复工具。</string>
+    <string name="touch_tools_place_hint">工具保持显示；如遮挡放置位置，请先拖走工具，再落指放置控件或拖出区域。</string>
     <string name="touch_tools_place">放置控件</string>
     <string name="touch_tools_enter_name">请输入名称</string>
     <string name="touch_tools_gesture_required">至少设置一个手势输出</string>
@@ -223,4 +223,5 @@
     <string name="touch_tools_enum_gesturedirection_down_left">左下滑</string>
     <string name="touch_tools_enum_gesturedirection_left">左滑</string>
     <string name="touch_tools_enum_gesturedirection_up_left">左上滑</string>
+    <string name="touch_tools_close">关闭窗口</string>
 </resources>

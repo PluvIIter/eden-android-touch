@@ -190,12 +190,58 @@ class TouchRuntimeTest {
             )
         )
         configure(group)
-        runtime.down(1, 95f, 5f, 0)
+        runtime.down(1, 65f, 20f, 0)
         assertEquals(setOf(0, 1), sink.pressed)
         runtime.tick(50)
         assertEquals(setOf(1), sink.pressed)
         runtime.tick(100)
         assertEquals(setOf(0), sink.pressed)
+    }
+
+    @Test fun idleTicksDoNotRepublishUnchangedAggregatesAndActivityHintTracksPulses() {
+        configure(button("button", 0f))
+        assertFalse(runtime.hasActiveInputs())
+        runtime.down(1, 30f, 30f, 0)
+        assertTrue(runtime.hasActiveInputs())
+        for (time in 8L..800L step 8) runtime.tick(time)
+        assertEquals(1, sink.batches.size)
+        runtime.up(1, 30f, 30f, 801)
+        assertFalse(runtime.hasActiveInputs())
+        val count = sink.batches.size
+        for (time in 808L..1600L step 8) runtime.tick(time)
+        assertEquals(count, sink.batches.size)
+    }
+
+    @Test fun transparentDpadCornersFallThroughButCapturedFingerCanSlideOutsideCross() {
+        val group = TouchControl(
+            id = "pad",
+            type = ControlType.BUTTON_GROUP,
+            groupStyle = GroupStyle.DPAD,
+            bounds = TouchRect(0f, 0f, 300f, 300f)
+        )
+        configure(group)
+        runtime.down(1, 5f, 5f, 0)
+        assertEquals(listOf("down:1"), sink.native)
+        assertTrue(sink.pressed.isEmpty())
+        runtime.down(2, 150f, 5f, 1)
+        assertEquals(setOf(3), sink.pressed)
+        runtime.move(2, 295f, 5f, 2)
+        assertEquals(setOf(3, 1), sink.pressed)
+        assertEquals("pad", runtime.snapshot().pointers.last().controlId)
+    }
+
+    @Test fun delayedTurboTicksDeliverAtMostOneEdgeAndExposeActualFrequency() {
+        configure(button("turbo", 0f, turbo = true).copy(binding = ButtonBinding(setOf(0), true, 60f)))
+        runtime.down(1, 30f, 30f, 0)
+        for (time in 16L..1008L step 16) runtime.tick(time)
+        assertEquals(64, sink.batches.size)
+        assertEquals(31.25f, runtime.snapshot().effectiveTurboHz.getValue("pointer:1"))
+        runtime.tick(5000)
+        assertEquals(65, sink.batches.size)
+        runtime.tick(5000)
+        assertEquals(65, sink.batches.size)
+        runtime.cancelAll()
+        assertTrue(runtime.snapshot().effectiveTurboHz.isEmpty())
     }
 
     @Test fun stickOwnershipDoesNotChangeOnMovesAndRestoresCurrentState() {

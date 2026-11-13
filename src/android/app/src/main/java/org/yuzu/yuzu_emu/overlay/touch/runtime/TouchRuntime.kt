@@ -37,9 +37,15 @@ class TouchRuntime(private val sink: InputSink) {
         var motion: SwipeMotion? = null,
         var doubleTap: Boolean = false
     ) {
-        val source: String get() = "pointer:$pointerId"
+        val source: String = "pointer:$pointerId"
     }
-    private data class Repeater(val binding: ButtonBinding, val started: Long)
+    private class Repeater(val binding: ButtonBinding, val started: Long) {
+        val halfPeriodMs = 500.0 / binding.frequencyHz
+        var nextEdgeMs = started + halfPeriodMs
+        var pressed = true
+        var lastEdgeMs = started
+        var effectiveFrequencyHz = binding.frequencyHz
+    }
     private data class Tap(val x: Float, val y: Float, val released: Long)
 
     private val aggregate = InputAggregator(sink)
@@ -49,6 +55,7 @@ class TouchRuntime(private val sink: InputSink) {
     private val pulseOwners = mutableMapOf<String, String>()
     private val taps = mutableMapOf<String, Tap>()
     private var controls: List<TouchControl> = emptyList()
+    private var hitOrder: List<TouchControl> = emptyList()
     private var placements: Map<String, TouchRect> = emptyMap()
     private var presets: Map<String, SwipePreset> = emptyMap()
     private var width = 1f
@@ -93,6 +100,8 @@ class TouchRuntime(private val sink: InputSink) {
         ) { "Overlapping touch areas" }
         cancelAll()
         controls = copied
+        val enabled = copied.asReversed().filter { it.enabled }
+        hitOrder = enabled.filterNot { it.isArea } + enabled.filter { it.isArea }
         this.placements = bounds
         this.presets = presets.associate { it.id to it.copy(curve = it.curve.toList()) }
         width = screenWidth
@@ -138,9 +147,9 @@ class TouchRuntime(private val sink: InputSink) {
         if (!x.isFinite() || !y.isFinite() || pointerId in captures) return
         val time = eventTime(timeMs)
         if (tickTime == null) tickTime = time
-        val candidates = controls.asReversed().filter { it.enabled && (isolatedSwipe == null || it.id == isolatedSwipe) }
-        val control = (candidates.filterNot { it.isArea } + candidates.filter { it.isArea }).firstOrNull {
-            TouchHitGeometry.contains(it, placements.getValue(it.id), x, y)
+        val control = hitOrder.firstOrNull {
+            (isolatedSwipe == null || it.id == isolatedSwipe) &&
+                TouchHitGeometry.contains(it, placements.getValue(it.id), x, y)
         }
         val bounds = control?.let { placements.getValue(it.id) } ?: TouchRect()
         val key = if (control?.type == ControlType.BUTTON_GROUP && control.groupStyle == GroupStyle.FACE) {
@@ -249,14 +258,23 @@ class TouchRuntime(private val sink: InputSink) {
             }
         }
         for ((source, repeater) in repeaters) {
-            val frequency = repeater.binding.frequencyHz.toDouble()
-            val phase = ((time - repeater.started).coerceAtLeast(0) * frequency / 1000.0) % 1.0
-            aggregate.buttons(source, if (!repeater.binding.turbo || phase < 0.5) repeater.binding.buttons else emptySet())
+            if (!repeater.binding.turbo || time < repeater.nextEdgeMs) continue
+            repeater.pressed = !repeater.pressed
+            repeater.effectiveFrequencyHz = minOf(
+                repeater.binding.frequencyHz,
+                (500.0 / (time - repeater.lastEdgeMs).coerceAtLeast(1)).toFloat()
+            )
+            repeater.lastEdgeMs = time
+            repeater.nextEdgeMs = time + repeater.halfPeriodMs
+            aggregate.buttons(source, if (repeater.pressed) repeater.binding.buttons else emptySet())
         }
-        for (source in pulses.filterValues { time >= it }.keys.toList()) {
-            aggregate.remove(source)
-            pulses.remove(source)
-            pulseOwners.remove(source)
+        val pulseIterator = pulses.iterator()
+        while (pulseIterator.hasNext()) {
+            val pulse = pulseIterator.next()
+            if (time < pulse.value) continue
+            aggregate.remove(pulse.key)
+            pulseOwners.remove(pulse.key)
+            pulseIterator.remove()
         }
         aggregate.flush()
         sink.sync()
@@ -284,6 +302,9 @@ class TouchRuntime(private val sink: InputSink) {
     }
 
     @Synchronized
+    fun hasActiveInputs(): Boolean = captures.isNotEmpty() || pulses.isNotEmpty()
+
+    @Synchronized
     fun snapshot(): RuntimeSnapshot = RuntimeSnapshot(
         captures.values.map {
             PointerSnapshot(
@@ -296,7 +317,8 @@ class TouchRuntime(private val sink: InputSink) {
         aggregate.owners().mapValues { (_, source) ->
             captures.values.firstOrNull { it.source == source }?.control?.id ?: pulseOwners[source]
         },
-        captures.values.filter { it.motion?.saturated == true }.mapNotNull { it.control?.id }.toSet()
+        captures.values.filter { it.motion?.saturated == true }.mapNotNull { it.control?.id }.toSet(),
+        repeaters.filterValues { it.binding.turbo }.mapValues { it.value.effectiveFrequencyHz }
     )
 
     private fun eventTime(timeMs: Long): Long {

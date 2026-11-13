@@ -12,6 +12,8 @@ import org.yuzu.yuzu_emu.overlay.touch.model.TouchGeometry
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import java.util.Collections
+import java.util.PriorityQueue
+import java.util.TreeMap
 
 data class TouchValidationIssue(val path: String, val message: String)
 
@@ -158,18 +160,39 @@ object TouchValidator {
                         "Circular buttons must have equal width and height"
                     )
                 }
-                val areas = template.controls.filter { it.isArea }
-                areas.forEachIndexed { index, a ->
-                    areas.drop(index + 1).forEach { b ->
-                        check(
-                            !TouchGeometry.savedBounds(template, screen, a).intersects(TouchGeometry.savedBounds(template, screen, b)),
-                            "$s.areas.${a.id}.${b.id}",
-                            "Areas must not have positive-area overlap"
-                        )
-                    }
+                val areas = template.controls.filter { it.isArea }.map { control ->
+                    SavedArea(control.id, TouchGeometry.savedBounds(template, screen, control))
+                }
+                firstOverlap(areas)?.let { (a, b) ->
+                    check(false, "$s.areas.${a.id}.${b.id}", "Areas must not have positive-area overlap")
                 }
             }
         }
         return issues.toList()
+    }
+
+    private data class SavedArea(val id: String, val bounds: TouchRect)
+
+    private fun firstOverlap(areas: List<SavedArea>): Pair<SavedArea, SavedArea>? {
+        val active = TreeMap<Float, SavedArea>()
+        val endings = PriorityQueue<SavedArea>(compareBy { it.bounds.right })
+        val ordered = areas.filter {
+            val r = it.bounds
+            r.x.isFinite() && r.y.isFinite() && r.right.isFinite() && r.bottom.isFinite() && r.width > 0 && r.height > 0
+        }.sortedBy { it.bounds.x }
+        for (area in ordered) {
+            while (endings.isNotEmpty() && endings.peek().bounds.right <= area.bounds.x) {
+                val ended = endings.remove()
+                active.remove(ended.bounds.y)
+            }
+            // Until the first conflict, active vertical intervals are disjoint; only neighbors can intersect.
+            val lower = active.floorEntry(area.bounds.y)?.value
+            if (lower != null && lower.bounds.bottom > area.bounds.y) return lower to area
+            val upper = active.ceilingEntry(area.bounds.y)?.value
+            if (upper != null && upper.bounds.y < area.bounds.bottom) return upper to area
+            active[area.bounds.y] = area
+            endings.add(area)
+        }
+        return null
     }
 }

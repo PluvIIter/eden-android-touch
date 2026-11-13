@@ -9,10 +9,15 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Rect
+import android.os.Bundle
 import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.customview.widget.ExploreByTouchHelper
 import com.google.android.material.color.MaterialColors
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
@@ -51,9 +56,82 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     private val dash = DashPathEffect(floatArrayOf(dp(7), dp(5)), 0f)
     private val labelTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
+    private val accessibility = object : ExploreByTouchHelper(this) {
+        override fun getVirtualViewAt(x: Float, y: Float): Int {
+            if (!workspace.isEditing) return INVALID_ID
+            return workspace.template.controls.indexOfLast { control ->
+                TouchHitGeometry.contains(control, workspace.placements[control.id] ?: control.bounds, x - workspace.safe.left, y - workspace.safe.top)
+            }.takeIf { it >= 0 } ?: INVALID_ID
+        }
+
+        override fun getVisibleVirtualViews(ids: MutableList<Int>) {
+            if (workspace.isEditing) ids.addAll(workspace.template.controls.indices)
+        }
+
+        override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+            val control = workspace.template.controls.getOrNull(id)
+            node.className = "android.widget.Button"
+            node.contentDescription = control?.let(::controlDescription) ?: context.getString(R.string.touch_canvas_accessibility)
+            val bounds = control?.let { workspace.placements[it.id] ?: it.bounds }
+            node.setBoundsInParent(
+                if (bounds == null) {
+                    Rect(0, 0, 1, 1)
+                } else {
+                    Rect(
+                        (bounds.x + workspace.safe.left).toInt(),
+                        (bounds.y + workspace.safe.top).toInt(),
+                        (bounds.right + workspace.safe.left).toInt(),
+                        (bounds.bottom + workspace.safe.top).toInt()
+                    )
+                }
+            )
+            node.isClickable = control != null
+            node.isSelected = control?.id == workspace.selectedId
+            node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+        }
+
+        override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
+            val control = workspace.template.controls.getOrNull(id) ?: return false
+            if (!workspace.isEditing || action != AccessibilityNodeInfoCompat.ACTION_CLICK) return false
+            workspace.select(control.id)
+            return true
+        }
+    }
+
     init {
         isClickable = true
-        contentDescription = context.getString(R.string.touch_canvas_accessibility)
+        isFocusable = true
+        ViewCompat.setAccessibilityDelegate(this, accessibility)
+    }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean = accessibility.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+
+    private fun controlDescription(control: TouchControl): String {
+        val type = context.getString(
+            when (control.type) {
+                ControlType.BUTTON -> R.string.touch_tools_enum_controltype_button
+                ControlType.BUTTON_GROUP -> R.string.touch_tools_enum_controltype_button_group
+                ControlType.STICK -> R.string.touch_tools_enum_controltype_stick
+                ControlType.SWIPE -> R.string.touch_tools_enum_controltype_swipe
+                ControlType.GESTURE -> R.string.touch_tools_enum_controltype_gesture
+            }
+        )
+        val mapping = if (control.type == ControlType.STICK || control.type == ControlType.SWIPE) {
+            stickName(control.stickTarget)
+        } else {
+            when (control.type) {
+                ControlType.BUTTON_GROUP -> control.groupKeys.flatMap { it.binding.buttons }.toSet()
+                ControlType.GESTURE -> control.gestures.values.mapNotNull { it.button }.toSet()
+                else -> control.binding.buttons
+            }.joinToString(" + ") { buttonName(it) }
+        }
+        return context.getString(
+            R.string.touch_canvas_control_accessibility,
+            control.name,
+            type,
+            mapping,
+            context.getString(if (control.enabled) R.string.touch_canvas_enabled else R.string.touch_canvas_disabled)
+        )
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = workspace.onCanvasTouch(event)
@@ -275,7 +353,6 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 canvas.drawLine(x - sx * dp(2), y + sy * dp(2), x + sx * dp(2), y - sy * dp(2), paint)
             }
         }
-        if (workspace.toolsHidden) return
         val label = context.getString(
             if (control.locked) R.string.touch_canvas_selected_locked else R.string.touch_canvas_selected,
             control.name.ifBlank { control.text }
@@ -308,15 +385,18 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         }
         chip(canvas, context.getString(R.string.touch_canvas_area_label, state, status), w / 2, h - dp(47), (w - dp(24)).coerceAtLeast(1f), secondary)
         chip(canvas, vectors, w / 2, h - dp(22), (w - dp(24)).coerceAtLeast(1f), outline)
+        snapshot.effectiveTurboHz.values.minOrNull()?.let { frequency ->
+            chip(canvas, context.getString(R.string.touch_canvas_turbo_effective, frequency), w / 2, h - dp(76), (w - dp(24)).coerceAtLeast(1f), outline)
+        }
     }
 
     private fun chip(canvas: Canvas, value: String, x: Float, y: Float, maxWidth: Float, accent: Int) {
         if (maxWidth < dp(28)) return
         paint.typeface = labelTypeface
-        paint.textSize = dp(12)
+        paint.textSize = sp(12)
         val contentWidth = min(paint.measureText(value), (maxWidth - dp(18)).coerceAtLeast(1f))
         val width = min(contentWidth + dp(18), maxWidth)
-        val height = dp(25)
+        val height = maxOf(dp(25), paint.fontSpacing + dp(8))
         val cx = x.coerceIn(width / 2, (workspace.safe.width() - width / 2).coerceAtLeast(width / 2))
         val cy = y.coerceIn(height / 2, (workspace.safe.height() - height / 2).coerceAtLeast(height / 2))
         val box = RectF(cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2)
@@ -325,7 +405,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         stroke(accent, dp(0.8f), 0.7f)
         canvas.drawRoundRect(box, dp(7), dp(7), paint)
         fill(ink)
-        text(canvas, value, cx, cy, dp(12), (width - dp(14)).coerceAtLeast(1f))
+        text(canvas, value, cx, cy, sp(12), (width - dp(14)).coerceAtLeast(1f))
     }
 
     private fun shape(canvas: Canvas, rect: TouchRect, circle: Boolean) {
@@ -351,6 +431,8 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         canvas.drawText(fitted, x, y - (paint.ascent() + paint.descent()) / 2, paint)
     }
 
+    private fun buttonName(id: Int): String = listOf("A", "B", "X", "Y", "L3", "R3", "L", "R", "ZL", "ZR", "+", "−", "←", "↑", "→", "↓", "SL", "SR", "Home", "Capture", "SL", "SR").getOrNull(id) ?: id.toString()
+
     private fun stickName(target: StickTarget): String = context.getString(
         if (target == StickTarget.LEFT) R.string.touch_canvas_left_stick else R.string.touch_canvas_right_stick
     )
@@ -369,6 +451,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     }
 
     private fun role(attribute: Int): Int = MaterialColors.getColor(this, attribute)
+    private fun sp(value: Int): Float = value * resources.displayMetrics.scaledDensity
     private fun dp(value: Int): Float = workspace.dp(value)
     private fun dp(value: Float): Float = value * resources.displayMetrics.density
 }

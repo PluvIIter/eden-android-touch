@@ -93,4 +93,5 @@
     <string name="touch_manager_error_io">Cannot access template storage. Check available space and try again.</string>
     <string name="touch_manager_error_format">The file or draft is invalid, incomplete, or uses an unsupported version.</string>
     <string name="touch_manager_error_generic">Cannot update touch templates. Your saved configuration is unchanged.</string>
+    <string name="touch_manager_working">Processing templates…</string>
 </resources>

@@ -93,4 +93,5 @@
     <string name="touch_manager_error_io">无法访问模板存储，请检查可用空间后重试。</string>
     <string name="touch_manager_error_format">文件或草稿无效、内容不完整，或版本不受支持。</string>
     <string name="touch_manager_error_generic">无法更新触控模板，已保存的配置未被更改。</string>
+    <string name="touch_manager_working">正在处理模板…</string>
 </resources>

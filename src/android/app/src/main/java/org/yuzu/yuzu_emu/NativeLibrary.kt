@@ -189,6 +189,8 @@ object NativeLibrary {
      */
     external fun pauseEmulation()
 
+    external fun setStartupPaused(paused: Boolean)
+
     /**
      * Stops emulation.
      */

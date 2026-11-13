@@ -96,9 +96,6 @@ class TouchWorkspaceScreenshotTest {
             writePng(workspace, "$name-toolbar")
             val button = workspace.template.controls.first { it.type == ControlType.BUTTON }
             workspace.select(button.id)
-            workspace.tools.restoreState(
-                TouchToolState(propertyId = button.id, activePanel = "control:${button.id}:0:null")
-            )
             settle(workspace, width, height)
             writePng(workspace, "$name-properties")
             assertTrue("Selected control properties must be open", workspace.tools.hasPanel)
@@ -115,6 +112,19 @@ class TouchWorkspaceScreenshotTest {
             assertNotNull("Property form tabs are missing", tabs)
             assertFullyVisible(workspace, tabs!!, "Property form tabs")
             if (chinese) assertChinese(workspace)
+            val openKeys = workspace.tools.exportState().windows.map { it.key }.toSet()
+            for (actionId in listOf(R.string.touch_tools_controls, R.string.touch_tools_add, R.string.touch_tools_tool_opacity)) {
+                val action = descendants(workspace.tools.getChildAt(0)).filterIsInstance<MaterialButton>()
+                    .single { it.text.toString() == activity.getString(actionId) }
+                action.performClick()
+                settle(workspace, width, height)
+                assertTrue("Opening another tool closed properties", workspace.tools.exportState().windows.map { it.key }.containsAll(openKeys))
+            }
+            assertTrue("Independent tool windows must coexist", workspace.tools.exportState().windows.size >= 4)
+            val count = workspace.tools.exportState().windows.size
+            workspace.tools.closeTopWindow(false)
+            settle(workspace, width, height)
+            assertEquals("Closing one tool must not close others", count - 1, workspace.tools.exportState().windows.size)
             workspace.tools.closePanel()
             workspace.selectedId = null
             workspace.tools.restoreState(TouchToolState())
@@ -158,14 +168,27 @@ class TouchWorkspaceScreenshotTest {
 
     private fun assertToolbar(workspace: TouchWorkspace, toolbar: ViewGroup) {
         val actions = descendants(toolbar).filterIsInstance<MaterialButton>().toList()
-        assertTrue("Toolbar must expose its actions", actions.size >= 3)
+        assertTrue("Toolbar must expose every action without overflow", actions.size >= 8)
+        val required = listOf(
+            R.string.touch_tools_add,
+            R.string.touch_tools_undo,
+            R.string.touch_tools_redo,
+            R.string.touch_tools_controls,
+            R.string.touch_tools_test,
+            R.string.touch_tools_save,
+            R.string.touch_tools_set_base,
+            R.string.touch_tools_tool_opacity
+        )
+        for (id in required) {
+            assertTrue("Missing direct toolbar action ${workspace.context.getString(id)}", actions.any { it.text.toString() == workspace.context.getString(id) })
+        }
         for (action in actions) {
             val label = action.contentDescription ?: (action as? TextView)?.text
             assertFullyVisible(workspace, action, "Toolbar action $label")
             assertTrue("Toolbar action has no accessible label", !label.isNullOrBlank())
         }
         val save = descendants(toolbar).filterIsInstance<MaterialButton>().singleOrNull {
-            it.contentDescription?.toString() == workspace.context.getString(R.string.touch_tools_save)
+            it.text.toString() == workspace.context.getString(R.string.touch_tools_save)
         }
         assertNotNull("Save must have a localized accessibility description", save)
         assertNotNull("Save must use a recognizable icon", save?.icon)

@@ -387,6 +387,15 @@ void EmulationSession::ShutdownEmulation() {
     m_window.reset();
 }
 
+void EmulationSession::SetStartupPaused(bool paused) {
+    std::scoped_lock lock(m_mutex);
+    m_startup_paused = paused;
+    if (paused && m_execution_started) {
+        m_system.Pause();
+        m_is_paused = true;
+    }
+}
+
 void EmulationSession::PauseEmulation() {
     std::scoped_lock lock(m_mutex);
     m_system.Pause();
@@ -402,6 +411,7 @@ void EmulationSession::UnPauseEmulation() {
 void EmulationSession::HaltEmulation() {
     std::scoped_lock lock(m_mutex);
     m_is_running = false;
+    m_execution_started = false;
     m_cv.notify_one();
 }
 
@@ -419,7 +429,14 @@ void EmulationSession::RunEmulation() {
         LoadDiskCacheProgress(VideoCore::LoadCallbackStage::Complete, 0, 0);
     }
 
-    void(m_system.Run());
+    {
+        std::scoped_lock lock(m_mutex);
+        m_execution_started = true;
+        m_is_paused = m_startup_paused;
+        if (!m_startup_paused) {
+            void(m_system.Run());
+        }
+    }
 
     if (m_system.DebuggerEnabled()) {
         m_system.InitializeDebugger();
@@ -931,6 +948,11 @@ jboolean Java_org_yuzu_yuzu_1emu_NativeLibrary_reloadKeys(JNIEnv* env, jclass cl
 
 void Java_org_yuzu_yuzu_1emu_NativeLibrary_unpauseEmulation(JNIEnv* env, jclass clazz) {
     EmulationSession::GetInstance().UnPauseEmulation();
+}
+
+void Java_org_yuzu_yuzu_1emu_NativeLibrary_setStartupPaused(JNIEnv* env, jclass clazz,
+                                                        jboolean paused) {
+    EmulationSession::GetInstance().SetStartupPaused(static_cast<bool>(paused));
 }
 
 void Java_org_yuzu_yuzu_1emu_NativeLibrary_pauseEmulation(JNIEnv* env, jclass clazz) {

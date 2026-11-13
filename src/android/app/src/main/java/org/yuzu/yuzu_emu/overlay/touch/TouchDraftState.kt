@@ -5,29 +5,47 @@ package org.yuzu.yuzu_emu.overlay.touch
 
 import android.content.Context
 import android.os.Bundle
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchDraftStore
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchWorkspace
 import java.io.File
-import java.util.UUID
+import java.util.WeakHashMap
 
 object TouchDraftState {
     private const val KEY = "touch_workspace_draft"
-    private val idPattern = Regex("[0-9a-f-]{36}")
+    private val tokens = WeakHashMap<TouchWorkspace, String>()
 
+    @Synchronized
     fun save(context: Context, state: Bundle, workspace: TouchWorkspace?) {
         if (workspace == null || (!workspace.isEditing && !workspace.isTesting)) return
-        val directory = File(context.filesDir, "touch/drafts")
-        check(directory.isDirectory || directory.mkdirs())
-        val id = UUID.randomUUID().toString()
-        File(directory, id).writeText(workspace.exportDraft(), Charsets.UTF_8)
-        state.putString(KEY, id)
+        val store = store(context)
+        val token = store.save(workspace.exportDraft(), tokens[workspace], workspace)
+        tokens[workspace] = token
+        state.putString(KEY, token)
     }
 
+    @Synchronized
     fun restore(context: Context, state: Bundle?, workspace: TouchWorkspace): Boolean {
-        val id = state?.getString(KEY) ?: return false
-        require(id.matches(idPattern)) { "Invalid touch draft token" }
-        val file = File(context.filesDir, "touch/drafts/$id")
-        require(file.isFile && file.length() <= 16_000_000) { "Saved touch draft is missing or too large" }
-        workspace.restoreDraft(file.readText(Charsets.UTF_8))
+        val token = state?.getString(KEY) ?: return false
+        val store = store(context)
+        val serialized = store.read(token, workspace)
+        tokens[workspace] = token
+        workspace.restoreDraft(serialized)
         return true
     }
+
+    @Synchronized
+    fun discard(context: Context, workspace: TouchWorkspace?) {
+        val token = if (workspace == null) null else tokens.remove(workspace)
+        if (token != null) store(context).discard(token)
+    }
+
+    @Synchronized
+    fun discard(context: Context, state: Bundle?) {
+        val token = state?.getString(KEY) ?: return
+        store(context).discard(token)
+        state.remove(KEY)
+        tokens.entries.removeAll { it.value == token }
+    }
+
+    private fun store(context: Context) = TouchDraftStore(File(context.filesDir, "touch/drafts"))
 }

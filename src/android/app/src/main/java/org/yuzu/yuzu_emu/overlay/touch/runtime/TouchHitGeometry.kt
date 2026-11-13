@@ -41,9 +41,16 @@ object TouchHitGeometry {
         control.isArea -> bounds.contains(x, y)
         control.type == ControlType.BUTTON_GROUP && control.groupStyle == GroupStyle.FACE ->
             keyAt(control, bounds, x, y) != null
-        control.type == ControlType.BUTTON_GROUP -> bounds.contains(x, y)
+        control.type == ControlType.BUTTON_GROUP -> dpadContains(bounds, x, y)
         control.type == ControlType.STICK || control.shape == ControlShape.CIRCLE -> circleContains(bounds, x, y)
         else -> bounds.contains(x, y)
+    }
+
+    fun dpadContains(bounds: TouchRect, x: Float, y: Float): Boolean {
+        if (!bounds.contains(x, y)) return false
+        val size = min(bounds.width, bounds.height) / 3f
+        return abs(x - bounds.x - bounds.width / 2f) <= size / 2f ||
+            abs(y - bounds.y - bounds.height / 2f) <= size / 2f
     }
 
     fun dpadKeys(bounds: TouchRect, x: Float, y: Float): Set<Int> {

@@ -66,13 +66,17 @@ class SwipeMotionTest {
         assertEquals(StickVector(-0.5f, 0f), motion.tick(8, 8))
     }
 
-    @Test fun lowRateEventRetainsItsDistanceWithinBoundedConsumptionWindow() {
+    @Test fun lowRateSampleKeepsItsTrueVelocityRatherThanCompressingHistoryIntoBacklogCap() {
         val motion = SwipeMotion(preset, 1f, 1000f, 0)
         motion.move(8f, 0f, 32)
-        val first = motion.tick(32, 8).x
-        val second = motion.tick(40, 8).x
-        assertEquals(8f, (first + second) * 8f, 0.0001f)
-        assertEquals(0f, motion.tick(48, 8).x)
+        var integral = 0f
+        for (time in listOf(32L, 40L, 48L, 56L)) {
+            val output = motion.tick(time, 8).x
+            assertEquals(0.25f, output, 0.0001f)
+            integral += output * 8f
+        }
+        assertEquals(8f, integral, 0.0001f)
+        assertEquals(0f, motion.tick(64, 8).x)
     }
 
     @Test fun partialTickMotionStillCompensatesAboveGameDeadzone() {
@@ -106,6 +110,69 @@ class SwipeMotionTest {
         motion.move(2f, 0f, 4)
         motion.move(-2f, 0f, 8)
         assertEquals(StickVector(), motion.tick(8, 8))
+    }
+
+    private fun responseIntegral(interval: Int, speed: Float, smoothing: Float, exponent: Float, duration: Int): Double {
+        val motion = SwipeMotion(preset.copy(smoothingMs = smoothing, exponent = exponent), 1f, 1000f, 0)
+        var integral = 0.0
+        for (time in 1..duration + 128) {
+            if (time <= duration && time % interval == 0) motion.move(interval * speed, 0f, time.toLong())
+            if (time % 8 == 0) integral += Math.pow(motion.tick(time.toLong(), 8).x.toDouble(), exponent.toDouble()) * 8
+        }
+        return integral
+    }
+
+    @Test fun nearMaximumUnsaturatedMotionDoesNotLoseDistanceAtLowSamplingRates() {
+        for (interval in listOf(1, 4, 8, 16, 32)) {
+            for (smoothing in listOf(0f, 32f, 100f)) {
+                assertEquals(96.0, responseIntegral(interval, 0.75f, smoothing, 1f, 128), 0.0001)
+            }
+        }
+    }
+
+    @Test fun smoothingConservesRequestedDistanceBeforeNonlinearCompensation() {
+        for (smoothing in listOf(0f, 32f, 100f)) {
+            for (exponent in listOf(0.5f, 1f, 2f, 3f)) {
+                assertEquals(8.0, responseIntegral(8, 0.5f, smoothing, exponent, 16), 0.0001)
+                assertEquals(8.0, responseIntegral(8, 0.0625f, smoothing, exponent, 128), 0.0001)
+            }
+        }
+    }
+
+    @Test fun smoothedCustomResponseConservesDistanceWithoutAxisRotation() {
+        val points = listOf(CurvePoint(0f, 0f), CurvePoint(0.5f, 0.25f), CurvePoint(1f, 1f))
+        val motion = SwipeMotion(preset.copy(smoothingMs = 32f, deadzone = 0.2f, curve = points), 1f, 1000f, 0)
+        var integral = 0.0
+        for (time in 1..160) {
+            if (time <= 16 && time % 8 == 0) motion.move(0f, -4f, time.toLong())
+            if (time % 8 == 0) {
+                val vector = motion.tick(time.toLong(), 8)
+                assertEquals(0f, vector.x)
+                assertTrue(vector.y >= 0f)
+                val native = ((vector.y - 0.2f) / 0.8f).coerceAtLeast(0f)
+                val forward = if (native <= 0.5f) native * 0.5f else 0.25f + (native - 0.5f) * 1.5f
+                integral += forward * 8
+            }
+        }
+        assertEquals(8.0, integral, 0.0001)
+    }
+
+    @Test fun finiteStopDeadlineDiscardsPhysicallyImpossibleTailInsteadOfRunningForever() {
+        val motion = SwipeMotion(preset.copy(smoothingMs = 10000f, stopTimeoutMs = 16, maxAccumulationMs = 16), 1f, 1000f, 0)
+        motion.move(10000f, 0f, 8)
+        for (time in 8L..16L step 8) assertTrue(motion.tick(time, 8).x in 0f..1f)
+        assertEquals(StickVector(), motion.tick(24, 8))
+        assertEquals(StickVector(), motion.tick(32, 8))
+    }
+
+    @Test fun updateUsesNewSnapshotOnlyForSubsequentMotionAndKeepsHistoricalResponse() {
+        val motion = SwipeMotion(preset, 1f, 1000f, 0)
+        motion.move(8f, 0f, 16)
+        assertEquals(0.5f, motion.tick(16, 8).x)
+        motion.update(preset.copy(sensitivityX = 2f, exponent = 2f), 16)
+        assertEquals(0.5f, motion.tick(24, 8).x)
+        motion.move(4f, 0f, 24)
+        assertEquals(1f, motion.tick(32, 8).x)
     }
 
     @Test fun illegalCurvesAndNonFiniteParametersAreRejected() {

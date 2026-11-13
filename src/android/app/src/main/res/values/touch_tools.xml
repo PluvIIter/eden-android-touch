@@ -41,7 +41,7 @@
     <string name="touch_tools_free_stick">Free stick</string>
     <string name="touch_tools_create_default_preset">A default camera preset will be created when placing.</string>
     <string name="touch_tools_tap_default">Tap output (default A)</string>
-    <string name="touch_tools_place_hint">Next: tools disappear. Lift all fingers, then tap to place or draw an area. Back restores tools.</string>
+    <string name="touch_tools_place_hint">Tools remain visible. Drag them away if they cover the placement area, then tap to place or draw the area.</string>
     <string name="touch_tools_place">Place control</string>
     <string name="touch_tools_enter_name">Enter a name</string>
     <string name="touch_tools_gesture_required">At least one gesture output is required</string>
@@ -223,4 +223,5 @@
     <string name="touch_tools_enum_gesturedirection_down_left">Down-left</string>
     <string name="touch_tools_enum_gesturedirection_left">Left</string>
     <string name="touch_tools_enum_gesturedirection_up_left">Up-left</string>
+    <string name="touch_tools_close">Close window</string>
 </resources>

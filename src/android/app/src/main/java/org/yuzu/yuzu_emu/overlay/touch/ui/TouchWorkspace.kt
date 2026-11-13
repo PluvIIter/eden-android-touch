@@ -43,6 +43,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     var onTestState: ((Boolean) -> Unit)? = null
     var onTouchActivity: ((MotionEvent) -> Unit)? = null
     var gameId: String? = null
+    var standalonePresetId: String? = null
+        private set
     val draftBaselineRevision: Long get() = saved.revision
     val baselineRevision: Long get() = saved.revision
     private var inputsSuspended = false
@@ -50,11 +52,13 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     var isEditing: Boolean = true
         private set
     val isTesting: Boolean get() = testing
-    var controlsVisible: Boolean = true
+    private var requestedControlsVisible = true
+    var controlsVisible: Boolean
+        get() = requestedControlsVisible && !layoutRetired
         set(value) {
-            if (field == value) return
+            if (requestedControlsVisible == value) return
             releaseInputs()
-            field = value
+            requestedControlsVisible = value
             configureRuntime()
             canvas.invalidate()
         }
@@ -75,29 +79,30 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     fun exportDraft(): String = Json.encodeToString(
         TouchWorkspaceDraft(
-            gesture?.before ?: draft,
+            gesture?.let(::rollbackGeometry) ?: draft,
             saved,
             templateId,
             selectedId,
             isEditing || testing,
-            tools.exportState()
+            tools.exportState(),
+            standalonePresetId
         )
     )
 
     fun restoreDraft(serialized: String) {
-        val state = Json.decodeFromString<TouchWorkspaceDraft>(serialized)
+        val state = Json { ignoreUnknownKeys = true }.decodeFromString<TouchWorkspaceDraft>(serialized)
         state.requireRestorable(saved.revision)
         releaseInputs()
         tools.closePanel()
         draft = state.draft
         saved = state.saved
         templateId = state.templateId
+        standalonePresetId = state.standalonePresetId
         selectedId = state.selectedId?.takeIf { id -> template.controls.any { it.id == id } }
         testing = false
         isolatedId = null
         debugBefore = null
         isEditing = state.editing
-        toolsHidden = false
         tools.visibility = if (isEditing) VISIBLE else GONE
         onTestState?.invoke(false)
         updateGeometry()
@@ -105,7 +110,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (!isEditing) postFrame()
     }
 
-    fun editPreset(presetId: String) {
+    fun editPreset(presetId: String, standalone: Boolean = false) {
+        standalonePresetId = presetId.takeIf { standalone }
         require(draft.presets.any { it.id == presetId }) { context.getString(R.string.touch_workspace_missing_preset) }
         if (!isEditing) setEditing(true)
         tools.showTuning(presetId, false)
@@ -123,8 +129,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     internal var testing = false
         private set
     internal var isolatedId: String? = null
-        private set
-    internal var toolsHidden = false
         private set
     internal val safe = RectF()
     internal var placements = emptyMap<String, TouchRect>()
@@ -153,8 +157,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private val canvasPointers = mutableSetOf<Int>()
     private val allPointers = mutableSetOf<Int>()
     private var geometryAvailable = true
+    private var layoutRetired = false
     private var waitForFreshDown = false
-    private var restoreAfterPointers = false
     private var pendingControl: TouchControl? = null
     private var adjustSelected = false
     private var gesture: GeometryGesture? = null
@@ -170,9 +174,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         override fun run() {
             framePosted = false
             if (!isAttachedToWindow || inputsSuspended || focusSuspended || windowVisibility != VISIBLE || visibility != VISIBLE) return
-            if (!isEditing) runtime.tick(SystemClock.uptimeMillis())
-            canvas.invalidate()
-            if (!isEditing) postFrame()
+            if (!isEditing) {
+                val before = runtime.snapshot()
+                runtime.tick(SystemClock.uptimeMillis())
+                if (before != runtime.snapshot()) canvas.invalidate()
+                postFrame()
+            }
         }
     }
     private data class GeometryGesture(
@@ -182,6 +189,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val original: TouchRect,
         val before: TouchLibrary,
         val handle: Int,
+        val controlId: String? = null,
         val creating: Boolean = false,
         var moving: Boolean = false,
         var accepted: TouchRect = original
@@ -194,6 +202,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         addView(tools, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            tools.onImeInsets(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
             val changed = insetsLeft != bars.left || insetsTop != bars.top ||
                 insetsRight != bars.right || insetsBottom != bars.bottom
             insetsLeft = bars.left
@@ -217,6 +226,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     fun bind(library: TouchLibrary, templateId: String, gameAvailable: Boolean, sink: InputSink) {
         releaseInputs()
         require(library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_template) }
+        layoutRetired = false
         this.draft = library
         this.saved = library
         this.templateId = templateId
@@ -233,18 +243,29 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     fun setEditing(editing: Boolean) {
+        if (editing && layoutRetired) return
         releaseInputs()
         isEditing = editing
         testing = false
         isolatedId = null
         runtime.setIsolatedSwipe(null)
-        toolsHidden = false
         tools.closePanel()
         tools.visibility = if (editing) VISIBLE else GONE
         if (editing) onTestState?.invoke(false)
         configureRuntime()
         canvas.invalidate()
         if (!editing) postFrame()
+    }
+
+    fun retireLayout() {
+        releaseInputs()
+        if (testing) finishTest(false)
+        layoutRetired = true
+        isEditing = false
+        tools.closeAll()
+        tools.visibility = GONE
+        configureRuntime()
+        canvas.invalidate()
     }
 
     fun suspendInputs() {
@@ -263,13 +284,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         runtime.cancelAll()
         canvasPointers.clear()
         gesture?.let {
-            draft = it.before
+            draft = rollbackGeometry(it)
             placements = TouchGeometry.placements(template, safe.width().coerceAtLeast(1f), safe.height().coerceAtLeast(1f))
         }
         gesture = null
         canvas.preview = null
         waitForFreshDown = true
-        restoreAfterPointers = false
         canvas.invalidate()
     }
 
@@ -284,20 +304,13 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             showTools()
             return true
         }
-        if (toolsHidden) {
-            releaseInputs()
-            pendingControl = null
-            adjustSelected = false
-            showTools()
-            return true
-        }
         if (testing) {
             finishTest(false)
             return true
         }
         if (!isEditing) return false
         if (tools.hasPanel) {
-            tools.cancelPanel()
+            tools.closeTopWindow(false)
             return true
         }
         if (draft != saved) {
@@ -403,50 +416,44 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (undo.isEmpty()) return
         redo.addLast(draft)
         replaceDraft(undo.removeLast())
-        tools.closePanel()
+        tools.closeAll()
     }
 
     internal fun redo() {
         if (redo.isEmpty()) return
         undo.addLast(draft)
         replaceDraft(redo.removeLast())
-        tools.closePanel()
+        tools.closeAll()
     }
 
     internal fun select(id: String) {
-        if (selectedId != id) tools.finishSelectionPanel()
+        if (layoutRetired) return
         selectedId = id
         tools.refreshToolbar()
         canvas.invalidate()
-        tools.avoidSelection()
+        if (isEditing) tools.onControlSelected(id)
     }
 
-    internal fun hideTools(adjust: Boolean = false) {
+    internal fun prepareGeometryAdjustment() {
         hideKeyboard()
-        toolsHidden = true
-        tools.visibility = GONE
-        adjustSelected = adjust
+        adjustSelected = true
         waitForFreshDown = true
-        message(context.getString(R.string.touch_workspace_back_restores))
     }
 
     private fun showTools() {
-        toolsHidden = false
         tools.visibility = if (isEditing || testing) VISIBLE else GONE
         tools.refreshToolbar()
-        tools.avoidSelection()
     }
 
     internal fun beginPlacement(control: TouchControl) {
-        tools.closePanel()
         pendingControl = control
         selectedId = null
-        hideTools()
+        waitForFreshDown = true
         canvas.invalidate()
     }
 
-    internal fun deleteSelected() {
-        val id = selectedId ?: return
+    internal fun deleteSelected(controlId: String? = selectedId) {
+        val id = controlId ?: return
         checkpoint()
         replaceTemplate(
             template.copy(
@@ -455,12 +462,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             )
         )
         selectedId = null
-        tools.closePanel()
         tools.refreshToolbar()
     }
 
-    internal fun duplicateSelected() {
-        val value = selected ?: return
+    internal fun duplicateSelected(controlId: String? = selectedId) {
+        val value = template.controls.firstOrNull { it.id == controlId } ?: return
         val copy = value.copy(
             id = newTouchId(),
             name = context.getString(R.string.touch_workspace_copy_name, value.name),
@@ -469,8 +475,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         beginPlacement(copy)
     }
 
-    internal fun reorderSelected(front: Boolean) {
-        val value = selected ?: return
+    internal fun reorderSelected(front: Boolean, controlId: String? = selectedId) {
+        val value = template.controls.firstOrNull { it.id == controlId } ?: return
         if (value.isArea) { message(context.getString(R.string.touch_workspace_area_layer)); return }
         checkpoint()
         val others = template.controls.filterNot { it.id == value.id }
@@ -478,6 +484,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun startTest(isolate: Boolean) {
+        if (layoutRetired) return
         val control = selected
         if (isolate && (!gameAvailable || control?.type != ControlType.SWIPE || !control.enabled)) {
             message(context.getString(R.string.touch_workspace_select_swipe))
@@ -494,7 +501,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         hideKeyboard()
         releaseInputs()
         debugBefore = draft
-        tools.closePanel()
         testing = true
         isEditing = false
         isolatedId = if (isolate) control?.id else null
@@ -503,11 +509,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         runtime.setIsolatedSwipe(isolatedId)
         onTestState?.invoke(gameAvailable)
         if (isolate) {
-            toolsHidden = false
             tools.visibility = VISIBLE
             tools.showTuning(control!!.swipePresetId!!, true)
         } else {
-            hideTools()
+            waitForFreshDown = true
         }
         postFrame()
     }
@@ -515,7 +520,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     internal fun finishTest(rollback: Boolean) {
         releaseInputs()
         if (rollback) {
-            debugBefore?.let { draft = it }
+            val presetId = template.controls.firstOrNull { it.id == isolatedId }?.swipePresetId
+            debugBefore?.presets?.firstOrNull { it.id == presetId }?.let { old ->
+                draft = draft.copy(presets = draft.presets.map { if (it.id == old.id) old else it })
+            }
         } else if (debugBefore != draft) debugBefore?.let { checkpoint(it) }
         debugBefore = null
         testing = false
@@ -524,12 +532,13 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         runtime.setIsolatedSwipe(null)
         runtime.setTouchscreenEnabled(touchscreenEnabled)
         onTestState?.invoke(false)
-        tools.closePanel()
         updateGeometry()
         showTools()
     }
 
     internal fun save(exit: Boolean = false) {
+        if (layoutRetired) return
+        if (!tools.validateAndCompleteAll()) return
         val issues = TouchValidator.validate(draft)
         if (issues.isNotEmpty()) {
             MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_invalid_title))
@@ -548,6 +557,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             val previousDraft = draft
             val previousTemplate = templateId
             val previousSaved = saved
+            standalonePresetId?.let { id ->
+                val preset = draft.presets.firstOrNull { it.id == id } ?: return
+                draft = saved.copy(presets = saved.presets.map { if (it.id == id) preset else it })
+            }
             if (copyForGame) {
                 val session = TouchEditSession(saved)
                 session.update { draft }
@@ -584,7 +597,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             )
             .setPositiveButton(context.getString(R.string.touch_workspace_sync)) { _, _ -> commit(false) }
             .setNegativeButton(context.getString(R.string.touch_workspace_cancel), null)
-        if (gameId != null) dialog.setNeutralButton(context.getString(R.string.touch_workspace_copy_game)) { _, _ -> commit(true) }
+        if (gameId != null && standalonePresetId == null) dialog.setNeutralButton(context.getString(R.string.touch_workspace_copy_game)) { _, _ -> commit(true) }
         dialog.show()
     }
 
@@ -636,10 +649,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> allPointers -= event.getPointerId(event.actionIndex)
             MotionEvent.ACTION_CANCEL -> allPointers.clear()
         }
-        if (allPointers.isEmpty() && restoreAfterPointers) {
-            restoreAfterPointers = false
-            post { if (allPointers.isEmpty()) showTools() else restoreAfterPointers = true }
-        }
         return handled
     }
 
@@ -686,7 +695,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 runtime.cancelAll()
                 cancelGeometry()
                 canvasPointers.clear()
-                if (restoreAfterPointers) { restoreAfterPointers = false; showTools() }
             }
         }
         canvas.invalidate()
@@ -706,7 +714,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     size
                 )
             }
-            gesture = GeometryGesture(pointer, x, y, rect, draft, 4, true, true)
+            gesture = GeometryGesture(pointer, x, y, rect, draft, 4, control.id, true, true)
             canvas.preview = control.copy(bounds = rect)
             return
         }
@@ -720,7 +728,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         select(value.id)
         if (value.locked) { message(context.getString(R.string.touch_workspace_locked)); return }
         val rect = placements[value.id] ?: value.bounds
-        gesture = GeometryGesture(pointer, x, y, rect, draft, handle)
+        gesture = GeometryGesture(pointer, x, y, rect, draft, handle, value.id)
     }
 
     private fun moveGeometry(event: MotionEvent) {
@@ -733,12 +741,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val dy = y - state.startY
         if (!state.moving && max(abs(dx), abs(dy)) < ViewConfiguration.get(context).scaledTouchSlop) return
         if (!state.moving) {
-            tools.finishSelectionPanel()
             state.moving = true
-            toolsHidden = true
-            tools.visibility = GONE
         }
-        val control = if (state.creating) pendingControl else selected
+        val control = if (state.creating) pendingControl else template.controls.firstOrNull { it.id == state.controlId }
         if (control == null) return
         val original = state.original
         var rect = if (state.creating && control.isArea) {
@@ -834,13 +839,33 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             }
             canvas.preview = null
         } else if (state.moving && draft != state.before) checkpoint(state.before)
-        if (state.moving) restoreAfterPointers = pendingControl == null
         adjustSelected = false
         tools.refreshToolbar()
     }
 
+    private fun rollbackGeometry(state: GeometryGesture): TouchLibrary {
+        if (state.creating) return draft
+        val id = state.controlId ?: return draft
+        val oldTemplate = state.before.templates.firstOrNull { it.id == templateId } ?: return draft
+        return draft.copy(
+            templates = draft.templates.map { current ->
+                if (current.id != templateId) {
+                    current
+                } else {
+                    current.copy(
+                        screens = current.screens.map { screen ->
+                            val old = oldTemplate.screens.firstOrNull { it.id == screen.id }
+                            val rect = old?.placements?.get(id)
+                            screen.copy(placements = if (rect == null) screen.placements - id else screen.placements + (id to rect))
+                        }
+                    )
+                }
+            }
+        )
+    }
+
     private fun cancelGeometry() {
-        gesture?.let { draft = it.before }
+        gesture?.let { draft = rollbackGeometry(it) }
         gesture = null
         canvas.preview = null
         pendingControl = null
@@ -863,7 +888,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private fun configureRuntime() {
         if (safe.width() <= 0 || safe.height() <= 0) return
         try {
-            val runtimeTemplate = if (!controlsVisible && !isEditing && !testing) template.copy(controls = emptyList()) else template
+            val runtimeTemplate = if (layoutRetired || (!controlsVisible && !isEditing && !testing)) template.copy(controls = emptyList()) else template
             runtime.configure(runtimeTemplate, placements, draft.presets, safe.width(), safe.height(), resources.displayMetrics.density)
             runtime.setIsolatedSwipe(isolatedId)
             runtime.setTouchscreenEnabled(touchscreenEnabled && isolatedId == null)
@@ -897,7 +922,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             lastHeight = h.toFloat()
         }
         updateGeometry()
-        tools.post { tools.avoidSelection() }
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {

@@ -41,6 +41,7 @@ public:
 
     bool IsRunning() const;
     bool IsPaused() const;
+    void SetStartupPaused(bool paused);
     void PauseEmulation();
     void UnPauseEmulation();
     void HaltEmulation();
@@ -84,6 +85,8 @@ private:
     Core::SystemResultStatus m_load_result{Core::SystemResultStatus::ErrorNotInitialized};
     std::atomic<bool> m_is_running = false;
     std::atomic<bool> m_is_paused = false;
+    bool m_startup_paused = false;
+    bool m_execution_started = false;
     Common::Android::SoftwareKeyboard::AndroidKeyboard* m_software_keyboard{};
     std::unique_ptr<FileSys::ManualContentProvider> m_manual_provider;
     int m_applet_id{1};

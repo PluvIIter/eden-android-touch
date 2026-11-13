@@ -13,7 +13,8 @@ internal data class TouchWorkspaceDraft(
     val templateId: String,
     val selectedId: String?,
     val editing: Boolean,
-    val tools: TouchToolState = TouchToolState()
+    val tools: TouchToolState = TouchToolState(),
+    val standalonePresetId: String? = null
 ) {
     fun requireRestorable(revision: Long) {
         require(saved.revision == revision) { "Saved library changed since this draft; reload or save a copy" }
