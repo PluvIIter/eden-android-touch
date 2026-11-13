@@ -67,8 +67,9 @@ jobs:
         working-directory: src/android
         run: |
           ./gradlew :app:assembleMainlineDebug --build-cache --max-workers=2 \
-            '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' \
-            '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF' --stacktrace
+            '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8' \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF -DCMAKE_JOB_POOLS=compile=2;link=1 -DCMAKE_JOB_POOL_COMPILE=compile -DCMAKE_JOB_POOL_LINK=link' --stacktrace
 
       - uses: actions/cache/save@v4
         if: always()
