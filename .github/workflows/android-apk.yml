@@ -62,6 +62,7 @@ jobs:
           path: |
             src/android/app/.cxx
             src/android/app/build/intermediates/cxx
+            externals/generated/sdl
           key: android-native-v1-${{ runner.os }}-${{ hashFiles('**/*.cpp', '**/*.cppm', '**/*.c', '**/*.h', '**/*.hpp', '**/*.S', '**/*.cmake', '**/CMakeLists.txt', 'cpmfile.json', '.patch/**', 'src/android/*.gradle.kts', 'src/android/gradle.properties', 'src/android/app/build.gradle.kts', 'src/android/gradle/wrapper/gradle-wrapper.properties', '.github/workflows/android-apk.yml', '!.cache/**', '!src/android/app/.cxx/**', '!src/android/app/build/**') }}
 
       - name: Build one APK
@@ -89,6 +90,7 @@ jobs:
           path: |
             src/android/app/.cxx
             src/android/app/build/intermediates/cxx
+            externals/generated/sdl
           key: ${{ steps.native.outputs.cache-primary-key }}
 
       - name: Cache statistics
