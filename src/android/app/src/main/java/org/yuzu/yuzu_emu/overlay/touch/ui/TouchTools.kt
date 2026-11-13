@@ -158,7 +158,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         super.onSizeChanged(w, h, oldw, oldh)
         post {
             toolbarPosition?.let { applyPosition(toolbar, it) }
-            panel?.let { view -> panelPosition?.let { applyPosition(view, it) } }
+            panel?.let { view ->
+                view.layoutParams?.let { params ->
+                    params.height = if (panelCollapsed) px(64) else panelHeight()
+                    view.layoutParams = params
+                }
+                panelPosition?.let { applyPosition(view, it) }
+            }
+            post { avoidSelection() }
         }
     }
 
@@ -309,6 +316,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 panelCollapsed = !panelCollapsed
                 panelScroll?.visibility = if (panelCollapsed) GONE else VISIBLE
                 panelFooter?.visibility = if (panelCollapsed) GONE else VISIBLE
+                surface.layoutParams?.let { params ->
+                    params.height = if (panelCollapsed) px(64) else panelHeight()
+                    surface.layoutParams = params
+                }
+                post { avoidSelection() }
             }
         )
         draggable(header, surface)
@@ -321,15 +333,15 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             visibility = if (panelCollapsed) GONE else VISIBLE
         }
         panelScroll = scroll
-        content.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, panelHeight()))
+        content.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         panelFooter = row().apply { gravity = Gravity.END; visibility = GONE }
         content.addView(panelFooter, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        surface.addView(content)
+        surface.addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(
             surface,
-            LayoutParams(panelWidth(), LayoutParams.WRAP_CONTENT).apply {
-                leftMargin = px(16)
-                topMargin = px(140)
+            LayoutParams(panelWidth(), if (panelCollapsed) px(64) else panelHeight()).apply {
+                leftMargin = px(8)
+                topMargin = px(72)
             }
         )
         post {
@@ -355,25 +367,39 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         val occupied = mutableListOf<RectF>()
         for (view in listOfNotNull(toolbar, panel)) {
-            if (view.visibility != VISIBLE || view.width <= 0 || width <= 0) continue
-            val maxX = max(0f, width - view.width - px(8f))
-            val maxY = max(0f, height - view.height - px(8f))
+            if (view.visibility != VISIBLE || view.width <= 0 || width <= 0 || height <= 0) continue
+            val margin = px(8f)
+            val minX = margin
+            val minY = margin
+            val maxX = max(minX, width - view.width - margin)
+            val maxY = max(minY, height - view.height - margin)
+            val belowToolbar = toolbar.y + toolbar.height + margin
             val candidates = listOf(
                 view.x to view.y,
-                px(8f) to px(8f),
-                maxX to px(8f),
-                px(8f) to maxY,
+                minX to belowToolbar,
+                maxX to belowToolbar,
+                minX to minY,
+                maxX to minY,
+                minX to maxY,
                 maxX to maxY
+            ).distinct().filter { (x, y) ->
+                x >= minX && y >= minY && x + view.width <= width - margin + 0.01f &&
+                    y + view.height <= height - margin + 0.01f
+            }
+            fun rect(position: Pair<Float, Float>) = RectF(
+                position.first,
+                position.second,
+                position.first + view.width,
+                position.second + view.height
             )
-            val position = candidates.firstOrNull { (x, y) ->
-                val r = RectF(x, y, x + view.width, y + view.height)
-                (avoid == null || !RectF.intersects(r, avoid)) && occupied.none { RectF.intersects(r, it) }
-            }
-            if (position != null) { view.x = position.first.coerceIn(0f, maxX); view.y = position.second.coerceIn(0f, maxY) } else if (view == toolbar && !collapsed) { collapsed = true; refreshToolbar() } else if (view == panel && !panelCollapsed && !workspace.testing) {
-                panelCollapsed = true
-                panelScroll?.visibility = GONE
-            }
-            occupied += RectF(view.x, view.y, view.x + view.width, view.y + view.height)
+            val position = candidates.firstOrNull { candidate ->
+                val bounds = rect(candidate)
+                (avoid == null || !RectF.intersects(bounds, avoid)) && occupied.none { RectF.intersects(bounds, it) }
+            } ?: candidates.firstOrNull { candidate -> occupied.none { RectF.intersects(rect(candidate), it) } }
+                ?: (view.x.coerceIn(minX, maxX) to view.y.coerceIn(minY, maxY))
+            view.x = position.first
+            view.y = position.second
+            occupied += rect(position)
         }
     }
 
@@ -1418,7 +1444,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
     private fun card() = MaterialCardView(context).apply {
         radius = px(16f)
-        cardElevation = px(2f)
+        cardElevation = 0f
         strokeWidth = px(1)
         strokeColor = themeColor(com.google.android.material.R.attr.colorOutline)
         setCardBackgroundColor(surfaceColor())
@@ -1430,7 +1456,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
     private fun toolbarWidth() = min(px(680), max(px(200), workspace.width - px(24)))
     private fun panelWidth() = min(px(340), max(px(180), workspace.width - px(24)))
-    private fun panelHeight() = max(px(96), min(px(400), workspace.height - px(160)))
+    private fun panelHeight() = min(px(480), (workspace.height - px(88)).coerceAtLeast(px(112)))
     private fun px(value: Int) = (value * resources.displayMetrics.density).roundToInt()
     private fun px(value: Float) = value * resources.displayMetrics.density
     private fun format(value: Float) = if (abs(value - value.roundToInt()) < 0.0001f) value.roundToInt().toString() else "%.3f".format(java.util.Locale.ROOT, value)

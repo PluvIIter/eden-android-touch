@@ -97,6 +97,18 @@ class TouchWorkspaceScreenshotTest {
             settle(workspace, width, height)
             writePng(workspace, "$name-properties")
             assertTrue("Selected control properties must be open", workspace.tools.hasPanel)
+            val propertyCard = workspace.tools.getChildAt(1)
+            assertFullyVisible(workspace, propertyCard, "Property card")
+            for (labelId in listOf(R.string.touch_tools_cancel, R.string.touch_tools_done)) {
+                val label = activity.getString(labelId)
+                val action = descendants(propertyCard).filterIsInstance<MaterialButton>()
+                    .firstOrNull { it.text.toString() == label }
+                assertNotNull("Property action $label is missing", action)
+                assertFullyVisible(workspace, action!!, "Property action $label")
+            }
+            val tabs = descendants(propertyCard).filterIsInstance<com.google.android.material.tabs.TabLayout>().firstOrNull()
+            assertNotNull("Property form tabs are missing", tabs)
+            assertFullyVisible(workspace, tabs!!, "Property form tabs")
             if (chinese) assertChinese(workspace)
             workspace.tools.closePanel()
             workspace.selectedId = null
