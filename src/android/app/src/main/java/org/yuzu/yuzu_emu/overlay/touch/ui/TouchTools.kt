@@ -334,7 +334,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         panelScroll = scroll
         content.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
-        panelFooter = row().apply { gravity = Gravity.END; visibility = GONE }
+        panelFooter = row().apply {
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            minimumHeight = px(48)
+            visibility = GONE
+        }
         content.addView(panelFooter, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         surface.addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(
@@ -571,8 +575,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         panelFooter?.apply {
             visibility = if (panelCollapsed) GONE else VISIBLE
-            addView(button(s(R.string.touch_tools_cancel)) { cancelPanel() })
-            addView(primaryButton(s(R.string.touch_tools_done)) { if (validFields()) { workspace.hideKeyboard(); completePanel() } })
+            addView(button(s(R.string.touch_tools_cancel)) { cancelPanel() },
+                LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, px(48)))
+            addView(primaryButton(s(R.string.touch_tools_done)) { if (validFields()) { workspace.hideKeyboard(); completePanel() } },
+                LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, px(48)))
         }
         body.addView(
             button(s(R.string.touch_tools_adjust)) {
@@ -1436,7 +1442,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(8), px(8), px(8)) }
-    private fun row() = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+    private fun row() = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isBaselineAligned = false
+    }
     private fun horizontal(view: View) = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
         addView(view)

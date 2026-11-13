@@ -177,18 +177,20 @@ class TouchWorkspaceScreenshotTest {
         workspace.offsetDescendantRectToMyCoords(view, bounds)
         assertTrue("$label extends beyond the workspace: $bounds", Rect(0, 0, workspace.width, workspace.height).contains(bounds))
         var child = view
+        val ancestry = StringBuilder()
         val visible = android.graphics.RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
         while (child !== workspace) {
             assertEquals("$label is hidden by an ancestor", View.VISIBLE, child.visibility)
             val parent = child.parent as? ViewGroup ?: error("$label is outside the workspace")
             visible.offset(child.x - parent.scrollX, child.y - parent.scrollY)
+            ancestry.append("${child.javaClass.simpleName}(${child.width}x${child.height},${child.x},${child.y}) -> ${parent.javaClass.simpleName}(${parent.width}x${parent.height}); ")
             if (parent.clipChildren) {
                 assertTrue("$label has no visible area", visible.intersect(0f, 0f, parent.width.toFloat(), parent.height.toFloat()))
             }
             child = parent
         }
         assertEquals("$label is horizontally clipped inside the workspace", view.width.toFloat(), visible.width(), 0.5f)
-        assertEquals("$label is vertically clipped inside the workspace", view.height.toFloat(), visible.height(), 0.5f)
+        assertEquals("$label is vertically clipped inside the workspace: $ancestry", view.height.toFloat(), visible.height(), 0.5f)
     }
 
     private fun assertChinese(workspace: TouchWorkspace) {
