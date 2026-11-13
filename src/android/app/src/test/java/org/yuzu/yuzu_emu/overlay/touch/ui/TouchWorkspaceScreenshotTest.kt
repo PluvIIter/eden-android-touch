@@ -4,6 +4,7 @@
 package org.yuzu.yuzu_emu.overlay.touch.ui
 
 import android.app.Application
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
@@ -76,6 +77,11 @@ class TouchWorkspaceScreenshotTest {
             controller.setup().visible()
             assertEquals(2f, activity.resources.displayMetrics.density, 0.01f)
             assertEquals(if (chinese) "zh" else "en", activity.resources.configuration.locales[0].language)
+            val nightMode = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            assertEquals(
+                if ("dark" in name) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO,
+                nightMode
+            )
             val library = TouchDefaultLibrary.create(activity)
             val workspace = TouchWorkspace(activity)
             workspace.bind(library, library.templates.first().id, false, object : InputSink {})
