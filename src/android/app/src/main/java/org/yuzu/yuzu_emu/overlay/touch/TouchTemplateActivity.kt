@@ -319,19 +319,19 @@ class TouchTemplateActivity : AppCompatActivity() {
         body.addView(heading)
         body.addView(label(metadata, true))
         body.addView(ChipGroup(this).apply { chipSpacingHorizontal = dp(8); tags(this) }, margins(-1, -2, 0, 8, 0, 8))
-        val buttons = column()
+        val buttons = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false }
         buttons.addView(
-            MaterialButton(this).apply {
+            MaterialButton(ContextThemeWrapper(this, R.style.TouchButton_Theme_Primary), null, com.google.android.material.R.attr.materialButtonStyle).apply {
                 setText(R.string.touch_manager_edit)
                 setIconResource(R.drawable.ic_edit)
                 isAllCaps = false
                 setOnClickListener { edit() }
                 contentDescription = getString(R.string.touch_manager_edit_named, name)
             },
-            LinearLayout.LayoutParams(-2, -2)
+            LinearLayout.LayoutParams(0, -2, 1f)
         )
         if (applyToGame != null) {
-            buttons.addView(textButton(R.string.touch_manager_use_game) { applyToGame() })
+            buttons.addView(textButton(R.string.touch_manager_use_game) { applyToGame() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
         }
         body.addView(buttons)
         card.addView(body)
@@ -634,7 +634,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         textSize = if (secondary) 14f else 16f
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
     }
-    private fun textButton(title: Int, action: () -> Unit) = MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+    private fun textButton(title: Int, action: () -> Unit) = MaterialButton(ContextThemeWrapper(this, R.style.TouchButton_Theme_Text), null, com.google.android.material.R.attr.materialButtonStyle).apply {
         setText(title); isAllCaps = false; setOnClickListener { action() }
     }
     private fun margins(width: Int, height: Int, left: Int, top: Int, right: Int, bottom: Int) = LinearLayout.LayoutParams(width, height).apply {

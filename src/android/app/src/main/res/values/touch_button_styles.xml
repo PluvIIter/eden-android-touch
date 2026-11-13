@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="TouchButton.Base" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="iconSize">18dp</item>
+        <item name="iconPadding">4dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+    <style name="TouchButton.Text" parent="TouchButton.Base">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="iconTint">?attr/colorOnSurface</item>
+    </style>
+    <style name="TouchButton.Primary" parent="TouchButton.Base">
+        <item name="backgroundTint">?attr/colorPrimary</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+        <item name="iconTint">?attr/colorOnPrimary</item>
+    </style>
+    <style name="TouchButton.Secondary" parent="TouchButton.Base">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="strokeColor">?attr/colorSecondary</item>
+        <item name="android:textColor">?attr/colorSecondary</item>
+        <item name="iconTint">?attr/colorSecondary</item>
+    </style>
+    <style name="TouchButton.Theme.Text" parent="">
+        <item name="materialButtonStyle">@style/TouchButton.Text</item>
+    </style>
+    <style name="TouchButton.Theme.Primary" parent="">
+        <item name="materialButtonStyle">@style/TouchButton.Primary</item>
+    </style>
+    <style name="TouchButton.Theme.Secondary" parent="">
+        <item name="materialButtonStyle">@style/TouchButton.Secondary</item>
+    </style>
+</resources>

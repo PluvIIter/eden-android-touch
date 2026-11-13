@@ -74,10 +74,11 @@ jobs:
           args=(--build-cache --max-workers=2
             '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8'
             -Pkotlin.compiler.execution.strategy=in-process
+            -PtouchAcceptance=true
             '-PYUZU_ANDROID_ARGS=-DUSE_CCACHE=ON -DENABLE_LTO=OFF -DCMAKE_JOB_POOLS=compile=2;link=1 -DCMAKE_JOB_POOL_COMPILE=compile -DCMAKE_JOB_POOL_LINK=link'
             --stacktrace)
-          ./gradlew ':app:configureCMakeDebug[arm64-v8a]' "${args[@]}"
-          ./gradlew :app:assembleMainlineDebug "${args[@]}"
+          ./gradlew ':app:configureCMakeRelease[arm64-v8a]' "${args[@]}"
+          ./gradlew :app:assembleMainlineRelease "${args[@]}"
 
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-primary-key != ''
@@ -103,7 +104,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: eden-touch-arm64-${{ github.run_number }}
-          path: src/android/app/build/outputs/apk/mainline/debug/*.apk
+          path: src/android/app/build/outputs/apk/mainline/release/*.apk
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

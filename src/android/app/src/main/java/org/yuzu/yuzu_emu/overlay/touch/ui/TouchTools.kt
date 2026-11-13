@@ -325,15 +325,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             toolbarWidth() >= px(320) -> 4
             else -> 2
         }
-        buttons.forEach { action ->
-            action.minHeight = px(48)
-            action.minimumHeight = px(48)
-            action.setPadding(px(4), px(4), px(4), px(4))
-            action.textSize = 13f
-            action.maxLines = 2
-        }
+        buttons.forEach { action -> action.maxLines = 2 }
         buttons.chunked(columns).forEach { group ->
-            val line = row()
+            val line = actionRow()
             group.forEach { button -> line.addView(button, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)) }
             actions.addView(line)
         }
@@ -354,7 +348,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         header.addView(label(name, 16f), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         val body = column()
         val scroll = ScrollView(context).apply { isFillViewport = false; addView(body) }
-        val footer = row().apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        val footer = actionRow()
         val window = ToolWindow(snapshot, surface, body, footer, scroll)
         windows[key] = window
         current = window
@@ -561,20 +555,20 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         panelFooter?.apply {
             visibility = VISIBLE
             addView(
-                button(s(R.string.touch_tools_cancel)) { cancelPanel() },
-                LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+                secondaryButton(s(R.string.touch_tools_cancel)) { cancelPanel() },
+                LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
             )
             addView(
                 primaryButton(s(R.string.touch_tools_done)) { if (validFields()) { workspace.hideKeyboard(); completePanel() } },
-                LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+                LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
             )
         }
 
         val controlWindow = current
-        val actions = row()
-        actions.addView(button(s(R.string.touch_tools_duplicate)) { workspace.duplicateSelected(control.id) }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        val actions = actionRow()
+        actions.addView(secondaryButton(s(R.string.touch_tools_duplicate)) { workspace.duplicateSelected(control.id) }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         actions.addView(
-            button(s(R.string.touch_tools_delete)) {
+            secondaryButton(s(R.string.touch_tools_delete)) {
                 MaterialAlertDialogBuilder(context).setTitle(s(R.string.touch_tools_delete_confirm, control.name))
                     .setNegativeButton(s(R.string.touch_tools_cancel), null).setPositiveButton(s(R.string.touch_tools_delete)) { _, _ ->
                         workspace.deleteSelected(control.id)
@@ -584,8 +578,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
         )
         body.addView(actions)
-        body.addView(button(s(R.string.touch_tools_bring_forward)) { workspace.reorderSelected(true, control.id) })
-        body.addView(button(s(R.string.touch_tools_send_backward)) { workspace.reorderSelected(false, control.id) })
+        val layerActions = actionRow()
+        layerActions.addView(secondaryButton(s(R.string.touch_tools_bring_forward)) { workspace.reorderSelected(true, control.id) },
+            LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        layerActions.addView(secondaryButton(s(R.string.touch_tools_send_backward)) { workspace.reorderSelected(false, control.id) },
+            LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        body.addView(layerActions)
     }
 
     private fun inputProperties(body: LinearLayout, control: TouchControl, before: TouchLibrary) {
@@ -1207,6 +1205,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         body.addView(
             MaterialSwitch(context).apply {
                 text = title; isChecked = checked; minHeight = px(48)
+                includeFontPadding = false
+                gravity = Gravity.CENTER_VERTICAL
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+                setPadding(0, px(8), 0, px(8))
                 setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
                 setOnCheckedChangeListener { _, value -> update(value) }
             }
@@ -1363,51 +1365,46 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
     }
 
-    private fun button(text: String, click: () -> Unit): MaterialButton {
-        val owner = current
-        return MaterialButton(
-            context,
-            null,
-            0
-        ).apply {
-            this.text = text
-            backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
-            strokeWidth = 0
-            isAllCaps = false
-            minHeight = px(48)
-            minimumHeight = px(48)
-            minWidth = 0
-            minimumWidth = 0
-            insetTop = 0
-            insetBottom = 0
-            setPadding(px(12), px(4), px(12), px(4))
-            setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface))
-            setOnClickListener { within(owner) { click() } }
-        }
-    }
+    private fun button(text: String, click: () -> Unit): MaterialButton = themedButton(
+        text, R.style.TouchButton_Text, click
+    )
 
-    private fun primaryButton(text: String, click: () -> Unit): MaterialButton {
+    private fun secondaryButton(text: String, click: () -> Unit): MaterialButton = themedButton(
+        text, R.style.TouchButton_Secondary, click
+    )
+
+    private fun primaryButton(text: String, click: () -> Unit): MaterialButton = themedButton(
+        text, R.style.TouchButton_Primary, click
+    )
+
+    private fun themedButton(text: String, style: Int, click: () -> Unit): MaterialButton {
         val owner = current
-        return MaterialButton(context).apply {
+        return MaterialButton(androidx.appcompat.view.ContextThemeWrapper(context, when (style) {
+            R.style.TouchButton_Primary -> R.style.TouchButton_Theme_Primary
+            R.style.TouchButton_Secondary -> R.style.TouchButton_Theme_Secondary
+            else -> R.style.TouchButton_Theme_Text
+        }), null, com.google.android.material.R.attr.materialButtonStyle).apply {
             this.text = text
             contentDescription = text
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            letterSpacing = 0.02f
             isAllCaps = false
-            minWidth = 0
-            minimumWidth = 0
             minHeight = px(48)
             minimumHeight = px(48)
+            minWidth = 0
+            minimumWidth = 0
             insetTop = 0
             insetBottom = 0
-            cornerRadius = px(24)
-            backgroundTintList = ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorPrimary))
-            setTextColor(readable(themeColor(com.google.android.material.R.attr.colorOnPrimary), themeColor(com.google.android.material.R.attr.colorPrimary)))
-            setPadding(px(20), px(4), px(20), px(4))
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            setPadding(px(12), px(8), px(12), px(8))
             setOnClickListener { within(owner) { click() } }
         }
     }
 
     private fun iconButton(drawable: Int, description: String, click: (View) -> Unit): MaterialButton =
-        button("") {}.apply {
+        themedButton("", R.style.TouchButton_Text) {}.apply {
             icon = ContextCompat.getDrawable(context, drawable)
             iconSize = px(24)
             iconPadding = 0
@@ -1420,6 +1417,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
 
     private fun label(text: String, size: Float = 14f): TextView = TextView(context).apply {
+        includeFontPadding = false
+        gravity = Gravity.CENTER_VERTICAL
         setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
         this.text = text
         textSize = size
@@ -1468,6 +1467,32 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(8), px(8), px(8)) }
+    private inner class ActionRow : LinearLayout(context) {
+        init {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            for (index in 0 until childCount) {
+                getChildAt(index).layoutParams = (getChildAt(index).layoutParams as LinearLayout.LayoutParams).apply {
+                    height = LayoutParams.WRAP_CONTENT
+                }
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            val childHeight = (0 until childCount).maxOfOrNull { getChildAt(it).measuredHeight } ?: 0
+            for (index in 0 until childCount) {
+                val child = getChildAt(index)
+                child.measure(MeasureSpec.makeMeasureSpec(child.measuredWidth, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(childHeight, MeasureSpec.EXACTLY))
+            }
+            setMeasuredDimension(measuredWidth, resolveSize(childHeight + paddingTop + paddingBottom, heightMeasureSpec))
+        }
+    }
+
+    private fun actionRow() = ActionRow()
+
     private fun row() = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL

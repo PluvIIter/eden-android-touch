@@ -150,6 +150,11 @@ android {
                 manifestPlaceholders += mapOf("appNameSuffix" to "")
             }
 
+            if (providers.gradleProperty("touchAcceptance").orNull == "true") {
+                applicationIdSuffix = ".touch"
+                manifestPlaceholders += mapOf("appNameSuffix" to " Touch")
+                versionNameSuffix = "-touch"
+            }
             isMinifyEnabled = true
             isDebuggable = false
             proguardFiles(
