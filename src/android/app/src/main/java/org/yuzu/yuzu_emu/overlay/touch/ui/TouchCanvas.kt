@@ -5,18 +5,25 @@ package org.yuzu.yuzu_emu.overlay.touch.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import com.google.android.material.color.MaterialColors
+import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.GroupStyle
+import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
+import org.yuzu.yuzu_emu.overlay.touch.runtime.PointerSnapshot
+import org.yuzu.yuzu_emu.overlay.touch.runtime.RuntimeSnapshot
 import org.yuzu.yuzu_emu.overlay.touch.runtime.TouchHitGeometry
 import kotlin.math.min
 import kotlin.math.pow
@@ -24,16 +31,29 @@ import kotlin.math.pow
 internal class TouchCanvas(context: Context, private val workspace: TouchWorkspace) : View(context) {
     var preview: TouchControl? = null
     var feedback: String? = null
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val primary = MaterialColors.getColor(this, com.google.android.material.R.attr.colorPrimary)
-    private val secondary = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSecondary)
-    private val ink = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
-    private val surface = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
-    private val error = MaterialColors.getColor(this, com.google.android.material.R.attr.colorError)
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
+    private val primary = role(com.google.android.material.R.attr.colorPrimary)
+    private val secondary = role(com.google.android.material.R.attr.colorSecondary)
+    private val ink = role(com.google.android.material.R.attr.colorOnSurface)
+    private val surface = role(com.google.android.material.R.attr.colorSurface)
+    private val variant = role(com.google.android.material.R.attr.colorSurfaceVariant)
+    private val outline = role(com.google.android.material.R.attr.colorOutline)
+    private val onPrimary = role(com.google.android.material.R.attr.colorOnPrimary).let {
+        if (ColorUtils.calculateContrast(it, primary) >= 4.5) {
+            it
+        } else {
+            listOf(ink, surface).maxByOrNull { candidate ->
+                ColorUtils.calculateContrast(candidate, primary)
+            } ?: it
+        }
+    }
+    private val error = role(com.google.android.material.R.attr.colorError)
+    private val dash = DashPathEffect(floatArrayOf(dp(7), dp(5)), 0f)
+    private val labelTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
     init {
         isClickable = true
-        contentDescription = "Touch layout canvas. Use the Controls list for precise accessible selection and geometry."
+        contentDescription = context.getString(R.string.touch_canvas_accessibility)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = workspace.onCanvasTouch(event)
@@ -41,214 +61,325 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val safe = workspace.safe
-        canvas.save()
-        canvas.translate(safe.left, safe.top)
         val w = safe.width()
         val h = safe.height()
-        if (!workspace.gameAvailable) {
-            canvas.drawColor(surface)
-            paint.color = ink
-            paint.alpha = 22
-            paint.strokeWidth = workspace.dp(1)
-            var x = 0f
-            while (x < w) { canvas.drawLine(x, 0f, x, h, paint); x += workspace.dp(24) }
-            var y = 0f
-            while (y < h) { canvas.drawLine(0f, y, w, y, paint); y += workspace.dp(24) }
-        }
+        canvas.save()
+        canvas.translate(safe.left, safe.top)
+        if (!workspace.gameAvailable) drawGrid(canvas, w, h)
         val snapshot = workspace.runtime.snapshot()
-        val controls = workspace.template.controls.sortedBy { if (it.isArea) 0 else 1 }
-        for (control in controls) {
+        for (control in workspace.template.controls.sortedBy { if (it.isArea) 0 else 1 }) {
             if (!workspace.controlsVisible && !workspace.isEditing && !workspace.testing) continue
             if (workspace.isolatedId != null && workspace.isolatedId != control.id) continue
             if (!workspace.isEditing && !control.enabled) continue
             val rect = workspace.placements[control.id] ?: control.bounds
             val pointers = snapshot.pointers.filter { it.controlId == control.id }
             val active = pointers.isNotEmpty()
-            paint.alpha = (control.opacity * 255).toInt()
-            if (workspace.isEditing) paint.alpha = paint.alpha.coerceAtLeast(75)
-            paint.color = if (active) primary else ink
-            paint.alpha = (control.opacity * 255).toInt().let { if (workspace.isEditing) it.coerceAtLeast(75) else it }
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = workspace.dp(2)
+            val opacity = if (workspace.isEditing) control.opacity.coerceAtLeast(0.55f) else control.opacity
             when (control.type) {
-                ControlType.BUTTON -> {
-                    shape(canvas, rect, control.shape == ControlShape.CIRCLE)
-                    text(
-                        canvas,
-                        control.text,
-                        rect.x + rect.width / 2,
-                        rect.y + rect.height / 2,
-                        min(workspace.dp(18), rect.height / 2)
-                    )
-                }
-                ControlType.BUTTON_GROUP -> {
-                    val keys = TouchHitGeometry.faceKeys(control, rect)
-                    for ((index, key) in keys.withIndex()) {
-                        paint.style = if (pointers.any { index in it.activeKeys }) Paint.Style.FILL else Paint.Style.STROKE
-                        shape(canvas, key, control.groupStyle == GroupStyle.FACE)
-                        val color = paint.color
-                        if (paint.style == Paint.Style.FILL) {
-                            paint.color = MaterialColors.getColor(
-                                this,
-                                com.google.android.material.R.attr.colorOnPrimary
-                            )
-                        }
-                        text(
-                            canvas,
-                            control.groupKeys.getOrNull(index)?.text.orEmpty(),
-                            key.x + key.width / 2,
-                            key.y + key.height / 2,
-                            min(workspace.dp(16), key.height / 2)
-                        )
-                        paint.color = color
-                    }
-                    paint.style = Paint.Style.STROKE
-                }
-                ControlType.STICK -> {
-                    if (control.triggerOnly && !active) {
-                        if (workspace.isEditing) {
-                            shape(canvas, rect, false)
-                            text(
-                                canvas,
-                                "${control.name} · free stick area",
-                                rect.x + rect.width / 2,
-                                rect.y + rect.height / 2,
-                                workspace.dp(13)
-                            )
-                        }
-                    } else {
-                        val p = pointers.firstOrNull()
-                        val radius = if (control.triggerOnly) {
-                            min(
-                                control.stickDiameter * resources.displayMetrics.density / 2,
-                                min(w, h) / 2
-                            )
-                        } else {
-                            min(rect.width, rect.height) / 2
-                        }
-                        val logicalX = if (control.freeStick && p != null) p.centerX else rect.x + rect.width / 2
-                        val logicalY = if (control.freeStick && p != null) p.centerY else rect.y + rect.height / 2
-                        val cx = logicalX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
-                        val cy = logicalY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
-                        canvas.drawCircle(cx, cy, radius, paint)
-                        val vector = snapshot.sticks[control.stickTarget]
-                        val owns = snapshot.stickOwners[control.stickTarget] == control.id
-                        val vx = if (owns) vector?.x ?: 0f else 0f
-                        val vy = if (owns) vector?.y ?: 0f else 0f
-                        canvas.drawCircle(
-                            cx + vx * radius * 0.55f,
-                            cy - vy * radius * 0.55f,
-                            radius * 0.34f,
-                            paint
-                        )
-                    }
-                }
+                ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity)
+                ControlType.BUTTON_GROUP -> drawGroup(canvas, control, rect, pointers, opacity)
+                ControlType.STICK -> drawStick(canvas, control, rect, pointers, snapshot, opacity, w, h)
                 ControlType.SWIPE, ControlType.GESTURE -> {
-                    if (workspace.isEditing || workspace.testing) {
-                        paint.color = if (control.id == workspace.selectedId) primary else secondary
-                        paint.alpha = 180
-                        shape(canvas, rect, false)
-                        val suffix = if (control.type == ControlType.SWIPE) control.stickTarget.name else "gestures"
-                        text(
-                            canvas,
-                            "${control.name} · $suffix",
-                            rect.x + rect.width / 2,
-                            rect.y + workspace.dp(20),
-                            workspace.dp(13)
-                        )
-                    }
+                    if (workspace.isEditing || workspace.testing) drawArea(canvas, control, rect, active)
                 }
             }
             if (workspace.isEditing && !control.enabled) {
-                paint.color = error
-                paint.alpha = 255
-                canvas.drawLine(rect.x, rect.y, rect.right, rect.bottom, paint)
+                stroke(error, dp(1.5f))
+                canvas.drawLine(rect.x + dp(6), rect.bottom - dp(6), rect.right - dp(6), rect.y + dp(6), paint)
+                chip(canvas, context.getString(R.string.touch_canvas_disabled), rect.x + rect.width / 2, rect.bottom - dp(10), rect.width, error)
             }
         }
-        preview?.let {
-            paint.color = primary
-            paint.alpha = 200
-            paint.style = Paint.Style.STROKE
-            shape(canvas, it.bounds, !it.isArea && it.shape == ControlShape.CIRCLE)
+        preview?.let { control ->
+            fill(primary, 0.12f)
+            shape(canvas, control.bounds, !control.isArea && control.shape == ControlShape.CIRCLE)
+            stroke(primary, dp(2))
+            paint.pathEffect = dash
+            shape(canvas, control.bounds, !control.isArea && control.shape == ControlShape.CIRCLE)
+            paint.pathEffect = null
         }
-        if (workspace.isEditing) {
-            workspace.selected?.let { control ->
-                workspace.placements[control.id]?.let { r ->
-                    paint.color = primary
-                    paint.alpha = 255
-                    paint.style = Paint.Style.STROKE
-                    paint.strokeWidth = workspace.dp(2)
-                    shape(canvas, r, false)
-                    if (!control.locked) {
-                        paint.style = Paint.Style.FILL
-                        for ((x, y) in listOf(r.x to r.y, r.right to r.y, r.right to r.bottom, r.x to r.bottom)) {
-                            canvas.drawCircle(x, y, workspace.dp(5), paint)
-                        }
-                    }
-                }
-            }
-        }
-        if (workspace.testing) {
-            for (p in snapshot.pointers) {
-                paint.color = secondary
-                paint.alpha = 255
-                paint.style = Paint.Style.STROKE
-                canvas.drawCircle(p.x, p.y, workspace.dp(12), paint)
-                canvas.drawLine(p.centerX, p.centerY, p.x, p.y, paint)
-            }
-            val vectors = snapshot.sticks.entries.joinToString("  ") { (target, vector) ->
-                "${target.name}: %.2f, %.2f".format(vector.x, vector.y)
-            }
-            val state = if (workspace.gameAvailable) "LIVE · draft not saved" else "LOCAL TEST · not game camera feedback"
-            paint.color = ink
-            paint.alpha = 255
-            text(canvas, state, w / 2, h - workspace.dp(42), workspace.dp(13))
-            text(
-                canvas,
-                vectors + if (snapshot.saturatedControls.isNotEmpty()) " · SATURATED" else "",
-                w / 2,
-                h - workspace.dp(22),
-                workspace.dp(12)
-            )
-        }
+        if (workspace.isEditing) drawSelection(canvas, w, h)
+        if (workspace.testing) drawHud(canvas, snapshot, w, h)
         feedback?.let {
-            paint.color = error
-            paint.alpha = 255
-            text(canvas, it, w / 2, workspace.dp(24), workspace.dp(14))
+            chip(canvas, it, w / 2, dp(26), (w - dp(24)).coerceAtLeast(1f), error)
         }
         canvas.restore()
     }
 
-    private fun shape(canvas: Canvas, rect: TouchRect, circle: Boolean) {
-        if (circle) {
-            canvas.drawCircle(
-                rect.x + rect.width / 2,
-                rect.y + rect.height / 2,
-                min(rect.width, rect.height) / 2,
+    private fun drawGrid(canvas: Canvas, w: Float, h: Float) {
+        canvas.drawColor(surface)
+        stroke(ink, dp(0.5f), 0.035f)
+        val step = dp(32)
+        var x = 0f
+        while (x < w) { canvas.drawLine(x, 0f, x, h, paint); x += step }
+        var y = 0f
+        while (y < h) { canvas.drawLine(0f, y, w, y, paint); y += step }
+        fill(ink, 0.12f)
+        x = 0f
+        while (x < w) {
+            y = 0f
+            while (y < h) { canvas.drawCircle(x, y, dp(0.7f), paint); y += step * 4 }
+            x += step * 4
+        }
+    }
+
+    private fun drawButton(canvas: Canvas, rect: TouchRect, label: String, circle: Boolean, active: Boolean, opacity: Float) {
+        val base = if (active) primary else ColorUtils.blendARGB(surface, variant, 0.68f)
+        fill(base, opacity * 0.94f)
+        shape(canvas, rect, circle)
+        stroke(if (active) primary else outline, dp(if (active) 2f else 1.4f), opacity)
+        shape(canvas, rect, circle)
+        if (min(rect.width, rect.height) > dp(28)) {
+            val inset = dp(3)
+            stroke(if (active) onPrimary else ink, dp(0.6f), opacity * 0.2f)
+            shape(canvas, TouchRect(rect.x + inset, rect.y + inset, rect.width - inset * 2, rect.height - inset * 2), circle)
+        }
+        fill(if (active) onPrimary else ink, opacity)
+        text(
+            canvas,
+            label,
+            rect.x + rect.width / 2,
+            rect.y + rect.height / 2,
+            min(dp(20), rect.height * 0.36f),
+            (rect.width - dp(12)).coerceAtLeast(1f)
+        )
+    }
+
+    private fun drawGroup(canvas: Canvas, control: TouchControl, rect: TouchRect, pointers: List<PointerSnapshot>, opacity: Float) {
+        val keys = TouchHitGeometry.faceKeys(control, rect)
+        if (control.groupStyle == GroupStyle.DPAD) {
+            val size = min(rect.width, rect.height) / 3f
+            fill(ColorUtils.blendARGB(surface, variant, 0.68f), opacity * 0.94f)
+            canvas.drawRoundRect(
+                RectF(
+                    rect.x + rect.width / 2 - size / 2,
+                    rect.y,
+                    rect.x + rect.width / 2 + size / 2,
+                    rect.bottom
+                ),
+                dp(5),
+                dp(5),
                 paint
             )
-        } else {
             canvas.drawRoundRect(
-                RectF(rect.x, rect.y, rect.right, rect.bottom),
-                workspace.dp(8),
-                workspace.dp(8),
+                RectF(
+                    rect.x,
+                    rect.y + rect.height / 2 - size / 2,
+                    rect.right,
+                    rect.y + rect.height / 2 + size / 2
+                ),
+                dp(5),
+                dp(5),
                 paint
+            )
+        }
+        for ((index, key) in keys.withIndex()) {
+            drawButton(
+                canvas,
+                key,
+                control.groupKeys.getOrNull(index)?.text.orEmpty(),
+                control.groupStyle == GroupStyle.FACE,
+                pointers.any { index in it.activeKeys },
+                opacity
             )
         }
     }
 
-    private fun text(canvas: Canvas, value: String, x: Float, y: Float, size: Float) {
-        val style = paint.style
+    private fun drawArea(canvas: Canvas, control: TouchControl, rect: TouchRect, active: Boolean) {
+        val accent = if (control.id == workspace.selectedId || active) primary else secondary
+        fill(accent, if (active) 0.12f else 0.055f)
+        shape(canvas, rect, false)
+        stroke(accent, dp(if (active) 1.8f else 1.2f), 0.8f)
+        paint.pathEffect = dash
+        shape(canvas, rect, false)
+        paint.pathEffect = null
+        val type = when (control.type) {
+            ControlType.STICK -> context.getString(R.string.touch_canvas_free_stick)
+            ControlType.SWIPE -> context.getString(R.string.touch_canvas_swipe)
+            else -> context.getString(R.string.touch_canvas_gesture)
+        }
+        val detail = if (control.type == ControlType.GESTURE) {
+            type
+        } else {
+            context.getString(
+                R.string.touch_canvas_area_label,
+                type,
+                stickName(control.stickTarget)
+            )
+        }
+        val label = context.getString(R.string.touch_canvas_area_detail, control.name.ifBlank { type }, detail)
+        chip(canvas, label, rect.x + rect.width / 2, rect.y + dp(19), (rect.width - dp(12)).coerceAtLeast(1f), accent)
+    }
+
+    private fun drawStick(
+        canvas: Canvas,
+        control: TouchControl,
+        rect: TouchRect,
+        pointers: List<PointerSnapshot>,
+        snapshot: RuntimeSnapshot,
+        opacity: Float,
+        w: Float,
+        h: Float
+    ) {
+        val p = pointers.firstOrNull()
+        if (control.triggerOnly && (workspace.isEditing || workspace.testing)) drawArea(canvas, control, rect, p != null)
+        if (control.triggerOnly && p == null) return
+        val radius = if (control.triggerOnly) {
+            min(control.stickDiameter * resources.displayMetrics.density / 2, min(w, h) / 2)
+        } else {
+            min(rect.width, rect.height) / 2
+        }
+        val logicalX = if (control.freeStick && p != null) p.centerX else rect.x + rect.width / 2
+        val logicalY = if (control.freeStick && p != null) p.centerY else rect.y + rect.height / 2
+        val cx = logicalX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
+        val cy = logicalY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
+        fill(variant, opacity * 0.7f)
+        canvas.drawCircle(cx, cy, radius, paint)
+        stroke(outline, dp(1.5f), opacity)
+        canvas.drawCircle(cx, cy, radius, paint)
+        stroke(ink, dp(0.8f), opacity * 0.17f)
+        canvas.drawCircle(cx, cy, radius * 0.72f, paint)
+        canvas.drawLine(cx - radius * 0.3f, cy, cx + radius * 0.3f, cy, paint)
+        canvas.drawLine(cx, cy - radius * 0.3f, cx, cy + radius * 0.3f, paint)
+        val vector = snapshot.sticks[control.stickTarget]
+        val owns = snapshot.stickOwners[control.stickTarget] == control.id
+        val vx = if (owns) vector?.x ?: 0f else 0f
+        val vy = if (owns) vector?.y ?: 0f else 0f
+        val knobRadius = radius * 0.34f
+        val knobX = cx + vx * radius * 0.55f
+        val knobY = cy - vy * radius * 0.55f
+        fill(if (p != null) primary else surface, opacity)
+        canvas.drawCircle(knobX, knobY, knobRadius, paint)
+        stroke(if (p != null) primary else outline, dp(1.4f), opacity)
+        canvas.drawCircle(knobX, knobY, knobRadius, paint)
+        if (workspace.isEditing && !control.triggerOnly) {
+            chip(canvas, stickName(control.stickTarget), cx, rect.bottom - dp(12), rect.width, outline)
+        }
+    }
+
+    private fun drawSelection(canvas: Canvas, w: Float, h: Float) {
+        val control = workspace.selected ?: return
+        val rect = workspace.placements[control.id] ?: return
+        val circle = control.type == ControlType.BUTTON && control.shape == ControlShape.CIRCLE ||
+            control.type == ControlType.STICK && !control.isArea
+        stroke(primary, dp(2.5f))
+        shape(canvas, rect, circle)
+        if (!control.locked) {
+            val corners = listOf(rect.x to rect.y, rect.right to rect.y, rect.right to rect.bottom, rect.x to rect.bottom)
+            corners.forEachIndexed { index, (x, y) ->
+                fill(surface)
+                canvas.drawRoundRect(RectF(x - dp(6), y - dp(6), x + dp(6), y + dp(6)), dp(3), dp(3), paint)
+                stroke(primary, dp(2))
+                canvas.drawRoundRect(RectF(x - dp(6), y - dp(6), x + dp(6), y + dp(6)), dp(3), dp(3), paint)
+                val sx = if (index == 0 || index == 3) 1 else -1
+                val sy = if (index < 2) 1 else -1
+                canvas.drawLine(x - sx * dp(2), y + sy * dp(2), x + sx * dp(2), y - sy * dp(2), paint)
+            }
+        }
+        if (workspace.toolsHidden) return
+        val label = context.getString(
+            if (control.locked) R.string.touch_canvas_selected_locked else R.string.touch_canvas_selected,
+            control.name.ifBlank { control.text }
+        )
+        val y = if (rect.bottom + dp(30) < h) rect.bottom + dp(20) else (rect.y - dp(20)).coerceAtLeast(dp(18))
+        chip(canvas, label, (rect.x + rect.width / 2).coerceIn(dp(1), w.coerceAtLeast(dp(1))), y, (w - dp(24)).coerceAtLeast(1f), primary)
+    }
+
+    private fun drawHud(canvas: Canvas, snapshot: RuntimeSnapshot, w: Float, h: Float) {
+        for (pointer in snapshot.pointers) {
+            stroke(secondary, dp(1.5f))
+            canvas.drawCircle(pointer.x, pointer.y, dp(11), paint)
+            canvas.drawLine(pointer.centerX, pointer.centerY, pointer.x, pointer.y, paint)
+            fill(secondary)
+            canvas.drawCircle(pointer.x, pointer.y, dp(3), paint)
+        }
+        val state = context.getString(if (workspace.gameAvailable) R.string.touch_canvas_live else R.string.touch_canvas_local)
+        val activity = if (snapshot.pointers.isEmpty()) {
+            context.getString(R.string.touch_canvas_idle)
+        } else {
+            context.getString(R.string.touch_canvas_captured, snapshot.pointers.size)
+        }
+        val vectors = snapshot.sticks.entries.joinToString("   ") { (target, vector) ->
+            context.getString(R.string.touch_canvas_vector, stickName(target), vector.x, vector.y)
+        }
+        val status = if (snapshot.saturatedControls.isNotEmpty()) {
+            context.getString(R.string.touch_canvas_area_label, activity, context.getString(R.string.touch_canvas_saturated))
+        } else {
+            activity
+        }
+        chip(canvas, context.getString(R.string.touch_canvas_area_label, state, status), w / 2, h - dp(47), (w - dp(24)).coerceAtLeast(1f), secondary)
+        chip(canvas, vectors, w / 2, h - dp(22), (w - dp(24)).coerceAtLeast(1f), outline)
+    }
+
+    private fun chip(canvas: Canvas, value: String, x: Float, y: Float, maxWidth: Float, accent: Int) {
+        if (maxWidth < dp(28)) return
+        paint.typeface = labelTypeface
+        paint.textSize = dp(12)
+        val contentWidth = min(paint.measureText(value), (maxWidth - dp(18)).coerceAtLeast(1f))
+        val width = min(contentWidth + dp(18), maxWidth)
+        val height = dp(25)
+        val cx = x.coerceIn(width / 2, (workspace.safe.width() - width / 2).coerceAtLeast(width / 2))
+        val cy = y.coerceIn(height / 2, (workspace.safe.height() - height / 2).coerceAtLeast(height / 2))
+        val box = RectF(cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2)
+        fill(surface, 0.96f)
+        canvas.drawRoundRect(box, dp(7), dp(7), paint)
+        stroke(accent, dp(0.8f), 0.7f)
+        canvas.drawRoundRect(box, dp(7), dp(7), paint)
+        fill(ink)
+        text(canvas, value, cx, cy, dp(12), (width - dp(14)).coerceAtLeast(1f))
+    }
+
+    private fun shape(canvas: Canvas, rect: TouchRect, circle: Boolean) {
+        if (circle) {
+            canvas.drawCircle(rect.x + rect.width / 2, rect.y + rect.height / 2, min(rect.width, rect.height) / 2, paint)
+        } else {
+            canvas.drawRoundRect(RectF(rect.x, rect.y, rect.right, rect.bottom), dp(8), dp(8), paint)
+        }
+    }
+
+    private fun text(canvas: Canvas, value: String, x: Float, y: Float, size: Float, maxWidth: Float) {
         paint.style = Paint.Style.FILL
+        paint.pathEffect = null
+        paint.typeface = labelTypeface
         paint.textAlign = Paint.Align.CENTER
         paint.textSize = size
-        canvas.drawText(value, x, y - (paint.ascent() + paint.descent()) / 2, paint)
-        paint.style = style
+        val fitted = android.text.TextUtils.ellipsize(
+            value,
+            android.text.TextPaint(paint),
+            maxWidth,
+            android.text.TextUtils.TruncateAt.END
+        ).toString()
+        canvas.drawText(fitted, x, y - (paint.ascent() + paint.descent()) / 2, paint)
     }
+
+    private fun stickName(target: StickTarget): String = context.getString(
+        if (target == StickTarget.LEFT) R.string.touch_canvas_left_stick else R.string.touch_canvas_right_stick
+    )
+
+    private fun fill(color: Int, opacity: Float = 1f) {
+        paint.style = Paint.Style.FILL
+        paint.pathEffect = null
+        paint.color = color
+        paint.alpha = (opacity.coerceIn(0f, 1f) * 255).toInt()
+    }
+
+    private fun stroke(color: Int, width: Float, opacity: Float = 1f) {
+        fill(color, opacity)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = width
+    }
+
+    private fun role(attribute: Int): Int = MaterialColors.getColor(this, attribute)
+    private fun dp(value: Int): Float = workspace.dp(value)
+    private fun dp(value: Float): Float = value * resources.displayMetrics.density
 }
 
 internal class SwipeCurveView(context: Context, private val preset: () -> SwipePreset) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    init {
+        contentDescription = context.getString(R.string.touch_canvas_curve_accessibility)
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val p = preset()

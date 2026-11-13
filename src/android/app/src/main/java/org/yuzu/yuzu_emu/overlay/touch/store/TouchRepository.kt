@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 class TouchRevisionConflictException(val expectedRevision: Long, val actualRevision: Long) :
     IllegalStateException("Touch library changed: expected revision $expectedRevision, found $actualRevision")
 
-class TouchRepository(file: File) {
+class TouchRepository(file: File, private val createDefaults: () -> TouchLibrary = TouchDefaults::library) {
     private val file = file.canonicalFile
     private val monitor = monitors.getOrPut(this.file.path) { Any() }
 
@@ -56,7 +56,7 @@ class TouchRepository(file: File) {
 
     private fun readOrInitialize(): TouchLibrary {
         if (!file.exists()) {
-            val defaults = TouchDefaults.library().immutableSnapshot()
+            val defaults = createDefaults().immutableSnapshot()
             TouchValidator.requireValid(defaults)
             atomicWrite(defaults)
             return defaults

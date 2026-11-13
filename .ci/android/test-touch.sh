@@ -38,7 +38,9 @@ CP="$CACHE/stdlib.jar:$CACHE/serialization-core.jar:$CACHE/serialization-json.ja
     -Xplugin="$CACHE/serialization-plugin.jar" -classpath "$CP" -d "$CACHE/tests.jar" \
     "$MAIN"/model/*.kt "$MAIN"/store/*.kt "$MAIN"/runtime/*.kt \
     "$MAIN/TouchNativeSink.kt" "$MAIN/ui/TouchEditorGeometry.kt" "$MAIN/ui/TouchWorkspaceDraft.kt" "$MAIN/ui/TouchToolState.kt" \
-    "$TEST"/store/*.kt "$TEST"/runtime/*.kt "$TEST"/ui/*.kt "$TEST/TouchNativeSinkTest.kt"
+    "$TEST"/store/*.kt "$TEST"/runtime/*.kt \
+    "$TEST/ui/TouchEditorGeometryTest.kt" "$TEST/ui/TouchWorkspaceDraftTest.kt" "$TEST/ui/TouchToolStateTest.kt" \
+    "$TEST/TouchNativeSinkTest.kt"
 "$JAVA" -cp "$CACHE/tests.jar:$CP" org.junit.runner.JUnitCore \
     org.yuzu.yuzu_emu.overlay.touch.store.TouchStoreTest \
     org.yuzu.yuzu_emu.overlay.touch.runtime.TouchRuntimeTest \

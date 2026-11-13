@@ -667,7 +667,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 workspace.gameId = id
                 touchLibrary = library
             }
-        }.onFailure { Toast.makeText(requireContext(), it.message, Toast.LENGTH_LONG).show() }
+        }.onFailure { Toast.makeText(requireContext(), R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show() }
     }
 
     private fun setupTouchWorkspace() {
@@ -691,7 +691,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                     touchLibrary = repository.save(draft, workspace.draftBaselineRevision)
                     workspace.acceptSaved(touchLibrary!!)
                 }.onFailure {
-                    Toast.makeText(requireContext(), it.message, Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), R.string.touch_workspace_save_failed, Toast.LENGTH_LONG).show()
                     throw it
                 }
             }
@@ -725,7 +725,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 view.visibility = View.GONE
             }
         }.onFailure {
-            Toast.makeText(requireContext(), it.message ?: "Cannot load touch templates", Toast.LENGTH_LONG).show()
+            Toast.makeText(requireContext(), R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -2183,7 +2183,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
         popup.menuInflater.inflate(R.menu.menu_overlay_options, popup.menu)
         if (touchWorkspace != null) {
-            popup.menu.add("Touch templates").setOnMenuItemClickListener {
+            popup.menu.add(R.string.touch_workspace_menu_templates).setOnMenuItemClickListener {
                 startActivity(TouchTemplateActivity.intent(
                     requireContext(), TouchGameOverlay.gameId(game?.programId ?: "")
                 ))

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="touch_workspace_default_layout">默认布局</string>
+    <string name="touch_workspace_default_camera">默认镜头参数</string>
+    <string name="touch_workspace_move">移动</string>
+    <string name="touch_workspace_camera">镜头</string>
+    <string name="touch_workspace_landscape">横屏</string>
+    <string name="touch_workspace_missing_saved">当前布局已被移除，请重新加载模板库。</string>
+    <string name="touch_workspace_missing_preset">划屏参数模板不可用。</string>
+    <string name="touch_workspace_missing_template">触控布局不可用。</string>
+    <string name="touch_workspace_accessibility_tools">显示工具或结束调整</string>
+    <string name="touch_workspace_unsaved_title">布局尚未保存</string>
+    <string name="touch_workspace_unsaved_message">保存草稿、放弃修改，还是继续编辑？</string>
+    <string name="touch_workspace_save">保存</string>
+    <string name="touch_workspace_discard">放弃修改</string>
+    <string name="touch_workspace_keep_editing">继续编辑</string>
+    <string name="touch_workspace_cancel">取消</string>
+    <string name="touch_workspace_base_title">将当前屏幕设为布局基准？</string>
+    <string name="touch_workspace_base_message">后续自动适配将以当前安全区为基准，其他已保存的屏幕配置保持不变。</string>
+    <string name="touch_workspace_set_base">设为基准</string>
+    <string name="touch_workspace_overlap">此区域与其他区域重叠，请先调整位置或尺寸。</string>
+    <string name="touch_workspace_back_restores">按返回键可恢复工具</string>
+    <string name="touch_workspace_copy_name">%1$s 副本</string>
+    <string name="touch_workspace_area_layer">区域始终位于按钮和普通摇杆下方。</string>
+    <string name="touch_workspace_select_swipe">请先选中一个已启用的滑动区，再进行单控件调试。</string>
+    <string name="touch_workspace_repair_test">请先修正无效的布局字段，再开始测试。</string>
+    <string name="touch_workspace_select_preset">请先选择有效的划屏参数模板。</string>
+    <string name="touch_workspace_invalid_title">请检查布局</string>
+    <string name="touch_workspace_invalid_message">部分控件的位置、映射或模板引用无效，请检查后再保存。</string>
+    <string name="touch_workspace_save_failed">保存失败，草稿已保留。请检查存储权限，以及共享模板库是否已被修改。</string>
+    <string name="touch_workspace_sync">保存并同步</string>
+    <string name="touch_workspace_sync_summary">布局：%1$s\n使用游戏：%2$s\n全局默认：%3$s\n\n受影响的参数区域：\n%4$s\n\n游戏关联变更：%5$s\n\n保存当前屏幕配置；除非明确重设，否则保持原有布局基准。</string>
+    <string name="touch_workspace_no_games">尚无独立关联的游戏</string>
+    <string name="touch_workspace_none">无</string>
+    <string name="touch_workspace_yes">是</string>
+    <string name="touch_workspace_no">否</string>
+    <string name="touch_workspace_copy_game">复制并用于当前游戏</string>
+    <string name="touch_workspace_overlap_named">与「%1$s」重叠</string>
+    <string name="touch_workspace_locked">位置已锁定，请先在控件列表中解锁。</string>
+    <string name="touch_workspace_other_screen_conflict">此区域在其他已保存的屏幕配置中发生重叠，请选择其他位置。</string>
+    <string name="touch_workspace_no_position">当前位置无效。请绘制不重叠的区域，或按返回键取消。</string>
+    <string name="touch_workspace_invalid_runtime">布局无效，请从控件列表中修正。</string>
+    <string name="touch_workspace_menu_templates">触控模板</string>
+    <string name="touch_workspace_load_failed">无法加载触控模板，请检查配置后重试。</string>
+</resources>

@@ -5,6 +5,13 @@ package org.yuzu.yuzu_emu.overlay.touch.ui
 
 import android.content.Context
 import android.graphics.RectF
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.text.TextUtils
+import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
+import com.google.android.material.tabs.TabLayout
+import org.yuzu.yuzu_emu.R
 import android.text.InputType
 import android.view.Gravity
 import android.view.MotionEvent
@@ -57,6 +64,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private val selectionActions = row()
     private var panel: MaterialCardView? = null
     private var panelBody: LinearLayout? = null
+    private var panelFooter: LinearLayout? = null
     private var panelBefore: TouchLibrary? = null
     private var panelCancel: (() -> Unit)? = null
     private var collapsed = false
@@ -131,18 +139,15 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     init {
         clipChildren = false
         isMotionEventSplittingEnabled = true
-        val head = row()
-        head.addView(title, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        head.addView(button("Fold") { collapsed = !collapsed; refreshToolbar() })
-        draggable(head, toolbar)
-        toolbarContent.addView(head)
-        toolbarContent.addView(horizontal(actions))
-        toolbarContent.addView(horizontal(selectionActions))
+        toolbar.radius = px(28f)
+        toolbarContent.setPadding(px(4), px(4), px(4), px(4))
+        toolbarContent.addView(actions)
         toolbar.addView(toolbarContent)
         addView(
             toolbar,
-            LayoutParams(panelWidth(), LayoutParams.WRAP_CONTENT).apply {
-                leftMargin = px(12); topMargin = px(12)
+            LayoutParams(toolbarWidth(), LayoutParams.WRAP_CONTENT).apply {
+                leftMargin = px(12)
+                topMargin = px(12)
             }
         )
     }
@@ -159,63 +164,102 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     fun refreshToolbar() {
         toolbar.layoutParams?.let { params ->
-            val target = if (collapsed) px(180) else panelWidth()
+            val target = if (collapsed) px(48) else toolbarWidth()
             if (params.width != target) { params.width = target; toolbar.layoutParams = params }
         }
-        val runtime = workspace.testing
-        title.text = if (runtime) "Test · unsaved draft" else "${workspace.template.name} · draft"
-        title.maxLines = 2
         actions.removeAllViews()
-        selectionActions.removeAllViews()
-        actions.visibility = if (collapsed) GONE else VISIBLE
-        selectionActions.visibility = if (collapsed) GONE else VISIBLE
-        if (collapsed) return
-        if (runtime) {
-            actions.addView(button("Return to edit") { workspace.finishTest(false) })
-            if (workspace.isolatedId != null) {
-                actions.addView(
-                    button("Parameters") {
-                        workspace.selected?.swipePresetId?.let { showTuning(it, true) }
-                    }
-                )
-                actions.addView(button("Undo this debug") { workspace.finishTest(true) })
+        toolbarContent.setPadding(if (collapsed) 0 else px(4), if (collapsed) 0 else px(4), if (collapsed) 0 else px(4), if (collapsed) 0 else px(4))
+        if (collapsed) {
+            val entry = iconButton(R.drawable.touch_tools_edit, s(R.string.touch_tools_show_tools)) {
+                collapsed = false
+                refreshToolbar()
             }
-            actions.addView(button("Hide tools") { workspace.hideTools() })
-            actions.addView(button("Tool opacity") { showToolOpacity() })
+            draggable(entry, toolbar, true)
+            actions.addView(entry)
             return
         }
-        actions.addView(button("Add") { showAdd() })
-        actions.addView(button("Undo") { workspace.undo() })
-        actions.addView(button("Redo") { workspace.redo() })
-        actions.addView(button("Controls") { showControls() })
-        actions.addView(
-            button(if (workspace.gameAvailable) "Game test" else "Local test") {
-                if (validFields()) { completePanel(); workspace.startTest(false) }
-            }
-        )
-        actions.addView(button("Save") { if (validFields()) { completePanel(); workspace.save() } })
-        actions.addView(button("Hide tools") { workspace.hideTools() })
-        actions.addView(button("Tool opacity") { showToolOpacity() })
-        actions.addView(
-            button("Set screen as base") {
-                if (validFields()) { completePanel(); workspace.setCurrentScreenAsBase() }
-            }
-        )
-        val selected = workspace.selected ?: return
-        selectionActions.addView(label("Selected: ${selected.name}"))
-        selectionActions.addView(button("Properties") { showProperties() })
-        selectionActions.addView(
-            button("Adjust in place") {
-                if (validFields()) { completePanel(); workspace.hideTools(true) }
-            }
-        )
-        if (selected.type == ControlType.SWIPE && workspace.gameAvailable) {
-            selectionActions.addView(
-                button("Single-control debug") {
-                    if (validFields()) { completePanel(); workspace.startTest(true) }
+        val compact = toolbarWidth() < px(520)
+        val veryCompact = toolbarWidth() < px(360)
+        val handle = iconButton(R.drawable.touch_tools_drag, s(R.string.touch_tools_drag)) {}
+        draggable(handle, toolbar)
+        actions.addView(handle)
+        val heading = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        title.apply {
+            text = workspace.template.name
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(0, 0, 0, 0)
+        }
+        (title.parent as? LinearLayout)?.removeView(title)
+        heading.addView(title)
+        if (!veryCompact) {
+            heading.addView(
+                label(s(if (workspace.testing) R.string.touch_tools_test_draft else R.string.touch_tools_draft), 11f).apply {
+                    setPadding(0, 0, 0, 0)
+                    setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
                 }
             )
         }
+        draggable(heading, toolbar)
+        actions.addView(heading, LinearLayout.LayoutParams(0, px(48), 1f))
+        if (!workspace.testing && !compact) {
+            actions.addView(iconButton(R.drawable.touch_tools_add, s(R.string.touch_tools_add)) { showAdd() })
+            actions.addView(iconButton(R.drawable.touch_tools_undo, s(R.string.touch_tools_undo)) { workspace.undo() })
+            actions.addView(iconButton(R.drawable.touch_tools_list, s(R.string.touch_tools_controls)) { showControls() })
+        }
+        if (!veryCompact) {
+            actions.addView(
+                button(s(if (workspace.testing) R.string.touch_tools_return_edit else R.string.touch_tools_test)) {
+                    if (workspace.testing) {
+                        workspace.finishTest(false)
+                    } else if (validFields()) { completePanel(); workspace.startTest(false) }
+                }.apply { setPadding(px(12), 0, px(12), 0) }
+            )
+        }
+        actions.addView(
+            primaryButton(s(R.string.touch_tools_save)) {
+                if (workspace.testing) workspace.finishTest(false)
+                if (validFields()) { completePanel(); workspace.save() }
+            }.apply {
+                icon = ContextCompat.getDrawable(context, R.drawable.touch_tools_save)
+                iconSize = px(18)
+                iconPadding = px(6)
+                iconTint = ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorOnPrimary))
+                setPadding(px(12), 0, px(12), 0)
+            }
+        )
+        actions.addView(iconButton(R.drawable.touch_tools_more, s(R.string.touch_tools_more)) { showOverflow(it) })
+    }
+
+    private fun showOverflow(anchor: View) {
+        val popup = PopupMenu(context, anchor)
+        fun item(label: Int, action: () -> Unit) { popup.menu.add(s(label)).setOnMenuItemClickListener { action(); true } }
+        if (workspace.testing) {
+            item(R.string.touch_tools_return_edit) { workspace.finishTest(false) }
+            workspace.selected?.swipePresetId?.let { id -> item(R.string.touch_tools_parameters) { showTuning(id, true) } }
+            item(R.string.touch_tools_undo_debug) { workspace.finishTest(true) }
+        } else {
+            item(R.string.touch_tools_add) { showAdd() }
+            item(R.string.touch_tools_undo) { workspace.undo() }
+            item(R.string.touch_tools_redo) { workspace.redo() }
+            item(R.string.touch_tools_controls) { showControls() }
+            item(R.string.touch_tools_test) { if (validFields()) { completePanel(); workspace.startTest(false) } }
+            workspace.selected?.let {
+                item(R.string.touch_tools_properties) { showProperties() }
+                item(R.string.touch_tools_adjust) { if (validFields()) { completePanel(); workspace.hideTools(true) } }
+                if (it.type == ControlType.SWIPE && workspace.gameAvailable) {
+                    item(R.string.touch_tools_live_debug) {
+                        if (validFields()) { completePanel(); workspace.startTest(true) }
+                    }
+                }
+            }
+            item(R.string.touch_tools_set_base) { if (validFields()) { completePanel(); workspace.setCurrentScreenAsBase() } }
+        }
+        item(R.string.touch_tools_tool_opacity) { showToolOpacity() }
+        item(R.string.touch_tools_hide_tools) { workspace.hideTools() }
+        item(R.string.touch_tools_fold) { collapsed = true; refreshToolbar() }
+        popup.show()
     }
 
     fun closePanel() {
@@ -224,6 +268,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         panel?.let { panelPosition = positionOf(it); removeView(it) }
         panel = null
         panelBody = null
+        panelFooter = null
         panelScroll = null
         panelCancel = null
         panelBefore = null
@@ -257,12 +302,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         panel = surface
         val content = column()
         val header = row()
-        val heading = label(name, 16f)
+        val heading = label(name, 16f).apply { setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleMedium) }
         header.addView(heading, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         header.addView(
-            button("Fold") {
+            iconButton(R.drawable.touch_tools_fold, s(R.string.touch_tools_fold)) {
                 panelCollapsed = !panelCollapsed
                 panelScroll?.visibility = if (panelCollapsed) GONE else VISIBLE
+                panelFooter?.visibility = if (panelCollapsed) GONE else VISIBLE
             }
         )
         draggable(header, surface)
@@ -276,6 +322,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         panelScroll = scroll
         content.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, panelHeight()))
+        panelFooter = row().apply { gravity = Gravity.END; visibility = GONE }
+        content.addView(panelFooter, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         surface.addView(content)
         addView(
             surface,
@@ -330,71 +378,83 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun showToolOpacity() {
-        val body = openPanel("Tool background")
-        number(body, "Background opacity", panelAlpha, 0.4f, 1f, true) {
+        val body = openPanel(s(R.string.touch_tools_tool_background))
+        number(body, s(R.string.touch_tools_background_opacity), panelAlpha, 0.4f, 1f, true) {
             panelAlpha = it
             toolbar.setCardBackgroundColor(surfaceColor())
             panel?.setCardBackgroundColor(surfaceColor())
         }
-        body.addView(button("Done") { closePanel() })
+        body.addView(button(s(R.string.touch_tools_done)) { closePanel() })
     }
 
     private fun showControls() {
-        val body = openPanel("Controls · top layer, then areas")
+        val body = openPanel(s(R.string.touch_tools_controls_title))
         val ordered = workspace.template.controls.sortedBy { if (it.isArea) 0 else 1 }.asReversed()
+        var areaSection: Boolean? = null
         for (control in ordered) {
-            body.addView(
-                button(
-                    "${control.name} · ${control.type.name}" +
-                        if (!control.enabled) " · disabled" else if (control.locked) " · locked" else ""
-                ) {
-                    workspace.select(control.id)
-                    closePanel()
-                }
-            )
-            val switches = row()
-            toggle(switches, "Enabled", control.enabled) {
+            if (areaSection != control.isArea) {
+                areaSection = control.isArea
+                body.addView(
+                    label(s(if (control.isArea) R.string.touch_tools_area_layer else R.string.touch_tools_top_layer), 12f).apply {
+                        setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
+                    }
+                )
+            }
+            val container = column()
+            val item = button(s(R.string.touch_tools_control_row, control.name, enumLabel(control.type))) {
+                workspace.select(control.id)
+                showProperties()
+            }.apply {
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, 0)
+            }
+            container.addView(item, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+            toggle(container, s(R.string.touch_tools_enabled), control.enabled) {
                 workspace.checkpoint()
                 workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(enabled = it)) }
             }
-            toggle(switches, "Lock geometry", control.locked) {
+            toggle(container, s(R.string.touch_tools_lock_geometry), control.locked) {
                 workspace.checkpoint()
                 workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(locked = it)) }
             }
-            body.addView(switches)
+            body.addView(container)
+            body.addView(
+                View(context).apply { setBackgroundColor(themeColor(com.google.android.material.R.attr.colorOutlineVariant)) },
+                LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, px(1))
+            )
         }
-        body.addView(button("Adjust selected in place") { closePanel(); workspace.hideTools(true) })
+        body.addView(button(s(R.string.touch_tools_adjust_selected)) { closePanel(); workspace.hideTools(true) })
     }
 
     private fun showAdd() {
-        val body = openPanel("Add control · choose a type")
+        val body = openPanel(s(R.string.touch_tools_add_title))
         val descriptions = mapOf(
-            ControlType.BUTTON to "Button · one or simultaneous buttons",
-            ControlType.BUTTON_GROUP to "Button group · face keys or D-pad",
-            ControlType.STICK to "Stick · fixed or free movement",
-            ControlType.SWIPE to "Swipe area · relative camera motion",
-            ControlType.GESTURE to "Gesture area · tap or directional actions"
+            ControlType.BUTTON to s(R.string.touch_tools_button_description),
+            ControlType.BUTTON_GROUP to s(R.string.touch_tools_group_description),
+            ControlType.STICK to s(R.string.touch_tools_stick_description),
+            ControlType.SWIPE to s(R.string.touch_tools_swipe_description),
+            ControlType.GESTURE to s(R.string.touch_tools_gesture_description)
         )
         for ((type, name) in descriptions) body.addView(button(name) { configureNew(type) })
     }
 
     private fun configureNew(type: ControlType) {
         var control = TouchControl(
-            name = type.name.lowercase().replace('_', ' '),
+            name = enumLabel(type),
             type = type,
             shape = if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
             swipePresetId = workspace.draft.presets.firstOrNull()?.id,
             gestures = if (type == ControlType.GESTURE) mapOf(GestureDirection.TAP to GestureBinding(button = 0)) else emptyMap()
         )
-        val body = openPanel("New ${control.name} · configure input")
-        textField(body, "Name", control.name, false) { control = control.copy(name = it) }
+        val body = openPanel(s(R.string.touch_tools_new_control, control.name))
+        textField(body, s(R.string.touch_tools_name), control.name, false) { control = control.copy(name = it) }
         when (type) {
             ControlType.BUTTON -> body.addView(
-                button("Select button mapping") {
+                button(s(R.string.touch_tools_select_mapping)) {
                     mapping(control.binding.buttons, false) { control = control.copy(binding = control.binding.copy(buttons = it)) }
                 }
             )
-            ControlType.BUTTON_GROUP -> choice(body, "Group style", GroupStyle.values().toList(), control.groupStyle) {
+            ControlType.BUTTON_GROUP -> choice(body, s(R.string.touch_tools_group_style), GroupStyle.values().toList(), control.groupStyle) {
                 control = control.copy(
                     groupStyle = it,
                     groupKeys = if (it == GroupStyle.DPAD) {
@@ -410,32 +470,32 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 )
             }
             ControlType.STICK -> {
-                choice(body, "Target stick", StickTarget.values().toList(), control.stickTarget) { control = control.copy(stickTarget = it) }
-                toggle(body, "Free stick", false) { control = control.copy(freeStick = it, triggerOnly = false) }
+                choice(body, s(R.string.touch_tools_target_stick), StickTarget.values().toList(), control.stickTarget) { control = control.copy(stickTarget = it) }
+                toggle(body, s(R.string.touch_tools_free_stick), false) { control = control.copy(freeStick = it, triggerOnly = false) }
             }
             ControlType.SWIPE -> {
-                choice(body, "Target stick", StickTarget.values().toList(), control.stickTarget) { control = control.copy(stickTarget = it) }
+                choice(body, s(R.string.touch_tools_target_stick), StickTarget.values().toList(), control.stickTarget) { control = control.copy(stickTarget = it) }
                 if (workspace.draft.presets.isEmpty()) {
-                    body.addView(label("A default camera preset will be created when placing."))
+                    body.addView(label(s(R.string.touch_tools_create_default_preset)))
                 } else {
                     presetChoice(body, control.swipePresetId) { control = control.copy(swipePresetId = it) }
                 }
             }
             ControlType.GESTURE -> body.addView(
-                button("Tap output (default A)") {
+                button(s(R.string.touch_tools_tap_default)) {
                     gestureTarget(control.gestures[GestureDirection.TAP]) {
                         control = control.copy(gestures = if (it == null) emptyMap() else mapOf(GestureDirection.TAP to it))
                     }
                 }
             )
         }
-        body.addView(label("Next: tools disappear. Lift all fingers, then tap to place or draw an area. Back restores tools."))
+        body.addView(label(s(R.string.touch_tools_place_hint)))
         body.addView(
-            button("Place control") {
+            button(s(R.string.touch_tools_place)) {
                 if (!validFields()) return@button
-                if (control.name.isBlank()) { workspace.message("Enter a name"); return@button }
+                if (control.name.isBlank()) { workspace.message(s(R.string.touch_tools_enter_name)); return@button }
                 if (control.type == ControlType.GESTURE && control.gestures.isEmpty()) {
-                    workspace.message("At least one gesture output is required"); return@button
+                    workspace.message(s(R.string.touch_tools_gesture_required)); return@button
                 }
                 if (control.type == ControlType.SWIPE && control.swipePresetId == null) {
                     val preset = SwipePreset()
@@ -446,7 +506,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 workspace.beginPlacement(control)
             }
         )
-        body.addView(button("Cancel") { showAdd() })
+        body.addView(button(s(R.string.touch_tools_cancel)) { showAdd() })
     }
 
     private fun showProperties(keepTransaction: TouchLibrary? = null) {
@@ -454,24 +514,18 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         if (propertyId != control.id) { propertyTab = 0; childIndex = null; propertyId = control.id }
         val before = keepTransaction ?: workspace.draft
         val body = openPanel(
-            "${control.name} · properties",
+            s(R.string.touch_tools_control_properties, control.name),
             true,
             key = "control:${control.id}:$propertyTab:$childIndex"
         )
         panelBefore = before
-        val tabs = row()
-        listOf("Input", "Appearance", "Geometry").forEachIndexed { i, text ->
-            tabs.addView(
-                button(if (propertyTab == i) "• $text" else text) {
-                    if (validFields()) { propertyTab = i; showProperties(before) }
-                }
-            )
+        materialTabs(body, listOf(s(R.string.touch_tools_input), s(R.string.touch_tools_appearance), s(R.string.touch_tools_geometry)), propertyTab) { i ->
+            if (validFields()) { propertyTab = i; showProperties(before) }
         }
-        body.addView(horizontal(tabs))
         if (control.type == ControlType.BUTTON_GROUP) {
             val children = row()
             children.addView(
-                button(if (childIndex == null) "• Whole group" else "Whole group") {
+                button(s(R.string.touch_tools_whole_group)) {
                     childIndex = null; showProperties(before)
                 }
             )
@@ -489,26 +543,34 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             1 -> appearanceProperties(body, control)
             2 -> geometryProperties(body, control)
         }
-        body.addView(button("Done") { if (validFields()) { workspace.hideKeyboard(); completePanel() } })
-        body.addView(button("Cancel changes") { cancelPanel() })
+        panelFooter?.apply {
+            visibility = if (panelCollapsed) GONE else VISIBLE
+            addView(button(s(R.string.touch_tools_cancel)) { cancelPanel() })
+            addView(primaryButton(s(R.string.touch_tools_done)) { if (validFields()) { workspace.hideKeyboard(); completePanel() } })
+        }
         body.addView(
-            button("Adjust in place") {
+            button(s(R.string.touch_tools_adjust)) {
                 if (validFields()) { completePanel(); workspace.hideTools(true) }
             }
         )
-        body.addView(button("Duplicate") { if (validFields()) { completePanel(); workspace.duplicateSelected() } })
-        val order = row()
-        order.addView(button("Bring forward") { workspace.reorderSelected(true) })
-        order.addView(button("Send backward") { workspace.reorderSelected(false) })
-        body.addView(order)
-        body.addView(
-            button("Delete control") {
-                MaterialAlertDialogBuilder(context).setTitle("Delete ${control.name}?")
-                    .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ ->
-                        completePanel(); workspace.deleteSelected()
-                    }.show()
-            }
-        )
+        val moreActions = button(s(R.string.touch_tools_property_actions)) {}
+        moreActions.setOnClickListener { showControlActions(it, control) }
+        body.addView(moreActions)
+    }
+
+    private fun showControlActions(anchor: View, control: TouchControl) {
+        val popup = PopupMenu(context, anchor)
+        fun item(label: Int, action: () -> Unit) { popup.menu.add(s(label)).setOnMenuItemClickListener { action(); true } }
+        item(R.string.touch_tools_duplicate) { if (validFields()) { completePanel(); workspace.duplicateSelected() } }
+        item(R.string.touch_tools_bring_forward) { workspace.reorderSelected(true) }
+        item(R.string.touch_tools_send_backward) { workspace.reorderSelected(false) }
+        item(R.string.touch_tools_delete_control) {
+            MaterialAlertDialogBuilder(context).setTitle(s(R.string.touch_tools_delete_confirm, control.name))
+                .setNegativeButton(s(R.string.touch_tools_cancel), null).setPositiveButton(s(R.string.touch_tools_delete)) { _, _ ->
+                    completePanel(); workspace.deleteSelected()
+                }.show()
+        }
+        popup.show()
     }
 
     private fun inputProperties(body: LinearLayout, control: TouchControl, before: TouchLibrary) {
@@ -517,10 +579,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ControlType.BUTTON_GROUP -> {
                 val index = childIndex
                 if (index == null) {
-                    body.addView(label("${control.groupStyle} · select a child to edit its mapping and turbo."))
+                    body.addView(label(s(R.string.touch_tools_group_hint, enumLabel(control.groupStyle))))
                 } else {
                     val key = control.groupKeys[index]
-                    body.addView(label("Child: ${key.text} · ${listOf("Top", "Right", "Bottom", "Left")[index]}"))
+                    body.addView(label(s(R.string.touch_tools_child_scope, key.text, listOf(s(R.string.touch_tools_top), s(R.string.touch_tools_right), s(R.string.touch_tools_bottom), s(R.string.touch_tools_left))[index])))
                     bindingFields(body, key.binding) { binding ->
                         change { c ->
                             c.copy(groupKeys = c.groupKeys.mapIndexed { i, k -> if (i == index) k.copy(binding = binding) else k })
@@ -529,46 +591,46 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 }
             }
             ControlType.STICK -> {
-                choice(body, "Target stick", StickTarget.values().toList(), control.stickTarget) { change { c -> c.copy(stickTarget = it) } }
-                toggle(body, "Free stick", control.freeStick) {
+                choice(body, s(R.string.touch_tools_target_stick), StickTarget.values().toList(), control.stickTarget) { change { c -> c.copy(stickTarget = it) } }
+                toggle(body, s(R.string.touch_tools_free_stick), control.freeStick) {
                     if (change { c -> c.copy(freeStick = it, triggerOnly = if (it) c.triggerOnly else false) }) showProperties(before)
                 }
                 if (control.freeStick) {
-                    toggle(body, "Show only when touched (area)", control.triggerOnly) {
+                    toggle(body, s(R.string.touch_tools_trigger_only), control.triggerOnly) {
                         if (change { c -> c.copy(triggerOnly = it) }) showProperties(before)
                     }
                 }
-                toggle(body, "Maximum deflection outside deadzone", control.maximumDeflection) { change { c -> c.copy(maximumDeflection = it) } }
-                number(body, "Stick deadzone [0–0.95]", control.stickDeadzone, 0f, 0.95f, true) { change { c -> c.copy(stickDeadzone = it) } }
+                toggle(body, s(R.string.touch_tools_max_deflection), control.maximumDeflection) { change { c -> c.copy(maximumDeflection = it) } }
+                number(body, s(R.string.touch_tools_stick_deadzone), control.stickDeadzone, 0f, 0.95f, true) { change { c -> c.copy(stickDeadzone = it) } }
                 body.addView(
-                    button("Auxiliary: ${control.auxiliaryButton?.let { buttonName(it) } ?: "None"}") {
+                    button(s(R.string.touch_tools_auxiliary, control.auxiliaryButton?.let { buttonName(it) } ?: s(R.string.touch_tools_none))) {
                         mapping(control.auxiliaryButton?.let { setOf(it) } ?: emptySet(), true, true) { values ->
                             change { it.copy(auxiliaryButton = values.firstOrNull()) }; showProperties(before)
                         }
                     }
                 )
                 if (control.auxiliaryButton != null) {
-                    choice(body, "Auxiliary mode", AuxiliaryMode.values().toList(), control.auxiliaryMode) { change { c -> c.copy(auxiliaryMode = it) } }
-                    body.addView(label("Push: held outside center. Double tap: held from second DOWN until its UP."))
-                    number(body, "Double-tap timeout (ms)", control.tapTimeoutMs.toFloat(), 1f, 10000f) { change { c -> c.copy(tapTimeoutMs = it.toLong()) } }
-                    number(body, "Double-tap tolerance (dp)", control.tapSlop, 0f, 500f) { change { c -> c.copy(tapSlop = it) } }
+                    choice(body, s(R.string.touch_tools_aux_mode), AuxiliaryMode.values().toList(), control.auxiliaryMode) { change { c -> c.copy(auxiliaryMode = it) } }
+                    body.addView(label(s(R.string.touch_tools_aux_hint)))
+                    number(body, s(R.string.touch_tools_double_timeout), control.tapTimeoutMs.toFloat(), 1f, 10000f) { change { c -> c.copy(tapTimeoutMs = it.toLong()) } }
+                    number(body, s(R.string.touch_tools_double_tolerance), control.tapSlop, 0f, 500f) { change { c -> c.copy(tapSlop = it) } }
                 }
             }
             ControlType.SWIPE -> {
-                choice(body, "Target stick", StickTarget.values().toList(), control.stickTarget) { change { c -> c.copy(stickTarget = it) } }
+                choice(body, s(R.string.touch_tools_target_stick), StickTarget.values().toList(), control.stickTarget) { change { c -> c.copy(stickTarget = it) } }
                 presetChoice(body, control.swipePresetId) { change { c -> c.copy(swipePresetId = it) }; showProperties(before) }
                 body.addView(
-                    button("Tune shared preset") {
+                    button(s(R.string.touch_tools_tune_shared)) {
                         if (validFields()) { completePanel(); workspace.selected?.swipePresetId?.let { showTuning(it, false) } }
                     }
                 )
                 body.addView(
-                    button("Copy preset and tune") {
+                    button(s(R.string.touch_tools_copy_tune)) {
                         if (!validFields()) return@button
                         completePanel()
                         val p = workspace.draft.presets.firstOrNull { it.id == workspace.selected?.swipePresetId } ?: return@button
                         workspace.checkpoint()
-                        val copy = p.copy(id = newTouchId(), name = "${p.name} copy")
+                        val copy = p.copy(id = newTouchId(), name = s(R.string.touch_tools_copy_name, p.name))
                         workspace.addPreset(copy)
                         change { it.copy(swipePresetId = copy.id) }
                         showTuning(copy.id, false)
@@ -576,15 +638,15 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 )
                 if (workspace.gameAvailable) {
                     body.addView(
-                        button("Single-control live debug") {
+                        button(s(R.string.touch_tools_single_live)) {
                             if (validFields()) { completePanel(); workspace.startTest(true) }
                         }
                     )
                 }
             }
             ControlType.GESTURE -> {
-                toggle(body, "Eight recognition directions", control.diagonalGestures) { change { c -> c.copy(diagonalGestures = it) }; showProperties(before) }
-                body.addView(label("Recognition direction · select a compass cell to set its output"))
+                toggle(body, s(R.string.touch_tools_eight_directions), control.diagonalGestures) { change { c -> c.copy(diagonalGestures = it) }; showProperties(before) }
+                body.addView(label(s(R.string.touch_tools_recognition_hint)))
                 compass(
                     body,
                     control.diagonalGestures,
@@ -597,23 +659,23 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                         showProperties(before)
                     }
                 }
-                number(body, "Recognition distance (dp)", control.gestureDistance, 1f, 1000f) { change { c -> c.copy(gestureDistance = it) } }
-                choice(body, "Swipe timing", GestureTiming.values().toList(), control.gestureTiming) { change { c -> c.copy(gestureTiming = it) } }
-                body.addView(label("Immediate: hold until UP. Release: finite pulse. Tap always produces a pulse."))
-                number(body, "Tap / release pulse (ms)", control.gesturePulseMs.toFloat(), 1f, 10000f) { change { c -> c.copy(gesturePulseMs = it.toLong()) } }
-                number(body, "Tap timeout (ms)", control.tapTimeoutMs.toFloat(), 1f, 10000f) { change { c -> c.copy(tapTimeoutMs = it.toLong()) } }
-                number(body, "Tap movement tolerance (dp)", control.tapSlop, 0f, 500f) { change { c -> c.copy(tapSlop = it) } }
+                number(body, s(R.string.touch_tools_recognition_distance), control.gestureDistance, 1f, 1000f) { change { c -> c.copy(gestureDistance = it) } }
+                choice(body, s(R.string.touch_tools_swipe_timing), GestureTiming.values().toList(), control.gestureTiming) { change { c -> c.copy(gestureTiming = it) } }
+                body.addView(label(s(R.string.touch_tools_gesture_timing_hint)))
+                number(body, s(R.string.touch_tools_gesture_pulse), control.gesturePulseMs.toFloat(), 1f, 10000f) { change { c -> c.copy(gesturePulseMs = it.toLong()) } }
+                number(body, s(R.string.touch_tools_tap_timeout), control.tapTimeoutMs.toFloat(), 1f, 10000f) { change { c -> c.copy(tapTimeoutMs = it.toLong()) } }
+                number(body, s(R.string.touch_tools_tap_tolerance), control.tapSlop, 0f, 500f) { change { c -> c.copy(tapSlop = it) } }
             }
         }
     }
 
     private fun appearanceProperties(body: LinearLayout, control: TouchControl) {
         if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
-            textField(body, "Control name", control.name, false) { value -> change { it.copy(name = value) } }
+            textField(body, s(R.string.touch_tools_control_name), control.name, false) { value -> change { it.copy(name = value) } }
         }
         if (control.type == ControlType.BUTTON || (control.type == ControlType.BUTTON_GROUP && childIndex != null)) {
             val index = childIndex
-            textField(body, "Display text", if (index != null) control.groupKeys[index].text else control.text, true) { value ->
+            textField(body, s(R.string.touch_tools_display_text), if (index != null) control.groupKeys[index].text else control.text, true) { value ->
                 change { c ->
                     if (index == null) {
                         c.copy(text = value)
@@ -628,56 +690,56 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             }
         }
         if (control.type == ControlType.BUTTON) {
-            choice(body, "Shape", ControlShape.values().toList(), control.shape) {
+            choice(body, s(R.string.touch_tools_shape), ControlShape.values().toList(), control.shape) {
                 val r = workspace.placements[control.id] ?: control.bounds
                 if (it == ControlShape.CIRCLE) workspace.setGeometry(control.id, r.copy(height = r.width))
                 change { c -> c.copy(shape = it) }
             }
         }
         if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
-            number(body, "Opacity (0–100%)", control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
+            number(body, s(R.string.touch_tools_opacity), control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
             if (control.type == ControlType.STICK && control.triggerOnly) {
-                number(body, "Active stick diameter (dp)", control.stickDiameter, 1f, 1000f) { change { c -> c.copy(stickDiameter = it) } }
+                number(body, s(R.string.touch_tools_active_diameter), control.stickDiameter, 1f, 1000f) { change { c -> c.copy(stickDiameter = it) } }
             }
         }
-        body.addView(label("Opacity never disables input. Use Enabled in the control list to disable a control."))
+        body.addView(label(s(R.string.touch_tools_opacity_hint)))
     }
 
     private fun geometryProperties(body: LinearLayout, control: TouchControl) {
         if (control.type == ControlType.BUTTON_GROUP && childIndex != null) {
-            body.addView(label("Child keys use the whole group's fixed geometry.")); return
+            body.addView(label(s(R.string.touch_tools_child_geometry_hint))); return
         }
         val rect = workspace.placements[control.id] ?: return
-        body.addView(label("Safe-area pixels · ${workspace.safe.width().roundToInt()} × ${workspace.safe.height().roundToInt()}"))
-        fun geometryError(rect: TouchRect): String? = if (workspace.canSetGeometry(control.id, rect)) null else "Outside the safe area or overlaps another area"
-        number(body, "X (px)", rect.x, 0f, workspace.safe.width(), validate = { value ->
+        body.addView(label(s(R.string.touch_tools_safe_pixels, workspace.safe.width().roundToInt(), workspace.safe.height().roundToInt())))
+        fun geometryError(rect: TouchRect): String? = if (workspace.canSetGeometry(control.id, rect)) null else s(R.string.touch_tools_geometry_error)
+        number(body, s(R.string.touch_tools_x), rect.x, 0f, workspace.safe.width(), validate = { value ->
             geometryError((workspace.placements[control.id] ?: rect).copy(x = value))
         }) { value ->
-            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(x = value))) workspace.message("Position exceeds the safe area or overlaps another area") }
+            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(x = value))) workspace.message(s(R.string.touch_tools_position_error)) }
         }
-        number(body, "Y (px)", rect.y, 0f, workspace.safe.height(), validate = { value ->
+        number(body, s(R.string.touch_tools_y), rect.y, 0f, workspace.safe.height(), validate = { value ->
             geometryError((workspace.placements[control.id] ?: rect).copy(y = value))
         }) { value ->
-            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(y = value))) workspace.message("Position exceeds the safe area or overlaps another area") }
+            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(y = value))) workspace.message(s(R.string.touch_tools_position_error)) }
         }
         val circle = control.type == ControlType.BUTTON && control.shape == ControlShape.CIRCLE
-        number(body, if (circle) "Diameter (px)" else "Width (px)", rect.width, 1f, workspace.safe.width(), validate = { value ->
+        number(body, if (circle) s(R.string.touch_tools_diameter) else s(R.string.touch_tools_width), rect.width, 1f, workspace.safe.width(), validate = { value ->
             val current = workspace.placements[control.id] ?: rect
             geometryError(current.copy(width = value, height = if (circle) value else current.height))
         }) { value ->
-            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(width = value, height = if (circle) value else r.height))) workspace.message("Invalid size or area conflict") }
+            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(width = value, height = if (circle) value else r.height))) workspace.message(s(R.string.touch_tools_size_error)) }
         }
         if (!circle) {
-            number(body, "Height (px)", rect.height, 1f, workspace.safe.height(), validate = { value ->
+            number(body, s(R.string.touch_tools_height), rect.height, 1f, workspace.safe.height(), validate = { value ->
                 geometryError((workspace.placements[control.id] ?: rect).copy(height = value))
             }) { value ->
-                workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(height = value))) workspace.message("Invalid size or area conflict") }
+                workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(height = value))) workspace.message(s(R.string.touch_tools_size_error)) }
             }
         }
         val steps = row()
         listOf("←" to (-1f to 0f), "↑" to (0f to -1f), "↓" to (0f to 1f), "→" to (1f to 0f)).forEach { (label, d) ->
             steps.addView(
-                button("$label 1px") {
+                button(s(R.string.touch_tools_step, label)) {
                     workspace.placements[control.id]?.let { workspace.setGeometry(control.id, it.copy(x = it.x + d.first, y = it.y + d.second)) }
                 }
             )
@@ -687,21 +749,21 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     private fun bindingFields(body: LinearLayout, binding: ButtonBinding, update: (ButtonBinding) -> Unit) {
         var current = binding
-        val mappingButton = button("Simultaneous: ${binding.buttons.joinToString(" + ") { buttonName(it) }}") {}
+        val mappingButton = button(s(R.string.touch_tools_simultaneous, binding.buttons.joinToString(" + ") { buttonName(it) })) {}
         mappingButton.setOnClickListener {
             mapping(current.buttons, false) { buttons ->
                 current = current.copy(buttons = buttons)
                 update(current)
-                mappingButton.text = "Simultaneous: ${buttons.joinToString(" + ") { buttonName(it) }}"
+                mappingButton.text = s(R.string.touch_tools_simultaneous, buttons.joinToString(" + ") { buttonName(it) })
             }
         }
-        body.addView(mappingButton)
-        toggle(body, "Turbo · starts immediately, stops on release", binding.turbo) {
+        body.addView(mappingButton, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        toggle(body, s(R.string.touch_tools_turbo), binding.turbo) {
             current = current.copy(turbo = it); update(current)
         }
         number(
             body,
-            "Turbo frequency (1–60 Hz)",
+            s(R.string.touch_tools_turbo_frequency),
             binding.frequencyHz,
             TouchValidator.MIN_FREQUENCY_HZ,
             TouchValidator.MAX_FREQUENCY_HZ,
@@ -709,21 +771,21 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         ) {
             current = current.copy(frequencyHz = it); update(current)
         }
-        body.addView(label("Game input sampling limits the effective frequency. Combo members pulse together."))
+        body.addView(label(s(R.string.touch_tools_turbo_hint)))
     }
 
     private fun presetChoice(body: LinearLayout, selected: String?, update: (String) -> Unit) {
         val presets = workspace.draft.presets
         val current = presets.firstOrNull { it.id == selected }
         val refs = workspace.draft.templates.sumOf { t -> t.controls.count { it.swipePresetId == selected } }
-        body.addView(label("Continuous shared reference · $refs areas"))
+        body.addView(label(s(R.string.touch_tools_shared_refs, refs)))
         body.addView(
-            button("Preset: ${current?.name ?: "Missing — select a preset"}") {
-                if (presets.isEmpty()) { workspace.message("No swipe presets available"); return@button }
+            button(s(R.string.touch_tools_preset_value, current?.name ?: s(R.string.touch_tools_missing_preset))) {
+                if (presets.isEmpty()) { workspace.message(s(R.string.touch_tools_no_presets)); return@button }
                 var index = presets.indexOfFirst { it.id == selected }.coerceAtLeast(0)
-                MaterialAlertDialogBuilder(context).setTitle("Select shared swipe preset")
+                MaterialAlertDialogBuilder(context).setTitle(s(R.string.touch_tools_select_preset))
                     .setSingleChoiceItems(presets.map { it.name }.toTypedArray(), index) { _, i -> index = i }
-                    .setNegativeButton("Cancel", null).setPositiveButton("Select") { _, _ -> update(presets[index].id) }.show()
+                    .setNegativeButton(s(R.string.touch_tools_cancel), null).setPositiveButton(s(R.string.touch_tools_select)) { _, _ -> update(presets[index].id) }.show()
             }
         )
     }
@@ -733,35 +795,29 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val snapshot = before ?: workspace.draft
         val refs = workspace.draft.templates.sumOf { t -> t.controls.count { it.swipePresetId == id } }
         val body = openPanel(
-            if (live) "${workspace.selected?.name} · ${workspace.selected?.stickTarget} · LIVE" else "Tune ${preset.name}",
+            if (live) s(R.string.touch_tools_live_title, workspace.selected?.name.orEmpty(), enumLabel(workspace.selected?.stickTarget)) else s(R.string.touch_tools_tune_title, preset.name),
             !live,
             if (live) ({ workspace.finishTest(false) }) else null,
             key = "preset:$id:$tab"
         )
         if (!live) panelBefore = snapshot
-        body.addView(label("${preset.name} · $refs area references · ${if (live) "immediate preview, not saved" else "draft only"}"))
-        val tabs = row()
-        listOf("Basic", "Advanced", "Notes").forEachIndexed { i, label ->
-            tabs.addView(
-                button(if (i == tab) "• $label" else label) {
-                    if (validFields()) showTuning(id, live, i, snapshot)
-                }
-            )
+        body.addView(label(s(R.string.touch_tools_tuning_summary, preset.name, refs, s(if (live) R.string.touch_tools_live_preview else R.string.touch_tools_draft_only))))
+        materialTabs(body, listOf(s(R.string.touch_tools_basic), s(R.string.touch_tools_advanced), s(R.string.touch_tools_notes)), tab) { i ->
+            if (validFields()) showTuning(id, live, i, snapshot)
         }
-        body.addView(horizontal(tabs))
         fun update(block: (SwipePreset) -> SwipePreset) {
             workspace.draft.presets.firstOrNull { it.id == id }?.let { workspace.updatePreset(block(it)) }
         }
         if (tab == 0) {
-            number(body, "Horizontal sensitivity (>0)", preset.sensitivityX, 0.01f, 10f, true) { update { p -> p.copy(sensitivityX = it) } }
-            number(body, "Vertical sensitivity (>0)", preset.sensitivityY, 0.01f, 10f, true) { update { p -> p.copy(sensitivityY = it) } }
-            toggle(body, "Invert X", preset.invertX) { update { p -> p.copy(invertX = it) } }
-            toggle(body, "Invert Y", preset.invertY) { update { p -> p.copy(invertY = it) } }
-            toggle(body, "Swap axes", preset.swapAxes) { update { p -> p.copy(swapAxes = it) } }
+            number(body, s(R.string.touch_tools_sensitivity_x), preset.sensitivityX, 0.01f, 10f, true) { update { p -> p.copy(sensitivityX = it) } }
+            number(body, s(R.string.touch_tools_sensitivity_y), preset.sensitivityY, 0.01f, 10f, true) { update { p -> p.copy(sensitivityY = it) } }
+            toggle(body, s(R.string.touch_tools_invert_x), preset.invertX) { update { p -> p.copy(invertX = it) } }
+            toggle(body, s(R.string.touch_tools_invert_y), preset.invertY) { update { p -> p.copy(invertY = it) } }
+            toggle(body, s(R.string.touch_tools_swap_axes), preset.swapAxes) { update { p -> p.copy(swapAxes = it) } }
             val scales = row()
             MotionScale.values().forEach { next ->
                 scales.addView(
-                    button("Scale: $next") {
+                    button(s(R.string.touch_tools_scale_value, enumLabel(next))) {
                         val shortEdgeDp = min(workspace.safe.width(), workspace.safe.height()) / resources.displayMetrics.density
                         update { p ->
                             val speed = if (p.scale == next) {
@@ -777,14 +833,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 )
             }
             body.addView(scales)
-            body.addView(label("Speed uses dp/second for DP or screen-short-edges/second for SHORT_EDGE. Switching scale converts maximum speed."))
+            body.addView(label(s(R.string.touch_tools_scale_hint)))
             body.addView(
                 SwipeCurveView(context) { workspace.draft.presets.first { it.id == id } },
                 LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, px(130))
             )
-            body.addView(label("Response preview · input → output, not measured game camera feedback"))
+            body.addView(label(s(R.string.touch_tools_curve_hint)))
             body.addView(
-                button("Reset basic group") {
+                button(s(R.string.touch_tools_reset_basic)) {
                     update { p ->
                         p.copy(
                             sensitivityX = 1f,
@@ -805,10 +861,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 }
             )
         } else if (tab == 1) {
-            expandable(body, "Response and curve") { section ->
-                number(section, "Deadzone compensation [0–0.95]", preset.deadzone, 0f, 0.95f, true) { update { p -> p.copy(deadzone = it) } }
-                number(section, "Exponent (>0)", preset.exponent, 0.1f, 5f, true) { update { p -> p.copy(exponent = it, curve = emptyList()) } }
-                val curve = textField(section, "Curve points: input:output, …", preset.curve.joinToString(", ") { "${it.input}:${it.output}" }, true) { value ->
+            expandable(body, s(R.string.touch_tools_response_curve)) { section ->
+                number(section, s(R.string.touch_tools_compensation), preset.deadzone, 0f, 0.95f, true) { update { p -> p.copy(deadzone = it) } }
+                number(section, s(R.string.touch_tools_exponent), preset.exponent, 0.1f, 5f, true) { update { p -> p.copy(exponent = it, curve = emptyList()) } }
+                val curve = textField(section, s(R.string.touch_tools_curve_points), preset.curve.joinToString(", ") { "${it.input}:${it.output}" }, true) { value ->
                     val points = if (value.isBlank()) {
                         emptyList()
                     } else {
@@ -839,20 +895,20 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             ps.all { it.input.isFinite() && it.output.isFinite() && it.input in 0f..1f && it.output in 0f..1f } &&
                             ps.zipWithNext().all { (a, b) -> a.input < b.input && a.output <= b.output }
                     }.getOrDefault(false)
-                    setError(curve, if (valid) null else "Use increasing inputs, monotonic outputs, from 0:0 to 1:1")
+                    setError(curve, if (valid) null else s(R.string.touch_tools_curve_error))
                 }
                 section.addView(
-                    button("Reset response group") {
+                    button(s(R.string.touch_tools_reset_response)) {
                         update { it.copy(deadzone = 0.15f, exponent = 1f, curve = emptyList()) }
                         showTuning(id, live, tab, snapshot)
                     }
                 )
             }
-            expandable(body, "Timing and saturation") { section ->
+            expandable(body, s(R.string.touch_tools_timing_saturation)) { section ->
                 val dpScale = preset.scale == MotionScale.DP
                 number(
                     section,
-                    if (dpScale) "Maximum speed (dp/s)" else "Maximum speed (short edges/s)",
+                    if (dpScale) s(R.string.touch_tools_speed_dp) else s(R.string.touch_tools_speed_edge),
                     preset.maximumSpeed,
                     if (dpScale) 0.01f else 0.001f,
                     if (dpScale) 10000f else 20f,
@@ -860,12 +916,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 ) {
                     update { p -> p.copy(maximumSpeed = it) }
                 }
-                number(section, "Smoothing (0–10000 ms)", preset.smoothingMs, 0f, 10000f) { update { p -> p.copy(smoothingMs = it) } }
-                number(section, "Stop timeout (1–10000 ms)", preset.stopTimeoutMs.toFloat(), 1f, 10000f) { update { p -> p.copy(stopTimeoutMs = it.toLong()) } }
-                number(section, "Accumulation cap (1–1000 ms)", preset.maxAccumulationMs.toFloat(), 1f, 1000f) { update { p -> p.copy(maxAccumulationMs = it.toLong()) } }
-                section.addView(label("Release always clears pending motion. Excess beyond the accumulation cap is discarded."))
+                number(section, s(R.string.touch_tools_smoothing), preset.smoothingMs, 0f, 10000f) { update { p -> p.copy(smoothingMs = it) } }
+                number(section, s(R.string.touch_tools_stop_timeout), preset.stopTimeoutMs.toFloat(), 1f, 10000f) { update { p -> p.copy(stopTimeoutMs = it.toLong()) } }
+                number(section, s(R.string.touch_tools_accumulation), preset.maxAccumulationMs.toFloat(), 1f, 1000f) { update { p -> p.copy(maxAccumulationMs = it.toLong()) } }
+                section.addView(label(s(R.string.touch_tools_release_hint)))
                 section.addView(
-                    button("Reset timing group") {
+                    button(s(R.string.touch_tools_reset_timing)) {
                         update {
                             it.copy(
                                 maximumSpeed = if (it.scale == MotionScale.DP) {
@@ -883,19 +939,19 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 )
             }
         } else {
-            textField(body, "Preset name", preset.name, false) { name -> update { it.copy(name = name) } }
-            textField(body, "Calibration / game sensitivity notes", preset.notes, true, multiline = true) { notes -> update { it.copy(notes = notes) } }
-            body.addView(label("Joystick-based open-loop estimate. Measure actual camera response in your game; this editor does not read camera angles."))
+            textField(body, s(R.string.touch_tools_preset_name), preset.name, false) { name -> update { it.copy(name = name) } }
+            textField(body, s(R.string.touch_tools_calibration_notes), preset.notes, true, multiline = true) { notes -> update { it.copy(notes = notes) } }
+            body.addView(label(s(R.string.touch_tools_calibration_hint)))
         }
         if (live) {
-            body.addView(button("Return to editing · keep draft") { if (validFields()) workspace.finishTest(false) })
-            body.addView(button("Undo this debug session") { workspace.finishTest(true) })
-            body.addView(button("Hide all tools · Back restores") { workspace.hideTools() })
+            body.addView(button(s(R.string.touch_tools_return_keep)) { if (validFields()) workspace.finishTest(false) })
+            body.addView(button(s(R.string.touch_tools_undo_debug_session)) { workspace.finishTest(true) })
+            body.addView(button(s(R.string.touch_tools_hide_restore)) { workspace.hideTools() })
         } else {
-            body.addView(button("Done") { if (validFields()) completePanel() })
-            body.addView(button("Cancel tuning") { cancelPanel() })
+            body.addView(button(s(R.string.touch_tools_done)) { if (validFields()) completePanel() })
+            body.addView(button(s(R.string.touch_tools_cancel_tuning)) { cancelPanel() })
             body.addView(
-                button(if (workspace.gameAvailable) "Full-screen game test" else "Full-screen local test") {
+                button(if (workspace.gameAvailable) s(R.string.touch_tools_fullscreen_game_test) else s(R.string.touch_tools_fullscreen_local_test)) {
                     if (validFields()) { completePanel(); workspace.startTest(false) }
                 }
             )
@@ -903,19 +959,19 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun gestureTarget(current: GestureBinding?, update: (GestureBinding?) -> Unit) {
-        val options = arrayOf("Controller button", "Left stick direction", "Right stick direction", "Unassigned")
-        MaterialAlertDialogBuilder(context).setTitle("Gesture output · single target")
+        val options = arrayOf(s(R.string.touch_tools_controller_button), s(R.string.touch_tools_left_direction), s(R.string.touch_tools_right_direction), s(R.string.touch_tools_unassigned))
+        MaterialAlertDialogBuilder(context).setTitle(s(R.string.touch_tools_gesture_output))
             .setItems(options) { _, index ->
                 when (index) {
                     0 -> mapping(current?.button?.let { setOf(it) } ?: emptySet(), true) { update(GestureBinding(button = it.first())) }
                     1, 2 -> {
                         val body = column()
                         var direction = current?.direction?.takeIf { it != GestureDirection.TAP } ?: GestureDirection.UP
-                        body.addView(label("Output vector · choose one direction"))
+                        body.addView(label(s(R.string.touch_tools_output_hint)))
                         compass(body, true, false, direction) { value -> direction = value }
-                        MaterialAlertDialogBuilder(context).setTitle(if (index == 1) "Left stick output" else "Right stick output")
-                            .setView(body).setNegativeButton("Cancel", null)
-                            .setPositiveButton("Use direction") { _, _ ->
+                        MaterialAlertDialogBuilder(context).setTitle(if (index == 1) s(R.string.touch_tools_left_output) else s(R.string.touch_tools_right_output))
+                            .setView(body).setNegativeButton(s(R.string.touch_tools_cancel), null)
+                            .setPositiveButton(s(R.string.touch_tools_use_direction)) { _, _ ->
                                 update(
                                     GestureBinding(
                                         stick = if (index == 1) StickTarget.LEFT else StickTarget.RIGHT,
@@ -926,13 +982,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     }
                     else -> update(null)
                 }
-            }.setNegativeButton("Cancel", null).show()
+            }.setNegativeButton(s(R.string.touch_tools_cancel), null).show()
     }
 
     private fun mapping(initial: Set<Int>, single: Boolean, allowEmpty: Boolean = false, update: (Set<Int>) -> Unit) {
         val values = initial.filter { it in TouchValidator.buttonTargets }.toMutableSet()
         val body = column()
-        body.addView(label(if (single) "Choose one output button" else "Outputs are pressed simultaneously, not a sequence."))
+        body.addView(label(if (single) s(R.string.touch_tools_choose_one) else s(R.string.touch_tools_combo_hint)))
         val summary = ChipGroup(context).apply { chipSpacingHorizontal = px(4); chipSpacingVertical = px(4) }
         body.addView(summary)
         val tabs = ChipGroup(context).apply { isSingleSelection = true; isSelectionRequired = true }
@@ -940,24 +996,24 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         body.addView(horizontal(tabs))
         body.addView(grid)
         val categories = listOf(
-            "Face" to listOf(0, 1, 2, 3),
-            "Shoulders" to listOf(6, 7, 8, 9),
-            "System" to listOf(4, 5, 10, 11, 18, 19),
-            "Directions" to listOf(13, 14, 15, 12)
+            s(R.string.touch_tools_face) to listOf(0, 1, 2, 3),
+            s(R.string.touch_tools_shoulders) to listOf(6, 7, 8, 9),
+            s(R.string.touch_tools_system) to listOf(4, 5, 10, 11, 18, 19),
+            s(R.string.touch_tools_directions) to listOf(13, 14, 15, 12)
         )
         var category = 0
         var rebuilding: Boolean
         fun refresh() {
             rebuilding = true
             summary.removeAllViews()
-            if (values.isEmpty()) summary.addView(label(if (allowEmpty) "No auxiliary output" else "Select at least one output"))
+            if (values.isEmpty()) summary.addView(label(if (allowEmpty) s(R.string.touch_tools_no_auxiliary) else s(R.string.touch_tools_select_output)))
             for (id in values.sorted()) summary.addView(
                 Chip(context).apply {
                     text = buttonName(id)
                     isCloseIconVisible = true
                     minHeight = px(48)
                     setEnsureMinTouchTargetSize(true)
-                    contentDescription = "Selected ${buttonName(id)}. Remove output."
+                    contentDescription = s(R.string.touch_tools_remove_output, buttonName(id))
                     setOnCloseIconClickListener { values -= id; refresh() }
                 }
             )
@@ -970,7 +1026,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     isChecked = id in values
                     minHeight = px(48)
                     setEnsureMinTouchTargetSize(true)
-                    contentDescription = "Map ${buttonName(id)}"
+                    contentDescription = s(R.string.touch_tools_map_output, buttonName(id))
                     setOnCheckedChangeListener { _, checked ->
                         if (!rebuilding) {
                             if (single && checked) values.clear()
@@ -997,19 +1053,19 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         refresh()
         val scroll = ScrollView(context).apply { addView(body) }
-        val dialog = MaterialAlertDialogBuilder(context).setTitle(if (single) "Button output" else "Button combination")
-            .setView(scroll).setNegativeButton("Cancel", null).setNeutralButton("Clear", null)
-            .setPositiveButton("Done", null).create()
+        val dialog = MaterialAlertDialogBuilder(context).setTitle(if (single) s(R.string.touch_tools_button_output) else s(R.string.touch_tools_button_combination))
+            .setView(scroll).setNegativeButton(s(R.string.touch_tools_cancel), null).setNeutralButton(s(R.string.touch_tools_clear), null)
+            .setPositiveButton(s(R.string.touch_tools_done), null).create()
         dialog.setOnShowListener {
             dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
                 if (values.isEmpty() && !allowEmpty) {
-                    workspace.message("Select at least one button")
+                    workspace.message(s(R.string.touch_tools_select_button))
                 } else {
                     val apply = { update(values.toSet()); dialog.dismiss() }
                     if (values.any { it == 18 || it == 19 }) {
                         MaterialAlertDialogBuilder(context)
-                            .setTitle("System button mapping").setMessage("Home and Capture may execute their real system action during game tests.")
-                            .setPositiveButton("Use mapping") { _, _ -> apply() }.setNegativeButton("Cancel", null).show()
+                            .setTitle(s(R.string.touch_tools_system_mapping)).setMessage(s(R.string.touch_tools_system_warning))
+                            .setPositiveButton(s(R.string.touch_tools_use_mapping)) { _, _ -> apply() }.setNegativeButton(s(R.string.touch_tools_cancel), null).show()
                     } else {
                         apply()
                     }
@@ -1036,7 +1092,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             GestureDirection.LEFT, GestureDirection.TAP, GestureDirection.RIGHT,
             GestureDirection.DOWN_LEFT, GestureDirection.DOWN, GestureDirection.DOWN_RIGHT
         )
-        val arrows = listOf("↖", "↑", "↗", "←", "Tap", "→", "↙", "↓", "↘")
+        val arrows = listOf("↖", "↑", "↗", "←", s(R.string.touch_tools_tap), "→", "↙", "↓", "↘")
         val buttons = mutableMapOf<GestureDirection, MaterialButton>()
         directions.chunked(3).forEachIndexed { rowIndex, values ->
             val row = row()
@@ -1055,7 +1111,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     isEnabled = enabled
                     isCheckable = selected != null
                     isChecked = selected == direction
-                    contentDescription = "$direction${summary?.let { ": ${it(direction)}" } ?: ""}"
+                    contentDescription = s(R.string.touch_tools_label_value, enumLabel(direction), summary?.invoke(direction).orEmpty())
                     maxLines = 4
                 }
                 buttons[direction] = button
@@ -1066,26 +1122,52 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun gestureSummary(value: GestureBinding?): String = when {
-        value == null -> "Unassigned"
+        value == null -> s(R.string.touch_tools_unassigned)
         value.button != null -> buttonName(value.button)
-        else -> "${value.stick} stick ${value.direction}"
+        else -> s(R.string.touch_tools_stick_direction, enumLabel(value.stick), enumLabel(value.direction))
     }
 
     private fun change(block: (TouchControl) -> TouchControl): Boolean = workspace.selected?.let { workspace.updateControl(block(it)) } ?: false
 
     private fun <T> choice(body: LinearLayout, label: String, values: List<T>, selected: T, update: (T) -> Unit) {
-        val button = button("$label: $selected") {}
-        button.setOnClickListener {
+        val item = row().apply { minimumHeight = px(56); isClickable = true; isFocusable = true }
+        item.addView(label(label), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        val value = label(enumLabel(selected)).apply {
+            gravity = Gravity.END
+            setTextColor(themeColor(com.google.android.material.R.attr.colorSecondary))
+        }
+        item.addView(value, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        item.contentDescription = s(R.string.touch_tools_label_value, label, enumLabel(selected))
+        item.setOnClickListener {
             workspace.runtime.cancelAll()
             hasModalDialog = true
             val dialog = MaterialAlertDialogBuilder(context).setTitle(label)
-                .setSingleChoiceItems(values.map { it.toString() }.toTypedArray(), values.indexOf(selected)) { dialog, which ->
-                    update(values[which]); button.text = "$label: ${values[which]}"; dialog.dismiss()
-                }.setNegativeButton("Cancel", null).create()
+                .setSingleChoiceItems(values.map { enumLabel(it) }.toTypedArray(), values.indexOf(selected)) { dialog, which ->
+                    update(values[which])
+                    value.text = enumLabel(values[which])
+                    item.contentDescription = s(R.string.touch_tools_label_value, label, enumLabel(values[which]))
+                    dialog.dismiss()
+                }.setNegativeButton(s(R.string.touch_tools_cancel), null).create()
             dialog.setOnDismissListener { hasModalDialog = false }
             dialog.show()
         }
-        body.addView(button)
+        body.addView(item, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun materialTabs(body: LinearLayout, labels: List<String>, selected: Int, change: (Int) -> Unit) {
+        val tabs = TabLayout(context).apply {
+            tabMode = TabLayout.MODE_FIXED
+            setBackgroundColor(Color.TRANSPARENT)
+            setTabTextColors(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant), themeColor(com.google.android.material.R.attr.colorPrimary))
+            setSelectedTabIndicatorColor(themeColor(com.google.android.material.R.attr.colorPrimary))
+        }
+        labels.forEachIndexed { index, text -> tabs.addTab(tabs.newTab().setText(text), index == selected) }
+        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) { change(tab.position) }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+        body.addView(tabs, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, px(48)))
     }
 
     private fun toggle(body: LinearLayout, title: String, checked: Boolean, update: (Boolean) -> Unit) {
@@ -1120,7 +1202,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         edit.doAfterTextChanged {
             val number = it?.toString()?.toFloatOrNull()
             if (number == null || !number.isFinite() || number < min || number > max) {
-                setError(input, "Enter a finite value in $min–$max")
+                setError(input, s(R.string.touch_tools_range_error, format(min), format(max)))
             } else {
                 val error = validate?.invoke(number)
                 setError(input, error)
@@ -1168,7 +1250,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         body.addView(input, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         edit.doAfterTextChanged {
             val text = it?.toString().orEmpty()
-            setError(input, if (!allowEmpty && text.isBlank()) "Must not be empty" else null)
+            setError(input, if (!allowEmpty && text.isBlank()) s(R.string.touch_tools_not_empty) else null)
             if (allowEmpty || text.isNotBlank()) update(text)
         }
         return input
@@ -1182,7 +1264,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private fun validFields(): Boolean {
         if (invalidFields.isEmpty()) return true
         invalidFields.first().requestFocus()
-        workspace.message("Correct the highlighted fields first")
+        workspace.message(s(R.string.touch_tools_fix_fields))
         return false
     }
 
@@ -1193,13 +1275,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         body.addView(section)
     }
 
-    private fun draggable(handle: View, target: View) {
+    private fun draggable(handle: View, target: View, clickOnTap: Boolean = false) {
         var startX = 0f
         var startY = 0f
         var originalX = 0f
         var originalY = 0f
         var pointer = -1
-        handle.contentDescription = "Drag floating tool window"
+        handle.contentDescription = s(R.string.touch_tools_drag)
         handle.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -1217,6 +1299,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (clickOnTap && event.actionMasked == MotionEvent.ACTION_UP &&
+                        abs(event.rawX - startX) < px(8) && abs(event.rawY - startY) < px(8)
+                    ) {
+                        handle.performClick()
+                    }
                     draggingTools = false
                     pointer = -1
                     if (target == toolbar) {
@@ -1234,22 +1321,95 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private fun button(text: String, click: () -> Unit): MaterialButton = MaterialButton(
         context,
         null,
-        com.google.android.material.R.attr.materialButtonOutlinedStyle
+        0
     ).apply {
         this.text = text
+        backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+        strokeWidth = 0
+        isAllCaps = false
         minHeight = px(48)
         minimumHeight = px(48)
-        setPadding(px(10), px(4), px(10), px(4))
+        minWidth = 0
+        minimumWidth = 0
+        insetTop = 0
+        insetBottom = 0
+        setPadding(px(12), px(4), px(12), px(4))
+        setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface))
         setOnClickListener { click() }
     }
 
-    private fun label(text: String, size: Float = 14f): TextView = TextView(context).apply {
-        this.text = text; textSize = size
-        setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
-        setPadding(px(6), px(6), px(6), px(6))
+    private fun primaryButton(text: String, click: () -> Unit): MaterialButton = MaterialButton(context).apply {
+        this.text = text
+        contentDescription = text
+        isAllCaps = false
+        minWidth = 0
+        minimumWidth = 0
+        minHeight = px(48)
+        minimumHeight = px(48)
+        insetTop = 0
+        insetBottom = 0
+        cornerRadius = px(24)
+        backgroundTintList = ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorPrimary))
+        setTextColor(themeColor(com.google.android.material.R.attr.colorOnPrimary))
+        setPadding(px(20), px(4), px(20), px(4))
+        setOnClickListener { click() }
     }
 
-    private fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
+    private fun iconButton(drawable: Int, description: String, click: (View) -> Unit): MaterialButton =
+        button("") {}.apply {
+            icon = ContextCompat.getDrawable(context, drawable)
+            iconSize = px(24)
+            iconPadding = 0
+            iconTint = ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorOnSurface))
+            contentDescription = description
+            tooltipText = description
+            setPadding(px(12), 0, px(12), 0)
+            layoutParams = LinearLayout.LayoutParams(px(48), px(48))
+            setOnClickListener { click(this) }
+        }
+
+    private fun label(text: String, size: Float = 14f): TextView = TextView(context).apply {
+        setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+        this.text = text
+        textSize = size
+        setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface))
+        setPadding(0, px(4), 0, px(4))
+    }
+
+    private fun s(id: Int, vararg args: Any): String = context.getString(id, *args)
+    private fun themeColor(attr: Int): Int = MaterialColors.getColor(this, attr)
+
+    private fun enumLabel(value: Any?): String = when (value) {
+        ControlType.BUTTON -> s(R.string.touch_tools_enum_controltype_button)
+        ControlType.BUTTON_GROUP -> s(R.string.touch_tools_enum_controltype_button_group)
+        ControlType.STICK -> s(R.string.touch_tools_enum_controltype_stick)
+        ControlType.SWIPE -> s(R.string.touch_tools_enum_controltype_swipe)
+        ControlType.GESTURE -> s(R.string.touch_tools_enum_controltype_gesture)
+        ControlShape.CIRCLE -> s(R.string.touch_tools_enum_controlshape_circle)
+        ControlShape.RECTANGLE -> s(R.string.touch_tools_enum_controlshape_rectangle)
+        GroupStyle.FACE -> s(R.string.touch_tools_enum_groupstyle_face)
+        GroupStyle.DPAD -> s(R.string.touch_tools_enum_groupstyle_dpad)
+        StickTarget.LEFT -> s(R.string.touch_tools_enum_sticktarget_left)
+        StickTarget.RIGHT -> s(R.string.touch_tools_enum_sticktarget_right)
+        AuxiliaryMode.PUSH -> s(R.string.touch_tools_enum_auxiliarymode_push)
+        AuxiliaryMode.DOUBLE_TAP -> s(R.string.touch_tools_enum_auxiliarymode_double_tap)
+        GestureTiming.IMMEDIATE -> s(R.string.touch_tools_enum_gesturetiming_immediate)
+        GestureTiming.RELEASE -> s(R.string.touch_tools_enum_gesturetiming_release)
+        MotionScale.DP -> s(R.string.touch_tools_enum_motionscale_dp)
+        MotionScale.SHORT_EDGE -> s(R.string.touch_tools_enum_motionscale_short_edge)
+        GestureDirection.TAP -> s(R.string.touch_tools_enum_gesturedirection_tap)
+        GestureDirection.UP -> s(R.string.touch_tools_enum_gesturedirection_up)
+        GestureDirection.UP_RIGHT -> s(R.string.touch_tools_enum_gesturedirection_up_right)
+        GestureDirection.RIGHT -> s(R.string.touch_tools_enum_gesturedirection_right)
+        GestureDirection.DOWN_RIGHT -> s(R.string.touch_tools_enum_gesturedirection_down_right)
+        GestureDirection.DOWN -> s(R.string.touch_tools_enum_gesturedirection_down)
+        GestureDirection.DOWN_LEFT -> s(R.string.touch_tools_enum_gesturedirection_down_left)
+        GestureDirection.LEFT -> s(R.string.touch_tools_enum_gesturedirection_left)
+        GestureDirection.UP_LEFT -> s(R.string.touch_tools_enum_gesturedirection_up_left)
+        else -> value?.toString().orEmpty()
+    }
+
+    private fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(8), px(8), px(8)) }
     private fun row() = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private fun horizontal(view: View) = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
@@ -1258,7 +1418,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
     private fun card() = MaterialCardView(context).apply {
         radius = px(16f)
-        cardElevation = px(4f)
+        cardElevation = px(2f)
+        strokeWidth = px(1)
+        strokeColor = themeColor(com.google.android.material.R.attr.colorOutline)
         setCardBackgroundColor(surfaceColor())
         isClickable = true
     }
@@ -1266,13 +1428,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val color = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
         return (color and 0x00ffffff) or ((panelAlpha * 255).toInt() shl 24)
     }
-    private fun panelWidth() = min(px(360), max(px(180), workspace.width - px(24)))
-    private fun panelHeight() = max(px(120), min(px(430), workspace.height - px(110)))
+    private fun toolbarWidth() = min(px(680), max(px(200), workspace.width - px(24)))
+    private fun panelWidth() = min(px(340), max(px(180), workspace.width - px(24)))
+    private fun panelHeight() = max(px(96), min(px(400), workspace.height - px(160)))
     private fun px(value: Int) = (value * resources.displayMetrics.density).roundToInt()
     private fun px(value: Float) = value * resources.displayMetrics.density
     private fun format(value: Float) = if (abs(value - value.roundToInt()) < 0.0001f) value.roundToInt().toString() else "%.3f".format(java.util.Locale.ROOT, value)
     private fun buttonName(id: Int) = mapOf(
         0 to "A", 1 to "B", 2 to "X", 3 to "Y", 4 to "L3", 5 to "R3", 6 to "L", 7 to "R",
-        8 to "ZL", 9 to "ZR", 10 to "+", 11 to "−", 12 to "D-left", 13 to "D-up", 14 to "D-right", 15 to "D-down", 18 to "Home", 19 to "Capture"
+        8 to "ZL", 9 to "ZR", 10 to "+", 11 to "−", 12 to s(R.string.touch_tools_dleft), 13 to s(R.string.touch_tools_dup), 14 to s(R.string.touch_tools_dright), 15 to s(R.string.touch_tools_ddown), 18 to s(R.string.touch_tools_home), 19 to s(R.string.touch_tools_capture)
     )[id] ?: id.toString()
 }

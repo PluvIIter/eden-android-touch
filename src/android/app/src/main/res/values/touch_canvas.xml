@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="touch_canvas_accessibility">Touch layout canvas. Use the control list for accessible selection and precise positioning.</string>
+    <string name="touch_canvas_left_stick">Left stick</string>
+    <string name="touch_canvas_right_stick">Right stick</string>
+    <string name="touch_canvas_button">Button</string>
+    <string name="touch_canvas_group">Button group</string>
+    <string name="touch_canvas_swipe">Swipe area</string>
+    <string name="touch_canvas_gesture">Gesture area</string>
+    <string name="touch_canvas_free_stick">Free stick area</string>
+    <string name="touch_canvas_area_label">%1$s · %2$s</string>
+    <string name="touch_canvas_area_detail">%1$s · %2$s · lower layer</string>
+    <string name="touch_canvas_selected">%1$s · drag to move</string>
+    <string name="touch_canvas_selected_locked">%1$s · position locked</string>
+    <string name="touch_canvas_disabled">Disabled</string>
+    <string name="touch_canvas_live">Live test · draft not saved</string>
+    <string name="touch_canvas_local">Local test · not game camera feedback</string>
+    <string name="touch_canvas_vector">%1$s: %2$.2f, %3$.2f</string>
+    <string name="touch_canvas_saturated">Saturated</string>
+    <string name="touch_canvas_idle">No active touch</string>
+    <string name="touch_canvas_captured">Captured · %1$d touches</string>
+    <string name="touch_canvas_curve_accessibility">Response curve preview. This is not measured game camera feedback.</string>
+</resources>

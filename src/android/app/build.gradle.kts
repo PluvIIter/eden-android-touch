@@ -53,6 +53,15 @@ android {
         jvmTarget = "17"
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            val screenshots = layout.buildDirectory.dir("reports/touch-ui")
+            it.systemProperty("touch.ui.screenshotDir", screenshots.get().asFile.absolutePath)
+            it.outputs.dir(screenshots)
+        }
+    }
+
     packaging {
         // This is necessary for libadrenotools custom driver loading
         jniLibs.useLegacyPackaging = true
@@ -328,6 +337,7 @@ play {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")

@@ -4,6 +4,7 @@
 package org.yuzu.yuzu_emu.overlay.touch.ui
 
 import android.content.Context
+import org.yuzu.yuzu_emu.R
 import android.graphics.RectF
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -64,7 +65,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         }
 
     fun acceptSaved(library: TouchLibrary) {
-        require(library.templates.any { it.id == templateId }) { "Saved library removed the active template" }
+        require(library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_saved) }
         saved = library
         draft = library
         undo.clear()
@@ -105,7 +106,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     fun editPreset(presetId: String) {
-        require(draft.presets.any { it.id == presetId }) { "Missing swipe preset" }
+        require(draft.presets.any { it.id == presetId }) { context.getString(R.string.touch_workspace_missing_preset) }
         if (!isEditing) setEditing(true)
         tools.showTuning(presetId, false)
     }
@@ -204,7 +205,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         }
         tools.refreshToolbar()
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
-        ViewCompat.addAccessibilityAction(this, "Show tools / end adjustment") { _, _ ->
+        ViewCompat.addAccessibilityAction(this, context.getString(R.string.touch_workspace_accessibility_tools)) { _, _ ->
             releaseInputs()
             pendingControl = null
             adjustSelected = false
@@ -215,7 +216,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     fun bind(library: TouchLibrary, templateId: String, gameAvailable: Boolean, sink: InputSink) {
         releaseInputs()
-        require(library.templates.any { it.id == templateId }) { "Missing touch template" }
+        require(library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_template) }
         this.draft = library
         this.saved = library
         this.templateId = templateId
@@ -300,16 +301,16 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             return true
         }
         if (draft != saved) {
-            MaterialAlertDialogBuilder(context).setTitle("Unsaved touch layout")
-                .setMessage("Save the draft, discard it, or keep editing?")
-                .setPositiveButton("Save") { _, _ -> save(true) }
-                .setNegativeButton("Discard") { _, _ ->
+            MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_unsaved_title))
+                .setMessage(context.getString(R.string.touch_workspace_unsaved_message))
+                .setPositiveButton(context.getString(R.string.touch_workspace_save)) { _, _ -> save(true) }
+                .setNegativeButton(context.getString(R.string.touch_workspace_discard)) { _, _ ->
                     releaseInputs()
                     draft = saved
                     updateGeometry()
                     onExit?.invoke()
                 }
-                .setNeutralButton("Keep editing", null).show()
+                .setNeutralButton(context.getString(R.string.touch_workspace_keep_editing), null).show()
         } else {
             onExit?.invoke()
         }
@@ -329,9 +330,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun setCurrentScreenAsBase() {
-        MaterialAlertDialogBuilder(context).setTitle("Use current screen as layout base?")
-            .setMessage("Future automatic adaptation will use this safe area. Other saved screen configurations remain unchanged.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Set base") { _, _ ->
+        MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_base_title))
+            .setMessage(context.getString(R.string.touch_workspace_base_message))
+            .setNegativeButton(context.getString(R.string.touch_workspace_cancel), null).setPositiveButton(context.getString(R.string.touch_workspace_set_base)) { _, _ ->
                 checkpoint()
                 val current = currentScreen().copy(placements = placements)
                 val screens = template.screens.filterNot { it.id == current.id }.map { screen ->
@@ -357,7 +358,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             it.id != value.id && it.isArea && (placements[it.id] ?: it.bounds).intersects(rect)
         }
         ) {
-            message("Area overlaps another area. Adjust its geometry first.")
+            message(context.getString(R.string.touch_workspace_overlap))
             return false
         }
         val makeCircle = value.type == ControlType.BUTTON && value.shape == ControlShape.CIRCLE
@@ -426,7 +427,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         tools.visibility = GONE
         adjustSelected = adjust
         waitForFreshDown = true
-        message("Back restores tools")
+        message(context.getString(R.string.touch_workspace_back_restores))
     }
 
     private fun showTools() {
@@ -462,7 +463,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val value = selected ?: return
         val copy = value.copy(
             id = newTouchId(),
-            name = "${value.name} copy",
+            name = context.getString(R.string.touch_workspace_copy_name, value.name),
             groupKeys = value.groupKeys.map { it.copy(id = newTouchId()) }
         )
         beginPlacement(copy)
@@ -470,7 +471,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun reorderSelected(front: Boolean) {
         val value = selected ?: return
-        if (value.isArea) { message("Areas always remain below buttons and sticks"); return }
+        if (value.isArea) { message(context.getString(R.string.touch_workspace_area_layer)); return }
         checkpoint()
         val others = template.controls.filterNot { it.id == value.id }
         replaceTemplate(template.copy(controls = if (front) others + value else listOf(value) + others))
@@ -479,15 +480,15 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     internal fun startTest(isolate: Boolean) {
         val control = selected
         if (isolate && (!gameAvailable || control?.type != ControlType.SWIPE || !control.enabled)) {
-            message("Select an enabled swipe area for live debug")
+            message(context.getString(R.string.touch_workspace_select_swipe))
             return
         }
         if (TouchValidator.validate(draft).isNotEmpty()) {
-            message("Repair invalid layout fields before testing")
+            message(context.getString(R.string.touch_workspace_repair_test))
             return
         }
         if (isolate && draft.presets.none { it.id == control?.swipePresetId }) {
-            message("Select a valid swipe preset first")
+            message(context.getString(R.string.touch_workspace_select_preset))
             return
         }
         hideKeyboard()
@@ -531,9 +532,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     internal fun save(exit: Boolean = false) {
         val issues = TouchValidator.validate(draft)
         if (issues.isNotEmpty()) {
-            MaterialAlertDialogBuilder(context).setTitle("Layout needs attention")
-                .setMessage(issues.take(8).joinToString("\n") { it.message })
-                .setPositiveButton("Continue editing", null).show()
+            MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_invalid_title))
+                .setMessage(R.string.touch_workspace_invalid_message)
+                .setPositiveButton(context.getString(R.string.touch_workspace_keep_editing), null).show()
             return
         }
         val games = draft.gameTemplates.filterValues { it == templateId }.keys
@@ -565,21 +566,25 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 draft = previousDraft
                 templateId = previousTemplate
                 saved = previousSaved
-                message(error.message ?: "Save failed; the draft is preserved")
+                message(context.getString(R.string.touch_workspace_save_failed))
             }
             updateGeometry()
         }
-        val dialog = MaterialAlertDialogBuilder(context).setTitle("Save and synchronize")
+        val dialog = MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_sync))
             .setMessage(
-                "Layout: ${template.name}\nGames: ${games.joinToString().ifEmpty { "No explicit game references" }}" +
-                    "\nGlobal default: ${draft.defaultTemplateId == templateId}" +
-                    "\nChanged parameter regions:\n${refs.joinToString("\n").ifEmpty { "None" }}" +
-                    "\nBinding changes: ${draft.gameTemplates.filter { (game, id) -> saved.gameTemplates[game] != id }}" +
-                    "\nSave current screen configuration; existing base is retained unless explicitly changed."
+                context.getString(
+                    R.string.touch_workspace_sync_summary,
+                    template.name,
+                    games.joinToString().ifEmpty { context.getString(R.string.touch_workspace_no_games) },
+                    context.getString(if (draft.defaultTemplateId == templateId) R.string.touch_workspace_yes else R.string.touch_workspace_no),
+                    refs.joinToString("\n").ifEmpty { context.getString(R.string.touch_workspace_none) },
+                    draft.gameTemplates.filter { (game, id) -> saved.gameTemplates[game] != id }.keys.joinToString()
+                        .ifEmpty { context.getString(R.string.touch_workspace_none) }
+                )
             )
-            .setPositiveButton("Save and synchronize") { _, _ -> commit(false) }
-            .setNegativeButton("Cancel", null)
-        if (gameId != null) dialog.setNeutralButton("Copy and use for this game") { _, _ -> commit(true) }
+            .setPositiveButton(context.getString(R.string.touch_workspace_sync)) { _, _ -> commit(false) }
+            .setNegativeButton(context.getString(R.string.touch_workspace_cancel), null)
+        if (gameId != null) dialog.setNeutralButton(context.getString(R.string.touch_workspace_copy_game)) { _, _ -> commit(true) }
         dialog.show()
     }
 
@@ -608,7 +613,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (!TouchEditorGeometry.fits(rect, safe.width(), safe.height())) return false
         val conflict = TouchEditorGeometry.conflict(control, rect, template.controls, placements)
         if (conflict != null) {
-            canvas.feedback = "Area overlaps ${conflict.name}"
+            canvas.feedback = context.getString(R.string.touch_workspace_overlap_named, conflict.name)
             return false
         }
         canvas.feedback = null
@@ -713,7 +718,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         } else if (handle >= 0) active else hitControl(x, y)
         if (value == null) { selectedId = null; tools.refreshToolbar(); return }
         select(value.id)
-        if (value.locked) { message("Position is locked; unlock it in the control list"); return }
+        if (value.locked) { message(context.getString(R.string.touch_workspace_locked)); return }
         val rect = placements[value.id] ?: value.bounds
         gesture = GeometryGesture(pointer, x, y, rect, draft, handle)
     }
@@ -800,7 +805,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     }
                 }
                 if (otherConflict) {
-                    message("This area conflicts in another saved screen configuration. Choose another position.")
+                    message(context.getString(R.string.touch_workspace_other_screen_conflict))
                     canvas.preview = null
                     return
                 }
@@ -825,7 +830,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 selectedId = control.id
                 pendingControl = null
             } else {
-                message("No valid position. Draw a non-overlapping area, or press Back to cancel.")
+                message(context.getString(R.string.touch_workspace_no_position))
             }
             canvas.preview = null
         } else if (state.moving && draft != state.before) checkpoint(state.before)
@@ -866,7 +871,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         } catch (error: IllegalArgumentException) {
             runtime.cancelAll()
             geometryAvailable = false
-            canvas.feedback = error.message ?: "Invalid layout; use Controls to repair it"
+            canvas.feedback = context.getString(R.string.touch_workspace_invalid_runtime)
         }
     }
 

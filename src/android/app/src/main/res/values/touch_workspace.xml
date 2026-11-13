@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="touch_workspace_default_layout">Default layout</string>
+    <string name="touch_workspace_default_camera">Default camera</string>
+    <string name="touch_workspace_move">Move</string>
+    <string name="touch_workspace_camera">Camera</string>
+    <string name="touch_workspace_landscape">Landscape</string>
+    <string name="touch_workspace_missing_saved">The active layout was removed. Reload the template library.</string>
+    <string name="touch_workspace_missing_preset">The swipe parameter template is unavailable.</string>
+    <string name="touch_workspace_missing_template">The touch layout is unavailable.</string>
+    <string name="touch_workspace_accessibility_tools">Show tools or finish adjustment</string>
+    <string name="touch_workspace_unsaved_title">Unsaved touch layout</string>
+    <string name="touch_workspace_unsaved_message">Save your draft, discard changes, or keep editing?</string>
+    <string name="touch_workspace_save">Save</string>
+    <string name="touch_workspace_discard">Discard changes</string>
+    <string name="touch_workspace_keep_editing">Keep editing</string>
+    <string name="touch_workspace_cancel">Cancel</string>
+    <string name="touch_workspace_base_title">Use this screen as the layout base?</string>
+    <string name="touch_workspace_base_message">Future automatic adaptation will use this safe area. Other saved screen configurations remain unchanged.</string>
+    <string name="touch_workspace_set_base">Set as base</string>
+    <string name="touch_workspace_overlap">This area overlaps another area. Adjust its position or size first.</string>
+    <string name="touch_workspace_back_restores">Press Back to restore the tools</string>
+    <string name="touch_workspace_copy_name">%1$s copy</string>
+    <string name="touch_workspace_area_layer">Areas stay below buttons and ordinary sticks.</string>
+    <string name="touch_workspace_select_swipe">Select an enabled swipe area for live debugging.</string>
+    <string name="touch_workspace_repair_test">Correct the invalid layout fields before testing.</string>
+    <string name="touch_workspace_select_preset">Select a valid swipe parameter template first.</string>
+    <string name="touch_workspace_invalid_title">Layout needs attention</string>
+    <string name="touch_workspace_invalid_message">Some control positions, mappings, or template references are invalid. Review the highlighted controls before saving.</string>
+    <string name="touch_workspace_save_failed">Could not save. Your draft has been kept; check storage access and whether the shared library changed.</string>
+    <string name="touch_workspace_sync">Save and synchronize</string>
+    <string name="touch_workspace_sync_summary">Layout: %1$s\nUsed by: %2$s\nGlobal default: %3$s\n\nChanged parameter regions:\n%4$s\n\nGame association changes: %5$s\n\nThe current screen configuration is saved. The base stays unchanged unless you explicitly reset it.</string>
+    <string name="touch_workspace_no_games">No explicit game associations</string>
+    <string name="touch_workspace_none">None</string>
+    <string name="touch_workspace_yes">Yes</string>
+    <string name="touch_workspace_no">No</string>
+    <string name="touch_workspace_copy_game">Copy and use for this game</string>
+    <string name="touch_workspace_overlap_named">Overlaps %1$s</string>
+    <string name="touch_workspace_locked">Position is locked. Unlock it in the control list.</string>
+    <string name="touch_workspace_other_screen_conflict">This area overlaps another area in a saved screen configuration. Choose another position.</string>
+    <string name="touch_workspace_no_position">No valid position. Draw a non-overlapping area, or press Back to cancel.</string>
+    <string name="touch_workspace_invalid_runtime">Invalid layout. Open the control list to repair it.</string>
+    <string name="touch_workspace_menu_templates">Touch templates</string>
+    <string name="touch_workspace_load_failed">Could not load touch templates. Check the configuration and try again.</string>
+</resources>

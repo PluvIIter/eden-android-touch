@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="touch_canvas_accessibility">触控布局画布。可通过控件列表选择控件并精确调整位置。</string>
+    <string name="touch_canvas_left_stick">左摇杆</string>
+    <string name="touch_canvas_right_stick">右摇杆</string>
+    <string name="touch_canvas_button">按键</string>
+    <string name="touch_canvas_group">按键组</string>
+    <string name="touch_canvas_swipe">滑动区</string>
+    <string name="touch_canvas_gesture">手势区</string>
+    <string name="touch_canvas_free_stick">自由摇杆区</string>
+    <string name="touch_canvas_area_label">%1$s · %2$s</string>
+    <string name="touch_canvas_area_detail">%1$s · %2$s · 底层区域</string>
+    <string name="touch_canvas_selected">%1$s · 拖动调整位置</string>
+    <string name="touch_canvas_selected_locked">%1$s · 位置已锁定</string>
+    <string name="touch_canvas_disabled">已禁用</string>
+    <string name="touch_canvas_live">游戏内测试 · 草稿未保存</string>
+    <string name="touch_canvas_local">本地测试 · 非游戏镜头反馈</string>
+    <string name="touch_canvas_vector">%1$s：%2$.2f，%3$.2f</string>
+    <string name="touch_canvas_saturated">输出已饱和</string>
+    <string name="touch_canvas_idle">当前无触控输入</string>
+    <string name="touch_canvas_captured">已捕获 · %1$d 个触点</string>
+    <string name="touch_canvas_curve_accessibility">响应曲线预览，不代表游戏镜头的实际反馈。</string>
+</resources>
