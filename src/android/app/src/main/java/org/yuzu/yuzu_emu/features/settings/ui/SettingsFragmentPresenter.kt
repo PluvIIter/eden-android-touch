@@ -606,7 +606,11 @@ class SettingsFragmentPresenter(
                     titleId = R.string.edit_overlay_layout,
                     descriptionId = R.string.edit_overlay_layout_description,
                     launchIntent = { context ->
-                        EmulationActivity.launchForOverlayEdit(context)
+                        org.yuzu.yuzu_emu.overlay.touch.TouchTemplateActivity.intent(
+                            context, settingsViewModel.game?.let {
+                                org.yuzu.yuzu_emu.overlay.touch.TouchGameOverlay.gameId(it.programId)
+                            }
+                        )
                     }
                 )
             )

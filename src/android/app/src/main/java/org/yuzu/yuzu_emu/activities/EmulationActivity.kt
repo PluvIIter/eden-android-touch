@@ -853,11 +853,8 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
             activity.startActivity(launcher)
         }
 
-        fun launchForOverlayEdit(context: Context): Intent {
-            return Intent(context, EmulationActivity::class.java).apply {
-                putExtra(EXTRA_OVERLAY_GAMELESS_EDIT_MODE, true)
-            }
-        }
+        fun launchForOverlayEdit(context: Context): Intent =
+            org.yuzu.yuzu_emu.overlay.touch.TouchTemplateActivity.intent(context)
 
         private fun areCoordinatesOutside(view: View?, x: Float, y: Float): Boolean {
             if (view == null) {

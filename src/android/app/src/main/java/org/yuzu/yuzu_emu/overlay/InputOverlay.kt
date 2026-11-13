@@ -58,6 +58,11 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
     private val overlayJoysticks: MutableSet<InputOverlayDrawableJoystick> = HashSet()
     private val imeEditable = Editable.Factory.getInstance().newEditable("")
 
+    var replacedByTouchWorkspace = false
+        set(value) {
+            field = value
+            invalidate()
+        }
     private var inEditMode = false
     private var gamelessMode = false
     private var buttonBeingConfigured: InputOverlayDrawableButton? = null
@@ -167,6 +172,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
+        if (replacedByTouchWorkspace) return
 
         // Draw grid when in edit mode and snap-to-grid is enabled
         if (inEditMode && BooleanSetting.OVERLAY_SNAP_TO_GRID.getBoolean()) {
@@ -224,6 +230,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     override fun onTouch(v: View, event: MotionEvent): Boolean {
+        if (replacedByTouchWorkspace) return false
         try {
             touchEventListener?.invoke(event)
         } catch (e: Exception) {}
