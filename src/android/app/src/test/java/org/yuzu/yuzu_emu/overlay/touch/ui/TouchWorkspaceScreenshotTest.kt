@@ -95,8 +95,14 @@ class TouchWorkspaceScreenshotTest {
             settle(workspace, width, height)
             writePng(workspace, "$name-toolbar")
             val button = workspace.template.controls.first { it.type == ControlType.BUTTON }
-            workspace.select(button.id)
+            val rect = workspace.placements.getValue(button.id)
+            val downTime = android.os.SystemClock.uptimeMillis()
+            for ((action, time) in listOf(android.view.MotionEvent.ACTION_DOWN to downTime, android.view.MotionEvent.ACTION_UP to downTime + 16)) {
+                val event = android.view.MotionEvent.obtain(downTime, time, action, rect.x + rect.width / 2 + workspace.safe.left, rect.y + rect.height / 2 + workspace.safe.top, 0)
+                try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+            }
             settle(workspace, width, height)
+            assertEquals("A real control tap must select it", button.id, workspace.selectedId)
             writePng(workspace, "$name-properties")
             assertTrue("Selected control properties must be open", workspace.tools.hasPanel)
             val propertyCard = workspace.tools.getChildAt(1)

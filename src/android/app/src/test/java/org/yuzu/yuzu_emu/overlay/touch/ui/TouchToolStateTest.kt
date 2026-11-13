@@ -111,6 +111,89 @@ class TouchToolStateTest {
     }
 
     @Test
+    fun scopedUndoDoesNotResurrectConcurrentWindowEdits() {
+        val original = TouchDefaults.library()
+        val template = original.templates.first()
+        val a = template.controls[0]
+        val b = template.controls[1]
+        val beforeA = TouchWindowSnapshot("A", controlId = a.id, beforeControl = a)
+        val beforeB = TouchWindowSnapshot("B", controlId = b.id, beforeControl = b)
+        val afterA = beforeA.copy(beforeControl = a.copy(name = "Changed A"))
+        val afterB = beforeB.copy(beforeControl = b.copy(name = "Changed B"))
+        val changeA = TouchWindowChange(template.id, beforeA, afterA)
+        val changeB = TouchWindowChange(template.id, beforeB, afterB)
+        val changed = changeB.redo(changeA.redo(original))
+        assertEquals(original, changeA.undo(changeB.undo(changed)))
+        assertEquals(changed, changeB.redo(changeA.redo(original)))
+    }
+
+    @Test
+    fun scopedUndoPreservesOtherFieldsOnTheSameControl() {
+        val original = TouchDefaults.library()
+        val template = original.templates.first()
+        val control = template.controls.first()
+        val before = TouchWindowSnapshot("A", controlId = control.id, beforeControl = control)
+        val change = TouchWindowChange(template.id, before, before.copy(beforeControl = control.copy(name = "Edited")))
+        val externallyLocked = original.copy(
+            templates = listOf(
+                template.copy(
+                    controls = template.controls.map {
+                        if (it.id == control.id) it.copy(locked = true) else it
+                    }
+                )
+            )
+        )
+        val restored = change.undo(change.redo(externallyLocked))
+        assertEquals(externallyLocked, restored)
+    }
+
+    @Test
+    fun noEditSnapshotPreservesSparsePlacements() {
+        val original = TouchDefaults.library()
+        val template = original.templates.first()
+        val control = template.controls.first()
+        val snapshot = TouchWindowSnapshot(
+            "A",
+            controlId = control.id,
+            beforeControl = control,
+            beforePlacements = template.screens.associate { it.id to it.placements[control.id] }
+        )
+        assertEquals(original, snapshot.restore(original, template.id))
+        assertFalse(TouchWindowChange(template.id, snapshot, snapshot).changes(original))
+    }
+
+    @Test
+    fun consecutiveGeometryUndoPreservesAttributesAndIndividualSteps() {
+        val original = TouchDefaults.library()
+        val template = original.templates.first()
+        val control = template.controls.first()
+        val screen = template.screens.first()
+        val before = TouchWindowSnapshot(
+            "geometry",
+            controlId = control.id,
+            beforeControl = control,
+            beforePlacements = mapOf(screen.id to null),
+            placementsOnly = true
+        )
+        val first = before.copy(beforePlacements = mapOf(screen.id to control.bounds.copy(x = 100f)))
+        val second = before.copy(beforePlacements = mapOf(screen.id to control.bounds.copy(x = 120f)))
+        val step1 = TouchWindowChange(template.id, before, first)
+        val step2 = TouchWindowChange(template.id, first, second)
+        val edited = original.copy(
+            templates = listOf(
+                template.copy(
+                    controls = template.controls.map {
+                        if (it.id == control.id) it.copy(name = "Unsaved field") else it
+                    }
+                )
+            )
+        )
+        val moved = step2.redo(step1.redo(edited))
+        assertEquals(first.beforePlacements[screen.id], step2.undo(moved).templates.first().screens.first().placements[control.id])
+        assertEquals(edited, step1.undo(step2.undo(moved)))
+    }
+
+    @Test
     fun snapshotWithoutToolPreferencesUsesDefaults() {
         val saved = TouchDefaults.library()
         val snapshot = TouchWorkspaceDraft(saved, saved, saved.templates.first().id, null, true)

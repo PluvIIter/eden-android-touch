@@ -150,8 +150,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     })
     private var output: InputSink = object : InputSink {}
     private var saved = draft
-    private val undo = ArrayDeque<TouchLibrary>()
-    private val redo = ArrayDeque<TouchLibrary>()
+    private sealed interface UndoEntry {
+        data class Full(val library: TouchLibrary) : UndoEntry
+        data class Window(val change: TouchWindowChange) : UndoEntry
+    }
+    private val undo = ArrayDeque<UndoEntry>()
+    private val redo = ArrayDeque<UndoEntry>()
     private val canvas = TouchCanvas(context, this)
     internal val tools = TouchTools(context, this)
     private val canvasPointers = mutableSetOf<Int>()
@@ -331,7 +335,16 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun checkpoint(before: TouchLibrary = draft) {
-        if (undo.lastOrNull() != before) undo.addLast(before)
+        val entry = UndoEntry.Full(before)
+        if (undo.lastOrNull() != entry) undo.addLast(entry)
+        while (undo.size > 80) undo.removeFirst()
+        redo.clear()
+    }
+
+    internal fun checkpointWindow(before: TouchWindowSnapshot, after: TouchWindowSnapshot) {
+        val change = TouchWindowChange(templateId, before, after)
+        if (!change.changes(draft)) return
+        undo.addLast(UndoEntry.Window(change))
         while (undo.size > 80) undo.removeFirst()
         redo.clear()
     }
@@ -414,16 +427,22 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun undo() {
         if (undo.isEmpty()) return
-        redo.addLast(draft)
-        replaceDraft(undo.removeLast())
-        tools.closeAll()
+        val entry = undo.removeLast()
+        when (entry) {
+            is UndoEntry.Full -> { redo.addLast(UndoEntry.Full(draft)); replaceDraft(entry.library) }
+            is UndoEntry.Window -> { redo.addLast(entry); replaceDraft(entry.change.undo(draft)) }
+        }
+        tools.historyApplied((entry as? UndoEntry.Window)?.change, true)
     }
 
     internal fun redo() {
         if (redo.isEmpty()) return
-        undo.addLast(draft)
-        replaceDraft(redo.removeLast())
-        tools.closeAll()
+        val entry = redo.removeLast()
+        when (entry) {
+            is UndoEntry.Full -> { undo.addLast(UndoEntry.Full(draft)); replaceDraft(entry.library) }
+            is UndoEntry.Window -> { undo.addLast(entry); replaceDraft(entry.change.redo(draft)) }
+        }
+        tools.historyApplied((entry as? UndoEntry.Window)?.change, false)
     }
 
     internal fun select(id: String) {
@@ -838,9 +857,29 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 message(context.getString(R.string.touch_workspace_no_position))
             }
             canvas.preview = null
-        } else if (state.moving && draft != state.before) checkpoint(state.before)
+        } else if (state.moving && draft != state.before) {
+            val id = state.controlId
+            if (id != null) {
+                val before = geometrySnapshot(state.before, id)
+                val after = geometrySnapshot(draft, id)
+                checkpointWindow(before, after)
+                tools.rebaseGeometry(id)
+            }
+        }
         adjustSelected = false
         tools.refreshToolbar()
+    }
+
+    private fun geometrySnapshot(library: TouchLibrary, id: String): TouchWindowSnapshot {
+        val template = library.templates.first { it.id == templateId }
+        val control = template.controls.first { it.id == id }
+        return TouchWindowSnapshot(
+            key = "geometry:$id",
+            controlId = id,
+            beforeControl = control,
+            beforePlacements = template.screens.associate { screen -> screen.id to screen.placements[id] },
+            placementsOnly = true
+        )
     }
 
     private fun rollbackGeometry(state: GeometryGesture): TouchLibrary {

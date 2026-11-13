@@ -132,8 +132,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             workspace.message(s(R.string.touch_tools_fix_fields))
             return false
         }
-        val before = windows.values.fold(workspace.draft) { library, window -> window.snapshot.restore(library, workspace.templateId) }
-        if (before != workspace.draft) workspace.checkpoint(before)
+        windows.values.forEach { window ->
+            workspace.checkpointWindow(
+                window.snapshot,
+                capture(window.snapshot.key, window.snapshot.controlId, window.snapshot.presetId)
+            )
+        }
         windows.values.forEach { window ->
             window.snapshot = capture(window.snapshot.key, window.snapshot.controlId, window.snapshot.presetId)
                 .copy(position = positionOf(window.card), tab = window.snapshot.tab, childIndex = window.snapshot.childIndex)
@@ -146,7 +150,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     fun closeTopWindow(cancel: Boolean): Boolean {
-        val window = windows.values.lastOrNull() ?: return false
+        val window = (childCount - 1 downTo 0).firstNotNullOfOrNull { index ->
+            windows.values.firstOrNull { it.card === getChildAt(index) }
+        } ?: return false
         closeWindow(window, cancel)
         return true
     }
@@ -157,26 +163,63 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             workspace.message(s(R.string.touch_tools_fix_fields))
             return
         }
-        val before = window.snapshot.restore(workspace.draft, workspace.templateId)
-        if (cancel) workspace.replaceDraft(before) else if (!force && before != workspace.draft) workspace.checkpoint(before)
+        if (cancel) {
+            workspace.replaceDraft(window.snapshot.restore(workspace.draft, workspace.templateId))
+        } else if (!force) {
+            workspace.checkpointWindow(
+                window.snapshot,
+                capture(window.snapshot.key, window.snapshot.controlId, window.snapshot.presetId)
+            )
+        }
         removeView(window.card)
         windows.remove(window.snapshot.key)
         if (current === window) current = null
     }
 
-    private fun capture(key: String, controlId: String? = null, presetId: String? = null): TouchWindowSnapshot {
-        val control = workspace.template.controls.firstOrNull { it.id == controlId }
+    fun rebaseGeometry(id: String) {
+        windows.values.filter { it.snapshot.controlId == id }.toList().forEach { window ->
+            window.snapshot = window.snapshot.copy(beforePlacements = capture(window.snapshot.key, id).beforePlacements)
+            if (window.snapshot.tab == 2) within(window) { showProperties() }
+        }
+    }
+
+    fun rebaseControlFlags(id: String) {
+        val control = workspace.template.controls.firstOrNull { it.id == id } ?: return
+        windows.values.filter { it.snapshot.controlId == id }.forEach { window ->
+            window.snapshot.beforeControl?.let { old ->
+                window.snapshot = window.snapshot.copy(
+                    beforeControl = old.copy(enabled = control.enabled, locked = control.locked)
+                )
+            }
+        }
+    }
+
+    fun historyApplied(change: TouchWindowChange?, undo: Boolean) {
+        windows.values.toList().forEach { window ->
+            if (change != null) {
+                val baseline = window.snapshot.restore(workspace.draft, workspace.templateId)
+                val patched = if (undo) change.undo(baseline) else change.redo(baseline)
+                window.snapshot = capture(window.snapshot.key, window.snapshot.controlId, window.snapshot.presetId, patched)
+                    .copy(position = positionOf(window.card), tab = window.snapshot.tab, childIndex = window.snapshot.childIndex)
+            }
+            if (window.snapshot.controlId != null) within(window) { showProperties() }
+        }
+    }
+
+    private fun capture(key: String, controlId: String? = null, presetId: String? = null, library: TouchLibrary = workspace.draft): TouchWindowSnapshot {
+        val template = library.templates.first { it.id == workspace.templateId }
+        val control = template.controls.firstOrNull { it.id == controlId }
         return TouchWindowSnapshot(
             key = key,
             controlId = controlId,
             presetId = presetId,
             beforeControl = control,
             beforePlacements = control?.let { c ->
-                workspace.template.screens.associate { screen ->
-                    screen.id to org.yuzu.yuzu_emu.overlay.touch.model.TouchGeometry.savedBounds(workspace.template, screen, c)
+                template.screens.associate { screen ->
+                    screen.id to screen.placements[c.id]
                 }
             } ?: emptyMap(),
-            beforePreset = workspace.draft.presets.firstOrNull { it.id == presetId }
+            beforePreset = library.presets.firstOrNull { it.id == presetId }
         )
     }
 
@@ -222,7 +265,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         super.onSizeChanged(w, h, oldw, oldh)
         refreshToolbar()
         windows.values.forEach { window ->
-            window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply { height = panelHeight() }
+            window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply {
+                width = panelWidth()
+                height = panelHeight()
+            }
+        }
+        post {
+            applyPosition(toolbar, toolbarPosition ?: positionOf(toolbar))
+            windows.values.forEach { window -> applyPosition(window.card, window.snapshot.position) }
         }
     }
 
@@ -301,7 +351,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         content.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         content.addView(footer, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         surface.addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(surface, LayoutParams(panelWidth(), panelHeight()).apply { leftMargin = px(8 + windows.size * 12); topMargin = px(88 + windows.size * 8) })
+        addView(
+            surface,
+            LayoutParams(panelWidth(), panelHeight()).apply {
+                leftMargin = min(px(8 + windows.size * 12), max(0, width - panelWidth()))
+                topMargin = min(toolbar.bottom + px(8 + windows.size * 4), max(0, height - panelHeight()))
+            }
+        )
         surface.post {
             if (old != null || snapshot.position != TouchToolPosition()) {
                 applyPosition(surface, snapshot.position)
@@ -346,12 +402,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             }
             container.addView(item, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
             toggle(container, s(R.string.touch_tools_enabled), control.enabled) {
-                workspace.checkpoint()
-                workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(enabled = it)) }
+                val before = capture("control:${control.id}", control.id)
+                workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(enabled = it)); rebaseControlFlags(c.id) }
+                workspace.checkpointWindow(before, capture(before.key, control.id))
             }
             toggle(container, s(R.string.touch_tools_lock_geometry), control.locked) {
-                workspace.checkpoint()
-                workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(locked = it)) }
+                val before = capture("control:${control.id}", control.id)
+                workspace.template.controls.firstOrNull { c -> c.id == control.id }?.let { c -> workspace.updateControl(c.copy(locked = it)); rebaseControlFlags(c.id) }
+                workspace.checkpointWindow(before, capture(before.key, control.id))
             }
             body.addView(container)
             body.addView(
@@ -1238,8 +1296,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun expandable(body: LinearLayout, title: String, build: (LinearLayout) -> Unit) {
-        val section = column().apply { visibility = GONE }
-        body.addView(button(title) { section.visibility = if (section.visibility == VISIBLE) GONE else VISIBLE })
+        val section = column()
+        body.addView(label(title, 14f))
         build(section)
         body.addView(section)
     }
@@ -1263,7 +1321,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 MotionEvent.ACTION_MOVE -> {
                     if (event.getPointerId(0) == pointer) {
                         target.x = (originalX + event.rawX - startX).coerceIn(0f, max(0f, width - target.width.toFloat()))
-                        target.y = (originalY + event.rawY - startY).coerceIn(0f, max(0f, height - px(48f)))
+                        target.y = (originalY + event.rawY - startY).coerceIn(0f, max(0f, height - target.height.toFloat()))
                     }
                     true
                 }
@@ -1416,7 +1474,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
     private fun toolbarWidth() = min(px(900), max(px(200), workspace.width - px(24)))
     private fun panelWidth() = min(px(340), max(px(180), workspace.width - px(24)))
-    private fun panelHeight() = min(px(480), (workspace.height - px(32)).coerceAtLeast(px(112)))
+    private fun panelHeight() = min(px(480), (workspace.height - max(toolbar.height, px(96)) - px(32)).coerceAtLeast(px(112)))
     private fun px(value: Int) = (value * resources.displayMetrics.density).roundToInt()
     private fun px(value: Float) = value * resources.displayMetrics.density
     private fun format(value: Float) = if (abs(value - value.roundToInt()) < 0.0001f) value.roundToInt().toString() else "%.3f".format(java.util.Locale.ROOT, value)
