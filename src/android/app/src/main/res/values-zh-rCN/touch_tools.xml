@@ -224,4 +224,6 @@
     <string name="touch_tools_enum_gesturedirection_left">左滑</string>
     <string name="touch_tools_enum_gesturedirection_up_left">左上滑</string>
     <string name="touch_tools_close">关闭窗口</string>
+    <string name="touch_tools_toolbar_base">布局基准</string>
+    <string name="touch_tools_toolbar_opacity">工具透明度</string>
 </resources>

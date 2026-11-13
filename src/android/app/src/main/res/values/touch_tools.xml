@@ -224,4 +224,6 @@
     <string name="touch_tools_enum_gesturedirection_left">Left</string>
     <string name="touch_tools_enum_gesturedirection_up_left">Up-left</string>
     <string name="touch_tools_close">Close window</string>
+    <string name="touch_tools_toolbar_base">Base screen</string>
+    <string name="touch_tools_toolbar_opacity">Tool opacity</string>
 </resources>

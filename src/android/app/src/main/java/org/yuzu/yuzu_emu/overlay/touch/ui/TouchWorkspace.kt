@@ -179,9 +179,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             framePosted = false
             if (!isAttachedToWindow || inputsSuspended || focusSuspended || windowVisibility != VISIBLE || visibility != VISIBLE) return
             if (!isEditing) {
-                val before = runtime.snapshot()
+                val active = runtime.hasActiveInputs()
                 runtime.tick(SystemClock.uptimeMillis())
-                if (before != runtime.snapshot()) canvas.invalidate()
+                if (active) canvas.invalidate()
                 postFrame()
             }
         }
@@ -684,6 +684,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 waitForFreshDown = false
                 if (!isEditing && geometryAvailable) {
                     runtime.down(id, x, y, event.eventTime)
+                    removeCallbacks(frame)
+                    framePosted = false
+                    postFrame()
                 } else if (isEditing) beginGeometry(id, x, y)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -1000,7 +1003,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private fun postFrame() {
         if (!framePosted && isAttachedToWindow && !inputsSuspended && !focusSuspended && windowVisibility == VISIBLE && visibility == VISIBLE) {
             framePosted = true
-            postDelayed(frame, 8L)
+            postDelayed(frame, if (runtime.hasActiveInputs()) 8L else 100L)
         }
     }
 

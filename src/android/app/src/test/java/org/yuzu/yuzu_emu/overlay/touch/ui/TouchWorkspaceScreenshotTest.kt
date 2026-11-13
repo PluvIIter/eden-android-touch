@@ -121,7 +121,7 @@ class TouchWorkspaceScreenshotTest {
             val openKeys = workspace.tools.exportState().windows.map { it.key }.toSet()
             for (actionId in listOf(R.string.touch_tools_controls, R.string.touch_tools_add, R.string.touch_tools_tool_opacity)) {
                 val action = descendants(workspace.tools.getChildAt(0)).filterIsInstance<MaterialButton>()
-                    .single { it.text.toString() == activity.getString(actionId) }
+                    .single { it.text.toString() == activity.getString(actionId) || it.contentDescription?.toString() == activity.getString(actionId) }
                 action.performClick()
                 settle(workspace, width, height)
                 assertTrue("Opening another tool closed properties", workspace.tools.exportState().windows.map { it.key }.containsAll(openKeys))
@@ -186,7 +186,7 @@ class TouchWorkspaceScreenshotTest {
             R.string.touch_tools_tool_opacity
         )
         for (id in required) {
-            assertTrue("Missing direct toolbar action ${workspace.context.getString(id)}", actions.any { it.text.toString() == workspace.context.getString(id) })
+            assertTrue("Missing direct toolbar action ${workspace.context.getString(id)}", actions.any { it.text.toString() == workspace.context.getString(id) || it.contentDescription?.toString() == workspace.context.getString(id) })
         }
         for (action in actions) {
             val label = action.contentDescription ?: (action as? TextView)?.text

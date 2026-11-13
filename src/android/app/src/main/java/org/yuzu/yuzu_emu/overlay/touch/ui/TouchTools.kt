@@ -250,6 +250,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         toolbarContent.setPadding(px(4), 0, px(4), 0)
         toolbarContent.addView(actions)
         toolbar.addView(toolbarContent)
+        toolbar.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top != oldBottom - oldTop) {
+                windows.values.forEach { window ->
+                    window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply { height = panelHeight() }
+                }
+            }
+        }
         addView(
             toolbar,
             LayoutParams(toolbarWidth(), LayoutParams.WRAP_CONTENT).apply {
@@ -310,10 +317,21 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 iconPadding = px(4)
                 iconTint = ColorStateList.valueOf(readable(themeColor(com.google.android.material.R.attr.colorOnPrimary), themeColor(com.google.android.material.R.attr.colorPrimary)))
             },
-            button(s(R.string.touch_tools_set_base)) { if (validateAndCompleteAll()) workspace.setCurrentScreenAsBase() },
-            button(s(R.string.touch_tools_tool_opacity)) { showToolOpacity() }
+            button(s(R.string.touch_tools_toolbar_base)) { if (validateAndCompleteAll()) workspace.setCurrentScreenAsBase() }.apply { contentDescription = s(R.string.touch_tools_set_base) },
+            button(s(R.string.touch_tools_toolbar_opacity)) { showToolOpacity() }.apply { contentDescription = s(R.string.touch_tools_tool_opacity) }
         )
-        val columns = if (toolbarWidth() >= px(560)) 8 else 4
+        val columns = when {
+            toolbarWidth() >= px(760) -> 8
+            toolbarWidth() >= px(320) -> 4
+            else -> 2
+        }
+        buttons.forEach { action ->
+            action.minHeight = px(48)
+            action.minimumHeight = px(48)
+            action.setPadding(px(4), px(4), px(4), px(4))
+            action.textSize = 13f
+            action.maxLines = 2
+        }
         buttons.chunked(columns).forEach { group ->
             val line = row()
             group.forEach { button -> line.addView(button, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)) }
@@ -354,16 +372,16 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         addView(
             surface,
             LayoutParams(panelWidth(), panelHeight()).apply {
-                leftMargin = min(px(8 + windows.size * 12), max(0, width - panelWidth()))
-                topMargin = min(toolbar.bottom + px(8 + windows.size * 4), max(0, height - panelHeight()))
+                leftMargin = if (width > height) max(0, width - panelWidth() - px(12)) else min(px(8 + windows.size * 12), max(0, width - panelWidth()))
+                topMargin = if (width > height) px(16) else min(toolbar.bottom + px(8), max(0, height - panelHeight()))
             }
         )
         surface.post {
             if (old != null || snapshot.position != TouchToolPosition()) {
                 applyPosition(surface, snapshot.position)
             } else {
-                surface.x = min(px(8f + windows.size * 8), max(0f, width - surface.width.toFloat()))
-                surface.y = min(toolbar.y + toolbar.height + px(8), max(0f, height - surface.height - px(8f)))
+                surface.x = if (width > height) max(0f, width - surface.width - px(12f)) else min(px(8f + windows.size * 8), max(0f, width - surface.width.toFloat()))
+                surface.y = if (width > height) px(16f) else min(toolbar.y + toolbar.height + px(8), max(0f, height - surface.height - px(8f)))
             }
             scroll.scrollTo(0, snapshot.scroll)
         }
@@ -1472,9 +1490,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val color = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
         return (color and 0x00ffffff) or ((panelAlpha * 255).toInt() shl 24)
     }
-    private fun toolbarWidth() = min(px(900), max(px(200), workspace.width - px(24)))
-    private fun panelWidth() = min(px(340), max(px(180), workspace.width - px(24)))
-    private fun panelHeight() = min(px(480), (workspace.height - max(toolbar.height, px(96)) - px(32)).coerceAtLeast(px(112)))
+    private fun toolbarWidth() = if (workspace.width > workspace.height) min(px(900), max(px(200), workspace.width / 2 - px(16))) else min(px(900), max(px(200), workspace.width - px(24)))
+    private fun panelWidth() = if (workspace.width > workspace.height) min(px(340), max(px(180), workspace.width / 2 - px(16))) else min(px(340), max(px(180), workspace.width - px(24)))
+    private fun panelHeight() = if (workspace.width > workspace.height) (workspace.height - px(32)).coerceAtLeast(px(112)) else min(px(480), (workspace.height - max(toolbar.height, px(96)) - px(32)).coerceAtLeast(px(112)))
     private fun px(value: Int) = (value * resources.displayMetrics.density).roundToInt()
     private fun px(value: Float) = value * resources.displayMetrics.density
     private fun format(value: Float) = if (abs(value - value.roundToInt()) < 0.0001f) value.roundToInt().toString() else "%.3f".format(java.util.Locale.ROOT, value)
