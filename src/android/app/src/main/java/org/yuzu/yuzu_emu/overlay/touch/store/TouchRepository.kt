@@ -66,6 +66,8 @@ class TouchRepository(file: File, private val createDefaults: () -> TouchLibrary
         require(root["version"]?.jsonPrimitive?.content == TouchValidator.VERSION.toString()) { "Unsupported touch library version" }
         require(root.containsKey("revision")) { "Missing touch library revision" }
         TouchImportExport.requireStableIds(root)
+        // Semantic control errors are handled by TouchSanitizer in the UI so a broken saved
+        // layout can still be opened and repaired; malformed files still throw above.
         val library = TouchImportExport.json.decodeFromString<TouchLibrary>(text).immutableSnapshot()
         return library
     }
