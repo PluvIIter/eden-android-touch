@@ -221,4 +221,26 @@
     <string name="touch_tools_close">关闭窗口</string>
     <string name="touch_tools_toolbar_base">布局基准</string>
     <string name="touch_tools_toolbar_opacity">工具透明度</string>
+    <string name="touch_tools_exit_edit">退出编辑</string>
+    <string name="touch_tools_exit_game">返回游戏</string>
+    <string name="touch_tools_basic_intro">划屏会把手指的相对移动转换成摇杆输出。建议先调灵敏度、最大转速、死区补偿和平滑。</string>
+    <string name="touch_tools_hint_sensitivity_x">越大，同样的横向滑动转得越远。</string>
+    <string name="touch_tools_hint_sensitivity_y">越大，同样的纵向滑动转得越远。</string>
+    <string name="touch_tools_hint_max_speed_dp">手指速度达到该值（dp/秒）时输出满幅；越大越不灵敏。</string>
+    <string name="touch_tools_hint_max_speed_edge">手指速度达到该值（屏幕短边/秒）时输出满幅；越大越不灵敏。</string>
+    <string name="touch_tools_hint_deadzone">开始移动后的最小输出；游戏对手柄小幅度输入不敏感时调大。</string>
+    <string name="touch_tools_hint_smoothing">0 表示立刻跟手；越大越稳，但延迟越明显。</string>
+    <string name="touch_tools_hint_exponent">小于 1 更灵敏；大于 1 在中心附近更细腻。</string>
+    <string name="touch_tools_hint_curve">控制点按「输入:输出」填写，输入必须从 0:0 单调递增到 1:1。</string>
+    <string name="touch_tools_hint_stop_timeout">手指停止移动后多久，输出归零。</string>
+    <string name="touch_tools_hint_accumulation">允许排队的总位移；越小越跟手。</string>
+    <string name="touch_tools_hint_scale">切换尺度时会自动在 dp/秒 与 屏幕短边/秒 之间换算最大转速。</string>
+    <string name="touch_tools_stick_size">摇杆大小</string>
+    <string name="touch_tools_hint_stick_size">触摸时显示的摇杆直径；触摸区域大小在「位置」页设置。</string>
+    <string name="touch_tools_default_swipe">划屏</string>
+    <string name="touch_tools_default_gesture">手势</string>
+    <string name="touch_tools_mapping_hint">按手柄实际位置点选按键；选中多个即为组合键。</string>
+    <string name="touch_tools_mapping_hint_single">点选一个手柄按键。</string>
+    <string name="touch_tools_mapping_missing">请先选择手柄按键映射。</string>
+    <string name="touch_tools_mapping_button">输出 %1$s</string>
 </resources>

@@ -45,6 +45,8 @@ import org.yuzu.yuzu_emu.model.InstallableProperty
 import org.yuzu.yuzu_emu.model.SubMenuPropertySecondaryAction
 import org.yuzu.yuzu_emu.model.SubmenuProperty
 import org.yuzu.yuzu_emu.model.TaskState
+import org.yuzu.yuzu_emu.overlay.touch.TouchGameOverlay
+import org.yuzu.yuzu_emu.overlay.touch.TouchTemplateActivity
 import org.yuzu.yuzu_emu.utils.DirectoryInitialization
 import org.yuzu.yuzu_emu.utils.FileUtil
 import org.yuzu.yuzu_emu.utils.GameHelper
@@ -333,11 +335,26 @@ class GamePropertiesFragment : Fragment() {
                 )
             )
 
+            add(
+                SubmenuProperty(
+                    R.string.touch_manager_game_layout,
+                    R.string.touch_manager_game_layout_description,
+                    R.drawable.ic_controller,
+                    action = {
+                        startActivity(
+                            TouchTemplateActivity.intent(
+                                requireContext(),
+                                TouchGameOverlay.gameId(args.game.programId)
+                            )
+                        )
+                    }
+                )
+            )
+
             if (!args.game.isHomebrew) {
                 add(
                     SubmenuProperty(
-                        R.string.add_ons,
-                        R.string.add_ons_description,
+                        R.string.add_ons,                        R.string.add_ons_description,
                         R.drawable.ic_edit,
                         action = {
                             val action =

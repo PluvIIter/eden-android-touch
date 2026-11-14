@@ -47,6 +47,7 @@ import java.io.IOException
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.YuzuApplication
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
+import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
 import org.yuzu.yuzu_emu.overlay.touch.model.newTouchId
@@ -413,10 +414,38 @@ class TouchTemplateActivity : AppCompatActivity() {
 
     private fun createObject() {
         if (selectedTab == 0) {
-            nameDialog(getString(R.string.touch_manager_create_layout), getString(R.string.touch_manager_new_layout)) { name ->
-                val template = TouchTemplate(name = name)
-                if (persist(library.copy(templates = library.templates + template, defaultTemplateId = library.defaultTemplateId ?: template.id))) edit(template.id)
-            }
+            MaterialAlertDialogBuilder(this@TouchTemplateActivity)
+                .setTitle(R.string.touch_manager_create_layout)
+                .setItems(
+                    arrayOf(
+                        getString(R.string.touch_manager_blank_layout),
+                        getString(R.string.touch_manager_default_layout)
+                    )
+                ) { _, which ->
+                    nameDialog(getString(R.string.touch_manager_create_layout), getString(R.string.touch_manager_new_layout)) { name ->
+                        val builtin = TouchDefaults.library()
+                        val template = if (which == 0) {
+                            TouchTemplate(name = name)
+                        } else {
+                            TouchReferences.copyTemplate(builtin.templates.first(), name)
+                        }
+                        val referenced = builtin.templates.first().controls.mapNotNull { it.swipePresetId }.toSet()
+                        val presets = library.presets + builtin.presets.filter { preset ->
+                            preset.id in referenced && library.presets.none { it.id == preset.id }
+                        }
+                        if (
+                            persist(
+                                library.copy(
+                                    templates = library.templates + template,
+                                    presets = presets,
+                                    defaultTemplateId = library.defaultTemplateId ?: template.id
+                                )
+                            )
+                        ) {
+                            edit(template.id)
+                        }
+                    }
+                }.show()
         } else {
             nameDialog(getString(R.string.touch_manager_create_preset), getString(R.string.touch_manager_new_preset)) { name ->
                 val preset = SwipePreset(name = name)

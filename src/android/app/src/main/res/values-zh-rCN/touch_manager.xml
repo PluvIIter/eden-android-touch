@@ -94,4 +94,8 @@
     <string name="touch_manager_error_format">文件或草稿无效、内容不完整，或版本不受支持。</string>
     <string name="touch_manager_error_generic">无法更新触控模板，已保存的配置未被更改。</string>
     <string name="touch_manager_working">正在处理模板…</string>
+    <string name="touch_manager_game_layout">触控布局</string>
+    <string name="touch_manager_game_layout_description">选择、编辑或复制此游戏使用的触控布局。</string>
+    <string name="touch_manager_blank_layout">空白布局</string>
+    <string name="touch_manager_default_layout">内置默认键位</string>
 </resources>

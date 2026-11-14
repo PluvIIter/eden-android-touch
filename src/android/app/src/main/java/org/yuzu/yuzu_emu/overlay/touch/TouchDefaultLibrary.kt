@@ -5,7 +5,6 @@ package org.yuzu.yuzu_emu.overlay.touch
 
 import android.content.Context
 import org.yuzu.yuzu_emu.R
-import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 
@@ -18,11 +17,15 @@ object TouchDefaultLibrary {
                     name = context.getString(R.string.touch_workspace_default_layout),
                     screens = template.screens.map { it.copy(name = context.getString(R.string.touch_workspace_landscape)) },
                     controls = template.controls.map { control ->
-                        when (control.type) {
-                            ControlType.STICK -> control.copy(name = context.getString(R.string.touch_workspace_move))
-                            ControlType.SWIPE -> control.copy(name = context.getString(R.string.touch_workspace_camera))
-                            else -> control
+                        val name = when (control.name) {
+                            "Move" -> context.getString(R.string.touch_workspace_move)
+                            "Camera" -> context.getString(R.string.touch_workspace_camera)
+                            "D-pad" -> context.getString(R.string.touch_workspace_dpad)
+                            "Home" -> context.getString(R.string.touch_tools_home)
+                            "Capture" -> context.getString(R.string.touch_tools_capture)
+                            else -> return@map control
                         }
+                        control.copy(name = name, text = if (control.text == control.name) name else control.text)
                     }
                 )
             },

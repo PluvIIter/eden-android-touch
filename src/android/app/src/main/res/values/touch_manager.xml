@@ -94,4 +94,8 @@
     <string name="touch_manager_error_format">The file or draft is invalid, incomplete, or uses an unsupported version.</string>
     <string name="touch_manager_error_generic">Cannot update touch templates. Your saved configuration is unchanged.</string>
     <string name="touch_manager_working">Processing templates…</string>
+    <string name="touch_manager_game_layout">Touch layout</string>
+    <string name="touch_manager_game_layout_description">Choose, edit, or copy the touch layout used by this game.</string>
+    <string name="touch_manager_blank_layout">Start blank</string>
+    <string name="touch_manager_default_layout">Use built-in controls</string>
 </resources>

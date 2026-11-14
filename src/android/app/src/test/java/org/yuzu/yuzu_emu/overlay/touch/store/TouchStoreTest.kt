@@ -215,9 +215,16 @@ class TouchStoreTest {
         val original = TouchDefaults.library()
         val preset = original.presets.first()
         val t = original.templates.first()
-        val added = t.controls.first { it.type == ControlType.SWIPE }.copy(id = newTouchId(), bounds = TouchRect(0f, 100f, 100f, 100f))
-        val incoming = original.copy(templates = listOf(t.copy(name = "Imported", controls = t.controls + added)), presets = listOf(preset.copy(sensitivityX = 2f)))
-        val text = TouchImportExport.exportTemplate(incoming, t.id)
+        // The shipped layout fills the screen with two areas, so this scenario builds a minimal
+        // template with two non-overlapping swipe areas.
+        val area = t.controls.first { it.type == ControlType.SWIPE }.copy(bounds = TouchRect(0f, 0f, 100f, 100f))
+        val base = t.copy(controls = t.controls.filterNot { it.isArea } + area)
+        val added = area.copy(id = newTouchId(), bounds = TouchRect(200f, 0f, 100f, 100f))
+        val incoming = original.copy(
+            templates = listOf(base.copy(name = "Imported", controls = base.controls + added)),
+            presets = listOf(preset.copy(sensitivityX = 2f))
+        )
+        val text = TouchImportExport.exportTemplate(incoming, base.id)
         fails<IllegalArgumentException> { TouchImportExport.importBundle(original, text) }
         val associated = TouchReferences.associateGame(original, "0100000000000000", t.id)
         val result = TouchImportExport.importBundle(associated, text, ImportConflictResolution.COPY)

@@ -41,4 +41,6 @@
     <string name="touch_workspace_invalid_runtime">Invalid layout. Open the control list to repair it.</string>
     <string name="touch_workspace_menu_templates">Touch templates</string>
     <string name="touch_workspace_load_failed">Could not load touch templates. Check the configuration and try again.</string>
+    <string name="touch_workspace_dpad">D-pad</string>
+    <string name="touch_workspace_test_in_game_disabled">Whole-layout testing is unavailable while editing inside a game. Exit editing to run the game, or use single-control live debug from a swipe area.</string>
 </resources>

@@ -19,6 +19,7 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -31,6 +32,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadows.ShadowDialog
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.TouchDefaultLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
@@ -142,7 +144,7 @@ class TouchWorkspaceInteractionTest {
 
     @Test
     fun twoCanvasGesturesRemainSeparateUndoStepsWhilePropertiesStayOpen() = withWorkspace { workspace ->
-        val stick = workspace.template.controls.first { it.type == ControlType.STICK }
+        val stick = workspace.template.controls.first { it.type == ControlType.BUTTON }
         tapControl(workspace, stick.id)
         assertEquals(stick.id, workspace.selectedId)
         val original = workspace.placements.getValue(stick.id)
@@ -229,7 +231,49 @@ class TouchWorkspaceInteractionTest {
         assertTrue(list.parent === workspace.tools)
     }
 
-    private fun withWorkspace(test: (TouchWorkspace) -> Unit) {
+    @Test
+    fun exitActionExistsAndInGameTestingIsUnavailable() = withWorkspace(gameAvailable = true) { workspace ->
+        val actions = descendants(toolbar(workspace)).filterIsInstance<MaterialButton>().toList()
+        assertTrue(actions.any { it.contentDescription?.toString() == workspace.context.getString(R.string.touch_tools_exit_game) })
+        assertTrue(actions.none { it.text.toString() == workspace.context.getString(R.string.touch_tools_test) })
+        workspace.startTest(false)
+        assertFalse(workspace.isTesting)
+    }
+
+    @Test
+    fun triggerOnlyStickSizeIsEditableOnPositionPage() = withWorkspace { workspace ->
+        val stick = workspace.template.controls.first { it.type == ControlType.STICK && it.triggerOnly }
+        tapControl(workspace, stick.id)
+        val tabs = descendants(topCard(workspace)).filterIsInstance<TabLayout>().single()
+        tabs.getTabAt(2)!!.select()
+        settle(workspace)
+        val page = topCard(workspace)
+        val size = descendants(page).filterIsInstance<TextInputLayout>()
+            .first { it.hint?.toString() == workspace.context.getString(R.string.touch_tools_stick_size) }
+        (size.editText as TextInputEditText).setText("150")
+        settle(workspace)
+        assertEquals(150f, control(workspace, stick.id).stickDiameter, 0.01f)
+    }
+
+    @Test
+    fun newButtonFollowsItsMappingName() = withWorkspace { workspace ->
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        assertEquals("", descendants(topCard(workspace)).filterIsInstance<TextInputEditText>().first().text.toString())
+
+        action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowDialog.getLatestDialog()
+        val root = dialog.window!!.decorView
+        action(root, "L").performClick()
+        action(root, "R").performClick()
+        action(root, workspace.context.getString(R.string.touch_tools_done)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("L + R", descendants(topCard(workspace)).filterIsInstance<TextInputEditText>().first().text.toString())
+    }
+
+    private fun withWorkspace(gameAvailable: Boolean = false, test: (TouchWorkspace) -> Unit) {
         val controller = Robolectric.buildActivity(AppCompatActivity::class.java)
         val activity = controller.get()
         activity.setTheme(R.style.Theme_Eden_Main)
@@ -244,11 +288,11 @@ class TouchWorkspaceInteractionTest {
             assertEquals(2f, activity.resources.displayMetrics.density, 0.01f)
             val library = TouchDefaultLibrary.create(activity)
             val workspace = TouchWorkspace(activity)
-            workspace.bind(library, library.templates.first().id, false, object : InputSink {})
+            workspace.bind(library, library.templates.first().id, gameAvailable, object : InputSink {})
             workspace.setEditing(true)
             activity.setContentView(workspace)
             settle(workspace)
-            assertFalse(workspace.gameAvailable)
+            assertEquals(gameAvailable, workspace.gameAvailable)
             test(workspace)
         } finally {
             controller.pause().stop().destroy()

@@ -10,10 +10,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
+import org.yuzu.yuzu_emu.overlay.touch.model.GroupStyle
 import org.yuzu.yuzu_emu.overlay.touch.model.ScreenLayout
+import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
+import org.yuzu.yuzu_emu.overlay.touch.model.TouchGeometry
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
@@ -236,5 +239,42 @@ class TouchStoreReviewTest {
         fails { store.read("../outside") }
         fails { store.save("text", "../outside") }
         fails { store.discard("../outside") }
+    }
+
+    @Test fun defaultLayoutCoversEveryControllerButtonAndSplitsAreas() {
+        val library = TouchDefaults.library()
+        val template = library.templates.single()
+        TouchValidator.requireValid(library)
+        val targets = (0..15).toSet() + setOf(18, 19)
+        val mapped = buildSet {
+            template.controls.forEach { control ->
+                addAll(control.binding.buttons)
+                control.groupKeys.forEach { addAll(it.binding.buttons) }
+            }
+        }
+        assertEquals(targets, mapped)
+
+        val screen = template.screens.single()
+        val stick = template.controls.single { it.type == ControlType.STICK }
+        assertTrue(stick.freeStick)
+        assertTrue(stick.triggerOnly)
+        assertEquals(StickTarget.LEFT, stick.stickTarget)
+        val swipe = template.controls.single { it.type == ControlType.SWIPE }
+        assertEquals(StickTarget.RIGHT, swipe.stickTarget)
+        val left = TouchGeometry.savedBounds(template, screen, stick)
+        val right = TouchGeometry.savedBounds(template, screen, swipe)
+        assertEquals(0f, left.x, 0.01f)
+        assertEquals(screen.width / 2f, right.x, 0.01f)
+        assertEquals(screen.width, left.width + right.width, 0.01f)
+        assertEquals(screen.height, left.height, 0.01f)
+        assertEquals(screen.height, right.height, 0.01f)
+        assertFalse(left.intersects(right))
+    }
+
+    @Test fun defaultFaceGroupUsesNintendoPositions() {
+        val group = TouchDefaults.library().templates.single().controls
+            .single { it.type == ControlType.BUTTON_GROUP && it.groupStyle == GroupStyle.FACE }
+        assertEquals(listOf("X", "A", "B", "Y"), group.groupKeys.map { it.text })
+        assertEquals(listOf(2, 0, 1, 3), group.groupKeys.map { it.binding.buttons.single() })
     }
 }

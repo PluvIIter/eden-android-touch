@@ -221,4 +221,26 @@
     <string name="touch_tools_close">Close window</string>
     <string name="touch_tools_toolbar_base">Base screen</string>
     <string name="touch_tools_toolbar_opacity">Tool opacity</string>
+    <string name="touch_tools_exit_edit">Exit editing</string>
+    <string name="touch_tools_exit_game">Back to game</string>
+    <string name="touch_tools_basic_intro">Swipe turns finger movement into stick output. Tune sensitivity, max speed, deadzone and smoothing first.</string>
+    <string name="touch_tools_hint_sensitivity_x">Higher means the same horizontal swipe turns farther.</string>
+    <string name="touch_tools_hint_sensitivity_y">Higher means the same vertical swipe turns farther.</string>
+    <string name="touch_tools_hint_max_speed_dp">Finger speed in dp/s that produces full stick output. Higher is less sensitive.</string>
+    <string name="touch_tools_hint_max_speed_edge">Finger speed in screen short-edges/s that produces full stick output. Higher is less sensitive.</string>
+    <string name="touch_tools_hint_deadzone">Smallest output once movement starts. Raise it if the game ignores small stick input.</string>
+    <string name="touch_tools_hint_smoothing">0 follows the finger immediately. Higher is steadier but lags.</string>
+    <string name="touch_tools_hint_exponent">Below 1 is livelier; above 1 is finer near the centre.</string>
+    <string name="touch_tools_hint_curve">Control points are input:output pairs; keep inputs increasing from 0:0 to 1:1.</string>
+    <string name="touch_tools_hint_stop_timeout">How long after the finger stops before output returns to zero.</string>
+    <string name="touch_tools_hint_accumulation">Largest queued motion. Smaller values follow the finger more closely.</string>
+    <string name="touch_tools_hint_scale">Switching scale converts max speed between dp/s and screen short-edges/s.</string>
+    <string name="touch_tools_stick_size">Stick size</string>
+    <string name="touch_tools_hint_stick_size">Diameter of the stick drawn while touching. The touch region is set on the position page.</string>
+    <string name="touch_tools_default_swipe">Swipe</string>
+    <string name="touch_tools_default_gesture">Gestures</string>
+    <string name="touch_tools_mapping_hint">Tap the controller buttons to map. Multiple buttons make a combination.</string>
+    <string name="touch_tools_mapping_hint_single">Tap one controller button.</string>
+    <string name="touch_tools_mapping_missing">Select a controller button mapping first.</string>
+    <string name="touch_tools_mapping_button">Output %1$s</string>
 </resources>

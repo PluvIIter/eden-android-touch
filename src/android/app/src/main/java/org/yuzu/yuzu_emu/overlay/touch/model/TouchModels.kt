@@ -85,10 +85,10 @@ data class TouchControl(
     val binding: ButtonBinding = ButtonBinding(setOf(0)),
     val groupStyle: GroupStyle = GroupStyle.FACE,
     val groupKeys: List<GroupKey> = listOf(
-        GroupKey(text = "Y", binding = ButtonBinding(setOf(3))),
-        GroupKey(text = "B", binding = ButtonBinding(setOf(1))),
+        GroupKey(text = "X", binding = ButtonBinding(setOf(2))),
         GroupKey(text = "A", binding = ButtonBinding(setOf(0))),
-        GroupKey(text = "X", binding = ButtonBinding(setOf(2)))
+        GroupKey(text = "B", binding = ButtonBinding(setOf(1))),
+        GroupKey(text = "Y", binding = ButtonBinding(setOf(3)))
     ),
     val stickTarget: StickTarget = StickTarget.RIGHT,
     val freeStick: Boolean = false,
@@ -171,40 +171,121 @@ data class TouchLibrary(
 object TouchDefaults {
     fun library(): TouchLibrary {
         val preset = SwipePreset()
-        val screen = ScreenLayout()
+        val screen = ScreenLayout(
+            name = "Landscape",
+            width = 1280f,
+            height = 720f
+        )
+        val faceKeys = listOf(
+            GroupKey(text = "X", binding = ButtonBinding(setOf(2))),
+            GroupKey(text = "A", binding = ButtonBinding(setOf(0))),
+            GroupKey(text = "B", binding = ButtonBinding(setOf(1))),
+            GroupKey(text = "Y", binding = ButtonBinding(setOf(3)))
+        )
+        val dpadKeys = listOf(
+            GroupKey(text = "↑", binding = ButtonBinding(setOf(13))),
+            GroupKey(text = "→", binding = ButtonBinding(setOf(14))),
+            GroupKey(text = "↓", binding = ButtonBinding(setOf(15))),
+            GroupKey(text = "←", binding = ButtonBinding(setOf(12)))
+        )
+        // The list order is bottom-to-top; runtime hit-testing always tries
+        // ordinary controls before the lower area layer.
         val controls = listOf(
             TouchControl(
-                name = "Move",
-                type = ControlType.STICK,
-                bounds = TouchRect(42f, 240f, 128f, 128f),
-                stickTarget = StickTarget.LEFT
+                name = "L3",
+                text = "L3",
+                bounds = TouchRect(250f, 470f, 64f, 64f),
+                binding = ButtonBinding(setOf(4))
             ),
             TouchControl(
-                name = "Camera",
-                type = ControlType.SWIPE,
-                bounds = TouchRect(450f, 80f, 490f, 332f),
-                swipePresetId = preset.id
-            ),
-            TouchControl(name = "A", bounds = TouchRect(840f, 265f, 64f, 64f)),
-            TouchControl(
-                name = "B",
-                text = "B",
-                bounds = TouchRect(760f, 330f, 60f, 60f),
-                binding = ButtonBinding(setOf(1))
+                name = "R3",
+                text = "R3",
+                bounds = TouchRect(966f, 470f, 64f, 64f),
+                binding = ButtonBinding(setOf(5))
             ),
             TouchControl(
                 name = "ZL",
                 text = "ZL",
                 shape = ControlShape.RECTANGLE,
-                bounds = TouchRect(25f, 24f, 96f, 46f),
+                bounds = TouchRect(18f, 18f, 104f, 48f),
                 binding = ButtonBinding(setOf(8))
+            ),
+            TouchControl(
+                name = "L",
+                text = "L",
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(130f, 18f, 88f, 44f),
+                binding = ButtonBinding(setOf(6))
+            ),
+            TouchControl(
+                name = "R",
+                text = "R",
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(1062f, 18f, 88f, 44f),
+                binding = ButtonBinding(setOf(7))
             ),
             TouchControl(
                 name = "ZR",
                 text = "ZR",
                 shape = ControlShape.RECTANGLE,
-                bounds = TouchRect(835f, 24f, 96f, 46f),
+                bounds = TouchRect(1158f, 18f, 104f, 48f),
                 binding = ButtonBinding(setOf(9))
+            ),
+            TouchControl(
+                name = "−",
+                text = "−",
+                bounds = TouchRect(556f, 88f, 52f, 52f),
+                binding = ButtonBinding(setOf(11))
+            ),
+            TouchControl(
+                name = "+",
+                text = "+",
+                bounds = TouchRect(644f, 88f, 52f, 52f),
+                binding = ButtonBinding(setOf(10))
+            ),
+            TouchControl(
+                name = "Home",
+                text = "Home",
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(516f, 652f, 96f, 44f),
+                binding = ButtonBinding(setOf(18))
+            ),
+            TouchControl(
+                name = "Capture",
+                text = "Capture",
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(668f, 652f, 108f, 44f),
+                binding = ButtonBinding(setOf(19))
+            ),
+            TouchControl(
+                name = "ABXY",
+                type = ControlType.BUTTON_GROUP,
+                groupStyle = GroupStyle.FACE,
+                groupKeys = faceKeys,
+                bounds = TouchRect(1044f, 468f, 200f, 200f)
+            ),
+            TouchControl(
+                name = "D-pad",
+                type = ControlType.BUTTON_GROUP,
+                groupStyle = GroupStyle.DPAD,
+                groupKeys = dpadKeys,
+                bounds = TouchRect(36f, 486f, 190f, 190f)
+            ),
+            TouchControl(
+                name = "Move",
+                type = ControlType.STICK,
+                bounds = TouchRect(0f, 0f, 640f, 720f),
+                stickTarget = StickTarget.LEFT,
+                freeStick = true,
+                triggerOnly = true,
+                stickDiameter = 110f
+            ),
+            TouchControl(
+                name = "Camera",
+                type = ControlType.SWIPE,
+                bounds = TouchRect(640f, 0f, 640f, 720f),
+                stickTarget = StickTarget.RIGHT,
+                swipePresetId = preset.id
             )
         )
         val template = TouchTemplate(controls = controls, screens = listOf(screen), baseScreenId = screen.id)

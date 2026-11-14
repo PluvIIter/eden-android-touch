@@ -297,6 +297,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         canvas.invalidate()
     }
 
+    internal fun requestExit() {
+        if (handleBack()) return
+        onExit?.invoke()
+    }
+
     fun handleBack(): Boolean {
         if (ViewCompat.getRootWindowInsets(this)?.isVisible(WindowInsetsCompat.Type.ime()) == true) {
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -504,6 +509,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun startTest(isolate: Boolean) {
         if (layoutRetired) return
+        if (!isolate && gameAvailable) {
+            message(context.getString(R.string.touch_workspace_test_in_game_disabled))
+            return
+        }
         val control = selected
         if (isolate && (!gameAvailable || control?.type != ControlType.SWIPE || !control.enabled)) {
             message(context.getString(R.string.touch_workspace_select_swipe))
@@ -952,6 +961,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         placements = TouchGeometry.placements(template, safe.width(), safe.height())
         if (configure && width > 0 && height > 0) configureRuntime()
         tools.refreshToolbar()
+        // The toolbar is rebuilt while the workspace is laying out; request one more pass so the
+        // card is measured with the final width instead of staying at its pre-layout size.
+        if (width > 0 && height > 0) tools.scheduleRelayout()
         canvas.invalidate()
     }
 

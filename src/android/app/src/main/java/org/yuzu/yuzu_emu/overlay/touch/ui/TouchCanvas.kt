@@ -285,7 +285,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             )
         }
         val label = context.getString(R.string.touch_canvas_area_detail, control.name.ifBlank { type }, detail)
-        chip(canvas, label, rect.x + rect.width / 2, rect.y + dp(19), (rect.width - dp(12)).coerceAtLeast(1f), accent)
+        chip(canvas, label, rect.x + rect.width / 2, rect.y + rect.height / 2, (rect.width - dp(12)).coerceAtLeast(1f), accent)
     }
 
     private fun drawStick(
