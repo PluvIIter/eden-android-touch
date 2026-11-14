@@ -7,13 +7,16 @@ import android.content.Context
 import org.yuzu.yuzu_emu.R
 import android.graphics.RectF
 import android.os.SystemClock
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -168,6 +171,18 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private val redo = ArrayDeque<UndoEntry>()
     private val canvas = TouchCanvas(context, this)
     internal val tools = TouchTools(context, this)
+    private val placementCancel = MaterialButton(
+        ContextThemeWrapper(context, R.style.TouchButton_Theme_Secondary),
+        null,
+        com.google.android.material.R.attr.materialButtonStyle
+    ).apply {
+        text = context.getString(R.string.touch_workspace_cancel_placement)
+        contentDescription = text
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+        minHeight = dp(40).toInt()
+        visibility = GONE
+        setOnClickListener { cancelPlacement() }
+    }
     private val canvasPointers = mutableSetOf<Int>()
     private val allPointers = mutableSetOf<Int>()
     private var geometryAvailable = true
@@ -214,6 +229,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         isMotionEventSplittingEnabled = true
         addView(canvas, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(tools, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(
+            placementCancel,
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(20).toInt()
+            }
+        )
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             tools.onImeInsets(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
@@ -259,6 +280,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     fun setEditing(editing: Boolean) {
         if (editing && layoutRetired) return
         releaseInputs()
+        if (!editing && pendingControl != null) {
+            pendingControl = null
+            canvas.preview = null
+            placementCancel.visibility = GONE
+        }
         isEditing = editing
         testing = false
         isolatedId = null
@@ -276,6 +302,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (testing) finishTest(false)
         layoutRetired = true
         isEditing = false
+        pendingControl = null
+        placementCancel.visibility = GONE
         tools.closeAll()
         tools.visibility = GONE
         configureRuntime()
@@ -321,6 +349,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (gesture != null) {
             cancelGeometry()
             showTools()
+            return true
+        }
+        if (pendingControl != null) {
+            cancelPlacement()
             return true
         }
         if (testing) {
@@ -394,14 +426,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun updateControl(value: TouchControl): Boolean {
-        val rect = placements[value.id] ?: value.bounds
-        if (value.isArea && template.controls.any {
-            it.id != value.id && it.isArea && (placements[it.id] ?: it.bounds).intersects(rect)
-        }
-        ) {
-            message(context.getString(R.string.touch_workspace_overlap))
-            return false
-        }
         val makeCircle = value.type == ControlType.BUTTON && value.shape == ControlShape.CIRCLE
         if (makeCircle) {
             val screens = template.screens.map { screen ->
@@ -475,7 +499,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     private fun showTools() {
-        tools.visibility = if (isEditing || testing) VISIBLE else GONE
+        tools.visibility = if ((isEditing || testing) && pendingControl == null) VISIBLE else GONE
         tools.refreshToolbar()
     }
 
@@ -483,8 +507,20 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         pendingControl = control
         selectedId = null
         waitForFreshDown = true
-        tools.closeAll()
+        tools.visibility = GONE
+        placementCancel.visibility = VISIBLE
         message(context.getString(R.string.touch_workspace_place_prompt))
+        canvas.invalidate()
+    }
+
+    /** Abort an in-progress placement and restore the configuration panel that started it. */
+    internal fun cancelPlacement() {
+        if (pendingControl == null) return
+        pendingControl = null
+        waitForFreshDown = true
+        canvas.preview = null
+        placementCancel.visibility = GONE
+        if (isEditing || testing) tools.visibility = VISIBLE
         canvas.invalidate()
     }
 
@@ -681,18 +717,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 canvas.feedback = context.getString(R.string.touch_workspace_screen_overflow, screen.name)
                 return false
             }
-            val screenPlacements = if (onCurrentScreen) {
-                placements + (control.id to rect)
-            } else {
-                template.controls.associate { other ->
-                    other.id to if (other.id == control.id) target else TouchGeometry.savedBounds(template, screen, other)
-                }
-            }
-            val conflict = TouchEditorGeometry.conflict(control, target, template.controls, screenPlacements)
-            if (conflict != null) {
-                canvas.feedback = context.getString(R.string.touch_workspace_overlap_named, conflict.name)
-                return false
-            }
         }
         canvas.feedback = null
         return true
@@ -875,20 +899,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     screen.height
                 )
                 val baseRect = mapped(base)
-                val otherConflict = template.screens.any { s ->
-                    if (s.id == screen.id || !control.isArea) {
-                        false
-                    } else {
-                        template.controls.any { c ->
-                            c.isArea && TouchGeometry.savedBounds(template, s, c).intersects(mapped(s))
-                        }
-                    }
-                }
-                if (otherConflict) {
-                    message(context.getString(R.string.touch_workspace_other_screen_conflict))
-                    canvas.preview = null
-                    return
-                }
                 replaceTemplate(
                     template.copy(
                         controls = template.controls + control.copy(bounds = baseRect),
@@ -909,6 +919,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 )
                 selectedId = control.id
                 pendingControl = null
+                placementCancel.visibility = GONE
+                if (isEditing || testing) tools.visibility = VISIBLE
                 tools.onControlPlaced(control.id)
             } else {
                 message(context.getString(R.string.touch_workspace_no_position))
@@ -965,8 +977,13 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         gesture?.let { draft = rollbackGeometry(it) }
         gesture = null
         canvas.preview = null
+        val wasPlacing = pendingControl != null
         pendingControl = null
         adjustSelected = false
+        if (wasPlacing) {
+            placementCancel.visibility = GONE
+            if (isEditing || testing) tools.visibility = VISIBLE
+        }
         updateGeometry(false)
     }
 

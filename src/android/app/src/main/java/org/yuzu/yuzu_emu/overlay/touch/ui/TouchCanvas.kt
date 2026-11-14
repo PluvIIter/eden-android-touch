@@ -298,7 +298,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         w: Float,
         h: Float
     ) {
-        val p = pointers.firstOrNull()
+        val p = pointers.firstOrNull { it.controlId == control.id }
         if (control.triggerOnly && (workspace.isEditing || workspace.testing)) drawArea(canvas, control, rect, p != null)
         if (control.triggerOnly && p == null) return
         val radius = if (control.triggerOnly) {
@@ -306,8 +306,16 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         } else {
             min(rect.width, rect.height) / 2
         }
-        val logicalX = if (control.freeStick && p != null) p.centerX else rect.x + rect.width / 2
-        val logicalY = if (control.freeStick && p != null) p.centerY else rect.y + rect.height / 2
+        val vector = snapshot.sticks[control.stickTarget]
+        val owns = snapshot.stickOwners[control.stickTarget] == control.id
+        val vx = if (owns) vector?.x ?: 0f else 0f
+        val vy = if (owns) vector?.y ?: 0f else 0f
+        val knobOffsetX = vx * radius * 0.55f
+        val knobOffsetY = -vy * radius * 0.55f
+        // Free sticks keep their input origin at the first touch, but the rendered base trails the
+        // finger so the knob stays under the thumb while the whole stick follows it.
+        val logicalX = if (control.freeStick && p != null) p.x - knobOffsetX else rect.x + rect.width / 2
+        val logicalY = if (control.freeStick && p != null) p.y - knobOffsetY else rect.y + rect.height / 2
         val cx = logicalX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
         val cy = logicalY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
         fill(variant, opacity * 0.7f)
@@ -318,13 +326,9 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         canvas.drawCircle(cx, cy, radius * 0.72f, paint)
         canvas.drawLine(cx - radius * 0.3f, cy, cx + radius * 0.3f, cy, paint)
         canvas.drawLine(cx, cy - radius * 0.3f, cx, cy + radius * 0.3f, paint)
-        val vector = snapshot.sticks[control.stickTarget]
-        val owns = snapshot.stickOwners[control.stickTarget] == control.id
-        val vx = if (owns) vector?.x ?: 0f else 0f
-        val vy = if (owns) vector?.y ?: 0f else 0f
         val knobRadius = radius * 0.34f
-        val knobX = cx + vx * radius * 0.55f
-        val knobY = cy - vy * radius * 0.55f
+        val knobX = cx + knobOffsetX
+        val knobY = cy + knobOffsetY
         fill(if (p != null) primary else surface, opacity)
         canvas.drawCircle(knobX, knobY, knobRadius, paint)
         stroke(if (p != null) primary else outline, dp(1.4f), opacity)

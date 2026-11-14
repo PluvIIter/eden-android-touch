@@ -90,14 +90,7 @@ class TouchRuntime(private val sink: InputSink) {
                 "Control outside screen"
             }
         }
-        val areas = copied.filter { it.enabled && it.isArea }
-        require(
-            areas.indices.none { a ->
-                (a + 1 until areas.size).any { b ->
-                    bounds.getValue(areas[a].id).intersects(bounds.getValue(areas[b].id))
-                }
-            }
-        ) { "Overlapping touch areas" }
+        // Areas may overlap each other; the later area in the control list wins the hit test.
         cancelAll()
         controls = copied
         val enabled = copied.asReversed().filter { it.enabled }
@@ -350,7 +343,7 @@ class TouchRuntime(private val sink: InputSink) {
 
     private fun updateStick(capture: Capture) {
         val control = capture.control!!
-        val radius = if (control.freeStick && control.triggerOnly) {
+        val radius = if (control.triggerOnly) {
             control.stickDiameter * density / 2f
         } else {
             min(capture.bounds.width, capture.bounds.height) / 2f
@@ -413,7 +406,7 @@ class TouchRuntime(private val sink: InputSink) {
 
     private fun validate(control: TouchControl, bounds: TouchRect, presets: List<SwipePreset>) {
         require(listOf(bounds.x, bounds.y, bounds.width, bounds.height, bounds.right, bounds.bottom).all { it.isFinite() } && bounds.width > 0f && bounds.height > 0f)
-        require(!control.triggerOnly || control.type == ControlType.STICK && control.freeStick)
+        require(!control.triggerOnly || control.type == ControlType.STICK)
         require(control.type != ControlType.BUTTON_GROUP || control.groupKeys.size == 4)
         val targets = (0..15).toSet() + setOf(18, 19)
         require(control.auxiliaryButton == null || control.auxiliaryButton in targets)

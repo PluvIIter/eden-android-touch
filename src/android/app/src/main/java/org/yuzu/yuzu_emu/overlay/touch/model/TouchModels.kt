@@ -109,7 +109,7 @@ data class TouchControl(
 ) {
     val isArea: Boolean
         get() = type == ControlType.SWIPE || type == ControlType.GESTURE ||
-            (type == ControlType.STICK && freeStick && triggerOnly)
+            (type == ControlType.STICK && triggerOnly)
 }
 
 @Serializable
@@ -244,20 +244,6 @@ object TouchDefaults {
                 shape = ControlShape.RECTANGLE,
                 bounds = TouchRect(644f, 88f, 56f, 48f),
                 binding = ButtonBinding(setOf(10))
-            ),
-            TouchControl(
-                name = "Home",
-                text = "Home",
-                shape = ControlShape.RECTANGLE,
-                bounds = TouchRect(516f, 652f, 96f, 44f),
-                binding = ButtonBinding(setOf(18))
-            ),
-            TouchControl(
-                name = "Capture",
-                text = "Capture",
-                shape = ControlShape.RECTANGLE,
-                bounds = TouchRect(668f, 652f, 108f, 44f),
-                binding = ButtonBinding(setOf(19))
             ),
             TouchControl(
                 name = "ABXY",

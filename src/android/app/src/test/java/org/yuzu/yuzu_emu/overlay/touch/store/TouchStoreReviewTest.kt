@@ -23,7 +23,6 @@ import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
 import java.io.File
 import java.nio.file.Files
 import java.util.UUID
-import kotlin.random.Random
 
 class TouchStoreReviewTest {
     private fun fails(block: () -> Unit) {
@@ -125,41 +124,6 @@ class TouchStoreReviewTest {
         println("24k area preview: ${(System.nanoTime() - before) / 1_000_000} ms")
     }
 
-    @Test(timeout = 5000)
-    fun verticalTouchingAreasAndDenseInvalidAreasAreBounded() {
-        val preset = SwipePreset()
-        val screen = ScreenLayout(width = 1f, height = 24_000f)
-        val controls = (0 until 24_000).map {
-            TouchControl(type = ControlType.SWIPE, groupKeys = emptyList(), bounds = TouchRect(0f, it.toFloat(), 1f, 1f), swipePresetId = preset.id)
-        }
-        val template = TouchTemplate(controls = controls, screens = listOf(screen), baseScreenId = screen.id)
-        TouchValidator.requireValid(TouchLibrary(templates = listOf(template), presets = listOf(preset)))
-        val invalid = template.copy(controls = controls.map { it.copy(bounds = TouchRect(0f, 0f, 1f, 1f)) })
-        val issues = TouchValidator.validate(TouchLibrary(templates = listOf(invalid), presets = listOf(preset)))
-        assertEquals(1, issues.count { it.path.contains(".areas.") })
-    }
-
-    @Test fun sweepMatchesPairwiseOverlapForRandomRectanglesAndTouchingEdges() {
-        val random = Random(19)
-        val preset = SwipePreset()
-        repeat(150) {
-            val rectangles = (0 until 35).map {
-                TouchRect(
-                    random.nextInt(0, 18).toFloat(),
-                    random.nextInt(0, 18).toFloat(),
-                    random.nextInt(1, 4).toFloat(),
-                    random.nextInt(1, 4).toFloat()
-                )
-            }
-            val controls = rectangles.map { TouchControl(type = ControlType.SWIPE, groupKeys = emptyList(), bounds = it, swipePresetId = preset.id) }
-            val screen = ScreenLayout(width = 24f, height = 24f)
-            val template = TouchTemplate(controls = controls, screens = listOf(screen), baseScreenId = screen.id)
-            val expected = rectangles.indices.any { a -> (a + 1 until rectangles.size).any { b -> rectangles[a].intersects(rectangles[b]) } }
-            val actual = TouchValidator.validate(TouchLibrary(templates = listOf(template), presets = listOf(preset))).any { it.path.contains(".areas.") }
-            assertEquals(expected, actual)
-        }
-    }
-
     @Test fun largeNotesSnapshotRoundTripsAndRepeatedSavesReuseOneRecord() {
         val directory = Files.createTempDirectory("touch-large-draft").toFile()
         val store = TouchDraftStore(directory)
@@ -245,7 +209,7 @@ class TouchStoreReviewTest {
         val library = TouchDefaults.library()
         val template = library.templates.single()
         TouchValidator.requireValid(library)
-        val targets = (0..15).toSet() + setOf(18, 19)
+        val targets = (0..15).toSet()
         val mapped = buildSet {
             template.controls.forEach { control ->
                 addAll(control.binding.buttons)
@@ -253,6 +217,7 @@ class TouchStoreReviewTest {
             }
         }
         assertEquals(targets, mapped)
+        assertTrue(template.controls.none { it.name == "Home" || it.name == "Capture" })
 
         val screen = template.screens.single()
         val stick = template.controls.single { it.type == ControlType.STICK }

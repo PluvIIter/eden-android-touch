@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import com.google.android.material.button.MaterialButton
@@ -37,6 +38,8 @@ import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.TouchDefaultLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
+import org.yuzu.yuzu_emu.overlay.touch.model.GestureDirection
+import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import org.yuzu.yuzu_emu.overlay.touch.runtime.InputSink
@@ -311,6 +314,7 @@ class TouchWorkspaceInteractionTest {
         assertEquals(ControlShape.RECTANGLE, placed.shape)
         assertEquals(setOf(6, 7), placed.binding.buttons)
         assertEquals(setOf("control:${placed.id}"), windowKeys(workspace))
+        assertEquals(View.VISIBLE, workspace.tools.visibility)
     }
 
     @Test
@@ -348,6 +352,156 @@ class TouchWorkspaceInteractionTest {
         val overlaps = card.x < rect.x + rect.width && card.x + card.width > rect.x &&
             card.y < rect.y + rect.height && card.y + card.height > rect.y
         assertFalse("Properties must not cover the selected control", overlaps)
+    }
+
+    @Test
+    fun placementCanBeCancelledBackToTheAddPanel() = withWorkspace { workspace ->
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_gesture_description)
+        val before = workspace.template.controls.size
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+
+        val cancel = descendants(workspace).filterIsInstance<MaterialButton>()
+            .single { it.text.toString() == workspace.context.getString(R.string.touch_workspace_cancel_placement) }
+        assertEquals(View.VISIBLE, cancel.visibility)
+        cancel.performClick()
+        settle(workspace)
+
+        assertEquals(setOf("add"), windowKeys(workspace))
+        assertEquals(before, workspace.template.controls.size)
+        val downTime = SystemClock.uptimeMillis()
+        for ((action, time) in listOf(MotionEvent.ACTION_DOWN to downTime, MotionEvent.ACTION_UP to downTime + 16)) {
+            val event = MotionEvent.obtain(downTime, time, action, workspace.safe.left + 700f, workspace.safe.top + 900f, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
+        assertEquals(before, workspace.template.controls.size)
+    }
+
+    @Test
+    fun gestureAreaNeedsNoPreconfiguredOutput() = withWorkspace { workspace ->
+        placeGestureArea(workspace)
+        val gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        assertTrue(gesture.gestures.isEmpty())
+        assertEquals(setOf("control:${gesture.id}"), windowKeys(workspace))
+    }
+
+    @Test
+    fun unifiedGesturePickerMapsAStickDirection() = withWorkspace { workspace ->
+        placeGestureArea(workspace)
+        descendants(topCard(workspace)).filterIsInstance<MaterialButton>()
+            .first { it.text.toString().startsWith(workspace.context.getString(R.string.touch_tools_tap)) }
+            .performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowDialog.getLatestDialog()
+        val root = dialog.window!!.decorView
+        descendants(root).filterIsInstance<MaterialButton>()
+            .first { it.contentDescription?.toString() == "↑" }
+            .performClick()
+        descendants(root).filterIsInstance<MaterialButton>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_done) }
+            .performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        val binding = gesture.gestures.getValue(GestureDirection.TAP)
+        assertEquals(StickTarget.LEFT, binding.stick)
+        assertEquals(GestureDirection.UP, binding.direction)
+    }
+
+    @Test
+    fun stickModeAndTargetToggleFromButtons() = withWorkspace { workspace ->
+        val stick = workspace.template.controls.first { it.type == ControlType.STICK }
+        tapControl(workspace, stick.id)
+        settle(workspace)
+        fun mode() = descendants(topCard(workspace)).filterIsInstance<MaterialButton>().first {
+            it.text.toString().startsWith(workspace.context.getString(R.string.touch_tools_stick_mode_value, ""))
+        }
+        assertTrue(mode().text.toString().contains(workspace.context.getString(R.string.touch_tools_stick_free)))
+        mode().performClick()
+        settle(workspace)
+        assertFalse(control(workspace, stick.id).freeStick)
+        assertTrue(control(workspace, stick.id).triggerOnly)
+        assertTrue(mode().text.toString().contains(workspace.context.getString(R.string.touch_tools_stick_fixed)))
+        assertTrue(
+            descendants(topCard(workspace)).filterIsInstance<MaterialSwitch>()
+                .any { it.text.toString() == workspace.context.getString(R.string.touch_tools_trigger_only) }
+        )
+
+        val before = ShadowDialog.getLatestDialog()
+        val target = descendants(topCard(workspace)).filterIsInstance<MaterialButton>().first {
+            it.text.toString().startsWith(workspace.context.getString(R.string.touch_tools_target_stick))
+        }
+        val original = control(workspace, stick.id).stickTarget
+        target.performClick()
+        settle(workspace)
+        assertNotEquals(original, control(workspace, stick.id).stickTarget)
+        assertTrue(before === ShadowDialog.getLatestDialog())
+        target.performClick()
+        settle(workspace)
+        assertEquals(original, control(workspace, stick.id).stickTarget)
+
+        mode().performClick()
+        settle(workspace)
+        assertTrue(control(workspace, stick.id).freeStick)
+    }
+
+    @Test
+    fun panelResizeIsPersistedInTheToolState() = withWorkspace { workspace ->
+        val control = workspace.template.controls.first { it.type == ControlType.BUTTON }
+        tapControl(workspace, control.id)
+        settle(workspace)
+        val card = topCard(workspace)
+        val grip = descendants(card).filterIsInstance<ImageView>()
+            .single { it.contentDescription?.toString() == workspace.context.getString(R.string.touch_tools_resize) }
+        val startWidth = card.width
+        val startHeight = card.height
+        val downTime = SystemClock.uptimeMillis()
+        fun send(action: Int, time: Long, dx: Float, dy: Float) {
+            val event = MotionEvent.obtain(downTime, time, action, dx, dy, 0)
+            try { grip.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        send(MotionEvent.ACTION_DOWN, downTime, 0f, 0f)
+        send(MotionEvent.ACTION_MOVE, downTime + 16, 80f, 80f)
+        send(MotionEvent.ACTION_UP, downTime + 32, 80f, 80f)
+        settle(workspace)
+        assertTrue(card.width > startWidth)
+        assertTrue(card.height > startHeight)
+
+        workspace.tools.closeAll()
+        settle(workspace)
+        tapControl(workspace, control.id)
+        settle(workspace)
+        assertEquals(card.width, topCard(workspace).width)
+        assertEquals(card.height, topCard(workspace).height)
+
+        val state = workspace.tools.exportState()
+        workspace.tools.restoreState(state)
+        settle(workspace)
+        val reopened = topCard(workspace)
+        assertEquals(card.width, reopened.width)
+        assertEquals(card.height, reopened.height)
+    }
+
+    private fun placeGestureArea(workspace: TouchWorkspace) {
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_gesture_description)
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+        val downTime = SystemClock.uptimeMillis()
+        val x = workspace.safe.left + 700f
+        val y = workspace.safe.top + 700f
+        val points = listOf(
+            Triple(MotionEvent.ACTION_DOWN, x, y),
+            Triple(MotionEvent.ACTION_MOVE, x + 80f, y + 80f),
+            Triple(MotionEvent.ACTION_UP, x + 80f, y + 80f)
+        )
+        points.forEachIndexed { index, (action, px, py) ->
+            val event = MotionEvent.obtain(downTime, downTime + index * 16L, action, px, py, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
     }
 
     private fun withWorkspace(gameAvailable: Boolean = false, test: (TouchWorkspace) -> Unit) {

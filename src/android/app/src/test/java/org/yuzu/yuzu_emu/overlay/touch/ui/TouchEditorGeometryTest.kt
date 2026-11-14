@@ -5,7 +5,6 @@ package org.yuzu.yuzu_emu.overlay.touch.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
@@ -40,44 +39,6 @@ class TouchEditorGeometryTest {
     fun subpixelRoundingToleranceDoesNotPermitVisibleOverflow() {
         assertTrue(TouchEditorGeometry.fits(TouchRect(0f, 0f, 100.005f, 100f), 100f, 100f))
         assertFalse(TouchEditorGeometry.fits(TouchRect(0f, 0f, 100.1f, 100f), 100f, 100f))
-    }
-
-    @Test
-    fun sharedAreaEdgesAreAllowed() {
-        assertNull(TouchEditorGeometry.conflict(a, a.bounds, listOf(a, b), emptyMap()))
-    }
-
-    @Test
-    fun disabledTransparentAreasStillConflict() {
-        val hidden = b.copy(enabled = false, opacity = 0f)
-        assertEquals(
-            b.id,
-            TouchEditorGeometry.conflict(
-                a,
-                a.bounds.copy(width = 51f),
-                listOf(a, hidden),
-                emptyMap()
-            )?.id
-        )
-    }
-
-    @Test
-    fun buttonsCanOverlayAreas() {
-        val button = b.copy(type = ControlType.BUTTON)
-        assertNull(TouchEditorGeometry.conflict(button, a.bounds, listOf(a, button), emptyMap()))
-    }
-
-    @Test
-    fun currentPlacementWinsOverBaseBounds() {
-        assertEquals(
-            b.id,
-            TouchEditorGeometry.conflict(
-                a,
-                a.bounds,
-                listOf(a, b),
-                mapOf(b.id to TouchRect(25f, 0f, 50f, 100f))
-            )?.id
-        )
     }
 
     @Test

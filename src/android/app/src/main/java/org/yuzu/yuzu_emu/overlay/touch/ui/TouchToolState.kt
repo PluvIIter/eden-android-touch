@@ -22,6 +22,8 @@ internal data class TouchWindowSnapshot(
     val tab: Int = 0,
     val childIndex: Int? = null,
     val scroll: Int = 0,
+    val width: Float = 0f,
+    val height: Float = 0f,
     val controlId: String? = null,
     val presetId: String? = null,
     val beforeControl: TouchControl? = null,
@@ -120,10 +122,19 @@ internal data class TouchWindowChange(
 }
 
 @Serializable
+internal data class TouchToolSize(val width: Float = 0f, val height: Float = 0f) {
+    fun normalized() = TouchToolSize(
+        if (width.isFinite()) width.coerceIn(0f, 2000f) else 0f,
+        if (height.isFinite()) height.coerceIn(0f, 2000f) else 0f
+    )
+}
+
+@Serializable
 internal data class TouchToolState(
     val toolbar: TouchToolPosition? = null,
     val opacity: Float = 0.94f,
-    val windows: List<TouchWindowSnapshot> = emptyList()
+    val windows: List<TouchWindowSnapshot> = emptyList(),
+    val sizes: Map<String, TouchToolSize> = emptyMap()
 ) {
     fun normalized() = copy(
         toolbar = toolbar?.normalized(),
@@ -131,10 +142,13 @@ internal data class TouchToolState(
         windows = windows.distinctBy { it.key }.map {
             it.copy(
                 position = it.position.normalized(),
+                width = if (it.width.isFinite()) it.width.coerceIn(0f, 2000f) else 0f,
+                height = if (it.height.isFinite()) it.height.coerceIn(0f, 2000f) else 0f,
                 tab = it.tab.coerceIn(0, 2),
                 childIndex = it.childIndex?.takeIf { index -> index in 0..3 },
                 scroll = it.scroll.coerceAtLeast(0)
             )
-        }
+        },
+        sizes = sizes.mapValues { it.value.normalized() }.filterValues { it.width > 0f && it.height > 0f }
     )
 }

@@ -3,7 +3,6 @@
 
 package org.yuzu.yuzu_emu.overlay.touch.ui
 
-import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import kotlin.math.min
 
@@ -12,16 +11,6 @@ internal object TouchEditorGeometry {
         listOf(rect.x, rect.y, rect.width, rect.height).all { it.isFinite() } &&
             rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0 &&
             rect.right <= width + 0.01f && rect.bottom <= height + 0.01f
-
-    fun conflict(
-        control: TouchControl,
-        rect: TouchRect,
-        controls: List<TouchControl>,
-        placements: Map<String, TouchRect>
-    ): TouchControl? = controls.firstOrNull {
-        it.id != control.id && it.isArea && control.isArea &&
-            (placements[it.id] ?: it.bounds).intersects(rect)
-    }
 
     fun map(
         rect: TouchRect,

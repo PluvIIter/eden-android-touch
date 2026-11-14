@@ -274,12 +274,12 @@ class TouchStoreTest {
         assertEquals(imported.library, target.load())
     }
 
-    @Test fun areasRejectPositiveOverlapButAllowTouchingEdgesAndButtonOverlap() {
+    @Test fun areasAllowOverlapAndTouchingEdges() {
         val preset = SwipePreset()
         val a = TouchControl(type = ControlType.SWIPE, bounds = TouchRect(0f, 0f, 100f, 100f), swipePresetId = preset.id)
         val b = TouchControl(type = ControlType.SWIPE, bounds = TouchRect(100f, 0f, 100f, 100f), swipePresetId = preset.id, opacity = 0f)
         TouchValidator.requireValid(library(listOf(a, b, TouchControl()), listOf(preset)))
-        fails<TouchValidationException> { TouchValidator.requireValid(library(listOf(a, b.copy(bounds = TouchRect(99f, 0f, 100f, 100f))), listOf(preset))) }
+        TouchValidator.requireValid(library(listOf(a, b.copy(bounds = TouchRect(99f, 0f, 100f, 100f))), listOf(preset)))
     }
 
     @Test fun alternateSavedScreensAreValidatedAndUnknownPlacementsRejected() {
@@ -300,12 +300,13 @@ class TouchStoreTest {
             TouchControl(binding = ButtonBinding(setOf(16))),
             TouchControl(binding = ButtonBinding(setOf(0), true, Float.POSITIVE_INFINITY)),
             TouchControl(binding = ButtonBinding(setOf(0), true, 61f)),
-            TouchControl(type = ControlType.STICK, freeStick = false, triggerOnly = true),
             TouchControl(type = ControlType.SWIPE, swipePresetId = "missing"),
             TouchControl(type = ControlType.GESTURE, gestures = mapOf(GestureDirection.UP to GestureBinding(button = 0, stick = StickTarget.RIGHT))),
             TouchControl(type = ControlType.GESTURE, gesturePulseMs = 0, gestures = mapOf(GestureDirection.TAP to GestureBinding(button = 0)))
         )
         bad.forEach { control -> assertTrue("Expected validation error for $control", TouchValidator.validate(library(listOf(control))).isNotEmpty()) }
+        val fixedTriggerIssues = TouchValidator.validate(library(listOf(TouchControl(type = ControlType.STICK, triggerOnly = true))))
+        assertTrue("$fixedTriggerIssues", fixedTriggerIssues.isEmpty())
         val control = TouchControl()
         fails<TouchValidationException> { TouchValidator.requireValid(library(listOf(control, control))) }
     }

@@ -262,6 +262,24 @@ class TouchRuntimeTest {
         assertVector(0f, 0f)
     }
 
+    @Test fun fixedTriggerOnlyStickKeepsItsCenterAndUsesItsDiameter() {
+        val stick = TouchControl(
+            id = "stick",
+            type = ControlType.STICK,
+            bounds = TouchRect(0f, 0f, 400f, 400f),
+            triggerOnly = true,
+            stickDeadzone = 0f,
+            stickDiameter = 100f
+        )
+        configure(stick)
+        runtime.down(1, 200f, 200f, 0)
+        assertVector(0f, 0f)
+        assertEquals(200f, runtime.snapshot().pointers.single().centerX)
+        runtime.move(1, 225f, 200f, 1)
+        assertEquals(0.5f, right().x, 0.0001f)
+        assertEquals(0f, right().y, 0.0001f)
+    }
+
     @Test fun freeMaximumStickPreservesLogicalCenterAndPushAuxiliary() {
         val stick = TouchControl(
             id = "stick",
@@ -584,8 +602,12 @@ class TouchRuntimeTest {
         runtime.down(1, 110f, 20f, 0)
         assertThrows(IllegalArgumentException::class.java) { runtime.updatePresets(listOf(preset.copy(exponent = Float.NaN))) }
         assertEquals(1, runtime.snapshot().pointers.size)
-        assertThrows(IllegalArgumentException::class.java) { configure(area(), area("overlap", 120f)) }
-        assertEquals(1, runtime.snapshot().pointers.size)
+    }
+
+    @Test fun overlappingAreasKeepUpperLayerPriority() {
+        configure(area(id = "lower"), area(id = "upper", x = 120f))
+        runtime.down(1, 130f, 20f, 0)
+        assertEquals("upper", runtime.snapshot().pointers.first().controlId)
     }
 
     @Test fun reconfigureAndCancelClearTurboPulsesAxesAndNativeTouches() {
