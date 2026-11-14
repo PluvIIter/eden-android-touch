@@ -68,7 +68,13 @@
     <string name="touch_tools_copy_tune">复制参数后调校</string>
     <string name="touch_tools_single_live">单控件实时调试</string>
     <string name="touch_tools_eight_directions">识别八方向</string>
-    <string name="touch_tools_recognition_hint">识别方向 · 点击方向格设置输出</string>
+    <string name="touch_tools_recognition_hint">识别只使用已设置的映射方向；滑向未设置的方向时，自动归到最近的方向。</string>
+    <string name="touch_tools_shape_value">形状：%1$s（点按切换）</string>
+    <string name="touch_tools_grid_on">网格：开</string>
+    <string name="touch_tools_grid_off">网格：关</string>
+    <string name="touch_tools_grid_toggle">切换网格对齐</string>
+    <string name="touch_tools_collapse">收起工具栏</string>
+    <string name="touch_tools_expand">展开工具栏</string>
     <string name="touch_tools_recognition_distance">识别距离（dp）</string>
     <string name="touch_tools_swipe_timing">滑动触发时机</string>
     <string name="touch_tools_gesture_timing_hint">立即触发：保持至抬手。松手触发：输出有限脉冲。点按始终输出短脉冲。</string>

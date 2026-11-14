@@ -35,10 +35,12 @@ import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowDialog
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.TouchDefaultLibrary
+import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import org.yuzu.yuzu_emu.overlay.touch.runtime.InputSink
+import kotlin.math.roundToInt
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -70,46 +72,35 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
-    fun concurrentFormEditsStayWithTheirOwnerAndCancelPreservesTheOtherForm() = withWorkspace { workspace ->
-        val (a, b) = buttons(workspace)
+    fun switchingToolsCommitsTheCurrentFormAndKeepsEdits() = withWorkspace { workspace ->
+        val (a, _) = buttons(workspace)
         val list = openControls(workspace)
         val aCard = appearance(workspace, openFromList(workspace, list, a))
-        val aName = nameField(aCard, a.name)
-        aName.setText("A first edit")
-        val bCard = appearance(workspace, openFromList(workspace, list, b))
-        val bName = nameField(bCard, b.name)
-        bName.setText("B independent edit")
+        nameField(aCard, a.name).setText("A committed on switch")
 
-        aName.setText("A edited while B is selected")
-        settle(workspace)
-        assertEquals(b.id, workspace.selectedId)
-        assertEquals("A edited while B is selected", control(workspace, a.id).name)
-        assertEquals("B independent edit", control(workspace, b.id).name)
+        // Opening another tool finishes the previous one instead of stacking windows.
+        toolbarClick(workspace, R.string.touch_tools_add)
+        assertEquals(setOf("add"), windowKeys(workspace))
+        assertEquals("A committed on switch", control(workspace, a.id).name)
 
-        click(workspace, aCard, R.string.touch_tools_cancel)
-        assertEquals(a.name, control(workspace, a.id).name)
-        assertEquals("B independent edit", control(workspace, b.id).name)
-        assertEquals(setOf("controls", "control:${b.id}"), windowKeys(workspace))
-        click(workspace, bCard, R.string.touch_tools_done)
-        toolbarClick(workspace, R.string.touch_tools_undo)
-        assertEquals(a.name, control(workspace, a.id).name)
-        assertEquals(b.name, control(workspace, b.id).name)
-        toolbarClick(workspace, R.string.touch_tools_redo)
-        assertEquals(a.name, control(workspace, a.id).name)
-        assertEquals("B independent edit", control(workspace, b.id).name)
+        toolbarClick(workspace, R.string.touch_tools_controls)
+        assertEquals(setOf("controls"), windowKeys(workspace))
+        val aCardAgain = appearance(workspace, openFromList(workspace, topCard(workspace), control(workspace, a.id)))
+        nameField(aCardAgain, "A committed on switch")
+        click(workspace, aCardAgain, R.string.touch_tools_cancel)
+        assertEquals("A committed on switch", control(workspace, a.id).name)
     }
 
     @Test
-    fun finishingConcurrentFormsCreatesIndependentUndoStepsWithoutResurrection() = withWorkspace { workspace ->
+    fun sequentialFormsCreateIndependentUndoSteps() = withWorkspace { workspace ->
         val (a, b) = buttons(workspace)
         val list = openControls(workspace)
         val aCard = appearance(workspace, openFromList(workspace, list, a))
         nameField(aCard, a.name).setText("A committed")
-        val bCard = appearance(workspace, openFromList(workspace, list, b))
+        toolbarClick(workspace, R.string.touch_tools_controls)
+        val bCard = appearance(workspace, openFromList(workspace, topCard(workspace), b))
         nameField(bCard, b.name).setText("B committed")
 
-        click(workspace, aCard, R.string.touch_tools_done)
-        assertEquals(setOf("controls", "control:${b.id}"), windowKeys(workspace))
         click(workspace, bCard, R.string.touch_tools_done)
         assertNames(workspace, a, "A committed", b, "B committed")
         toolbarClick(workspace, R.string.touch_tools_undo)
@@ -144,6 +135,8 @@ class TouchWorkspaceInteractionTest {
 
     @Test
     fun twoCanvasGesturesRemainSeparateUndoStepsWhilePropertiesStayOpen() = withWorkspace { workspace ->
+        // This test asserts exact finger deltas, so keep raw coordinates rather than the grid.
+        workspace.toggleSnapToGrid()
         val stick = workspace.template.controls.first { it.type == ControlType.BUTTON }
         tapControl(workspace, stick.id)
         assertEquals(stick.id, workspace.selectedId)
@@ -198,7 +191,7 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
-    fun mainActionsAreFullyVisibleAndClosingOneWindowKeepsTheOthers() = withWorkspace { workspace ->
+    fun mainActionsAreFullyVisibleAndOnlyOneToolWindowStaysOpen() = withWorkspace { workspace ->
         val required = listOf(
             R.string.touch_tools_add,
             R.string.touch_tools_undo,
@@ -207,7 +200,8 @@ class TouchWorkspaceInteractionTest {
             R.string.touch_tools_test,
             R.string.touch_tools_save,
             R.string.touch_tools_set_base,
-            R.string.touch_tools_tool_opacity
+            R.string.touch_tools_tool_opacity,
+            R.string.touch_tools_grid_on
         )
         for (id in required) {
             val button = action(toolbar(workspace), workspace.context.getString(id))
@@ -219,16 +213,12 @@ class TouchWorkspaceInteractionTest {
         val a = buttons(workspace).first
         val properties = appearance(workspace, openFromList(workspace, list, a))
         nameField(properties, a.name).setText("X commits this form only")
+
         toolbarClick(workspace, R.string.touch_tools_add)
+        assertEquals(setOf("add"), windowKeys(workspace))
         toolbarClick(workspace, R.string.touch_tools_tool_opacity)
-        assertEquals(setOf("controls", "control:${a.id}", "add", "opacity"), windowKeys(workspace))
-        val close = action(properties, workspace.context.getString(R.string.touch_tools_close))
-        assertEquals("×", close.text.toString())
-        assertTrue(close.performClick())
-        settle(workspace)
-        assertEquals(setOf("controls", "add", "opacity"), windowKeys(workspace))
+        assertEquals(setOf("opacity"), windowKeys(workspace))
         assertEquals("X commits this form only", control(workspace, a.id).name)
-        assertTrue(list.parent === workspace.tools)
     }
 
     @Test
@@ -271,6 +261,93 @@ class TouchWorkspaceInteractionTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         assertEquals("L + R", descendants(topCard(workspace)).filterIsInstance<TextInputEditText>().first().text.toString())
+    }
+
+    @Test
+    fun liveTuningDraftIsSavedByTheOuterSave() = withWorkspace(gameAvailable = true) { workspace ->
+        var saved: org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary? = null
+        workspace.onSave = { library, _ -> saved = library }
+        val swipe = workspace.template.controls.first { it.type == ControlType.SWIPE }
+        workspace.select(swipe.id)
+        workspace.startTest(true)
+        val preset = workspace.draft.presets.first { it.id == swipe.swipePresetId }
+        workspace.updatePreset(preset.copy(sensitivityX = 2.5f))
+        workspace.finishTest(false)
+        assertEquals(2.5f, workspace.draft.presets.first { it.id == preset.id }.sensitivityX, 0.001f)
+
+        workspace.save()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+        dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(2.5f, saved!!.presets.first { it.id == preset.id }.sensitivityX, 0.001f)
+    }
+
+    @Test
+    fun placedButtonUsesMappingNameTextAndDefaultShape() = withWorkspace { workspace ->
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowDialog.getLatestDialog()
+        val dialogRoot = dialog.window!!.decorView
+        action(dialogRoot, "L").performClick()
+        action(dialogRoot, "R").performClick()
+        action(dialogRoot, workspace.context.getString(R.string.touch_tools_done)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("L + R", descendants(topCard(workspace)).filterIsInstance<TextInputEditText>().first().text.toString())
+
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+        val downTime = SystemClock.uptimeMillis()
+        for ((action, time) in listOf(MotionEvent.ACTION_DOWN to downTime, MotionEvent.ACTION_UP to downTime + 16)) {
+            val event = MotionEvent.obtain(downTime, time, action, workspace.safe.left + 700f, workspace.safe.top + 900f, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
+
+        val placed = workspace.template.controls.single { it.name == "L + R" }
+        assertEquals("L + R", placed.text)
+        assertEquals(ControlShape.RECTANGLE, placed.shape)
+        assertEquals(setOf(6, 7), placed.binding.buttons)
+        assertEquals(setOf("control:${placed.id}"), windowKeys(workspace))
+    }
+
+    @Test
+    fun shapeTogglesFromThePropertyButton() = withWorkspace { workspace ->
+        val control = workspace.template.controls.first { it.type == ControlType.BUTTON }
+        tapControl(workspace, control.id)
+        descendants(topCard(workspace)).filterIsInstance<TabLayout>().single().getTabAt(1)!!.select()
+        settle(workspace)
+        val shape = descendants(topCard(workspace)).filterIsInstance<MaterialButton>()
+            .first { it.text.toString().startsWith(workspace.context.getString(R.string.touch_tools_shape).substringBefore(" ")) }
+        assertEquals(ControlShape.CIRCLE, control(workspace, control.id).shape)
+        shape.performClick()
+        settle(workspace)
+        assertEquals(ControlShape.RECTANGLE, control(workspace, control.id).shape)
+    }
+
+    @Test
+    fun gridSnappingQuantizesADrag() = withWorkspace { workspace ->
+        val control = buttons(workspace).first
+        tapControl(workspace, control.id)
+        dragControl(workspace, control.id, 80f, -40f)
+        val moved = workspace.placements.getValue(control.id)
+        val step = workspace.dp(16)
+        assertEquals(moved.x, (moved.x / step).roundToInt() * step, 0.01f)
+        assertEquals(moved.y, (moved.y / step).roundToInt() * step, 0.01f)
+    }
+
+    @Test
+    fun propertiesCardAvoidsTheSelectedControl() = withWorkspace { workspace ->
+        val control = workspace.template.controls.first { it.type == ControlType.BUTTON }
+        tapControl(workspace, control.id)
+        settle(workspace)
+        val card = topCard(workspace)
+        val rect = workspace.placements.getValue(control.id)
+        val overlaps = card.x < rect.x + rect.width && card.x + card.width > rect.x &&
+            card.y < rect.y + rect.height && card.y + card.height > rect.y
+        assertFalse("Properties must not cover the selected control", overlaps)
     }
 
     private fun withWorkspace(gameAvailable: Boolean = false, test: (TouchWorkspace) -> Unit) {

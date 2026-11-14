@@ -1,47 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="TouchButton.Base" parent="Widget.Material3.Button.TextButton.Dialog">
+    <style name="TouchButton.Base" parent="Widget.Material3.Button">
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textSize">14sp</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textStyle">normal</item>
         <item name="android:textAllCaps">false</item>
-        <item name="android:letterSpacing">0.02</item>
+        <item name="android:letterSpacing">0.01</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:gravity">center</item>
-        <item name="android:minHeight">48dp</item>
+        <item name="android:minHeight">40dp</item>
         <item name="android:minWidth">0dp</item>
-        <item name="android:paddingLeft">12dp</item>
-        <item name="android:paddingRight">12dp</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
         <item name="android:insetLeft">0dp</item>
         <item name="android:insetRight">0dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
-        <item name="cornerRadius">24dp</item>
-        <item name="iconSize">18dp</item>
-        <item name="iconPadding">4dp</item>
         <item name="android:stateListAnimator">@null</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">4dp</item>
     </style>
+
+    <!-- Neutral filled action: reads as a control on Eden's surface palette. -->
     <style name="TouchButton.Text" parent="TouchButton.Base">
-        <item name="backgroundTint">@android:color/transparent</item>
-        <item name="strokeWidth">0dp</item>
+        <item name="backgroundTint">?attr/colorSurfaceVariant</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="iconTint">?attr/colorOnSurface</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="strokeColor">?attr/colorOutline</item>
     </style>
+
+    <!-- Filled primary action (save / done). -->
     <style name="TouchButton.Primary" parent="TouchButton.Base">
         <item name="backgroundTint">?attr/colorPrimary</item>
-        <item name="strokeWidth">0dp</item>
         <item name="android:textColor">?attr/colorOnPrimary</item>
         <item name="iconTint">?attr/colorOnPrimary</item>
+        <item name="android:textStyle">bold</item>
     </style>
+
+    <!-- Outlined low-emphasis action: cancel / duplicate / destructive choices. -->
     <style name="TouchButton.Secondary" parent="TouchButton.Base">
         <item name="backgroundTint">@android:color/transparent</item>
         <item name="strokeWidth">1dp</item>
-        <item name="strokeColor">?attr/colorSecondary</item>
-        <item name="android:textColor">?attr/colorSecondary</item>
-        <item name="iconTint">?attr/colorSecondary</item>
+        <item name="strokeColor">?attr/colorOutline</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="iconTint">?attr/colorOnSurface</item>
     </style>
+
     <style name="TouchButton.Theme.Text" parent="">
         <item name="materialButtonStyle">@style/TouchButton.Text</item>
     </style>
@@ -50,5 +58,28 @@
     </style>
     <style name="TouchButton.Theme.Secondary" parent="">
         <item name="materialButtonStyle">@style/TouchButton.Secondary</item>
+    </style>
+    <style name="TouchButton.Icon" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minWidth">36dp</item>
+        <item name="android:minHeight">36dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="iconTint">?attr/colorOnSurface</item>
+        <item name="cornerRadius">18dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+    <style name="TouchButton.Theme.Icon" parent="">
+        <item name="materialButtonStyle">@style/TouchButton.Icon</item>
+    </style>
+    <style name="TouchTabText" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+    <style name="TouchTabLayout" parent="Widget.Material3.TabLayout">
+        <item name="tabTextAppearance">@style/TouchTabText</item>
+        <item name="tabMinWidth">0dp</item>
+        <item name="android:minHeight">36dp</item>
     </style>
 </resources>

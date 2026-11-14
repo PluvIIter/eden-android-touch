@@ -32,10 +32,12 @@ import org.yuzu.yuzu_emu.overlay.touch.model.newTouchId
 import org.yuzu.yuzu_emu.overlay.touch.runtime.InputSink
 import org.yuzu.yuzu_emu.overlay.touch.runtime.TouchRuntime
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchEditSession
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationIssue
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class TouchWorkspace(context: Context) : FrameLayout(context) {
     var onSave: ((TouchLibrary, String) -> Unit)? = null
@@ -67,6 +69,14 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             field = value
             runtime.setTouchscreenEnabled(value && isolatedId == null)
         }
+    var snapToGrid: Boolean = true
+        private set
+
+    internal fun toggleSnapToGrid() {
+        snapToGrid = !snapToGrid
+        tools.refreshToolbar()
+        canvas.invalidate()
+    }
 
     fun acceptSaved(library: TouchLibrary) {
         require(library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_saved) }
@@ -473,6 +483,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         pendingControl = control
         selectedId = null
         waitForFreshDown = true
+        tools.closeAll()
+        message(context.getString(R.string.touch_workspace_place_prompt))
         canvas.invalidate()
     }
 
@@ -570,7 +582,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val issues = TouchValidator.validate(draft)
         if (issues.isNotEmpty()) {
             MaterialAlertDialogBuilder(context).setTitle(context.getString(R.string.touch_workspace_invalid_title))
-                .setMessage(R.string.touch_workspace_invalid_message)
+                .setMessage(context.getString(R.string.touch_workspace_invalid_detail, describeIssues(issues)))
                 .setPositiveButton(context.getString(R.string.touch_workspace_keep_editing), null).show()
             return
         }
@@ -651,11 +663,36 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         template.controls.firstOrNull { it.id == id }?.let { legal(it, rect) } ?: false
 
     private fun legal(control: TouchControl, rect: TouchRect): Boolean {
-        if (!TouchEditorGeometry.fits(rect, safe.width(), safe.height())) return false
-        val conflict = TouchEditorGeometry.conflict(control, rect, template.controls, placements)
-        if (conflict != null) {
-            canvas.feedback = context.getString(R.string.touch_workspace_overlap_named, conflict.name)
+        if (!TouchEditorGeometry.fits(rect, safe.width(), safe.height())) {
+            canvas.feedback = context.getString(R.string.touch_workspace_out_of_bounds)
             return false
+        }
+        val current = template.screens.filter {
+            abs(it.width - safe.width()) < 0.5f && abs(it.height - safe.height()) < 0.5f
+        }
+        for (screen in template.screens) {
+            val onCurrentScreen = current.any { it.id == screen.id }
+            val target = if (onCurrentScreen) {
+                rect
+            } else {
+                TouchEditorGeometry.map(rect, safe.width(), safe.height(), screen.width, screen.height)
+            }
+            if (!TouchEditorGeometry.fits(target, screen.width, screen.height)) {
+                canvas.feedback = context.getString(R.string.touch_workspace_screen_overflow, screen.name)
+                return false
+            }
+            val screenPlacements = if (onCurrentScreen) {
+                placements + (control.id to rect)
+            } else {
+                template.controls.associate { other ->
+                    other.id to if (other.id == control.id) target else TouchGeometry.savedBounds(template, screen, other)
+                }
+            }
+            val conflict = TouchEditorGeometry.conflict(control, target, template.controls, screenPlacements)
+            if (conflict != null) {
+                canvas.feedback = context.getString(R.string.touch_workspace_overlap_named, conflict.name)
+                return false
+            }
         }
         canvas.feedback = null
         return true
@@ -800,6 +837,13 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             val diameter = min(rect.width, rect.height)
             rect = rect.copy(width = diameter, height = diameter)
         }
+        rect = gridRect(rect, resize = state.creating || state.handle >= 0)
+        if (state.handle < 0 && !state.creating) {
+            rect = rect.copy(
+                x = rect.x.coerceIn(0f, max(0f, safe.width() - rect.width)),
+                y = rect.y.coerceIn(0f, max(0f, safe.height() - rect.height))
+            )
+        }
         if (legal(control, rect)) {
             state.accepted = rect
             if (state.creating) {
@@ -865,6 +909,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 )
                 selectedId = control.id
                 pendingControl = null
+                tools.onControlPlaced(control.id)
             } else {
                 message(context.getString(R.string.touch_workspace_no_position))
             }
@@ -876,6 +921,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 val after = geometrySnapshot(draft, id)
                 checkpointWindow(before, after)
                 tools.rebaseGeometry(id)
+                tools.avoidSelectedControl(id)
             }
         }
         adjustSelected = false
@@ -1027,4 +1073,37 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun message(text: String) { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() }
     internal fun dp(value: Int): Float = value * resources.displayMetrics.density
+
+    /** Turn validator paths into readable "layout / control: reason" lines. */
+    private fun describeIssues(issues: List<TouchValidationIssue>): String {
+        val labels = mutableMapOf<String, String>()
+        draft.templates.forEach { template ->
+            labels[template.id] = template.name
+            template.controls.forEach { control -> labels[control.id] = control.name.ifBlank { control.id } }
+            template.screens.forEach { screen -> labels[screen.id] = screen.name }
+        }
+        draft.presets.forEach { preset -> labels[preset.id] = preset.name }
+        val lines = issues.take(8).joinToString("\n") { issue ->
+            val path = issue.path.split('.').joinToString(" / ") { labels[it] ?: it }
+            "• $path: ${issue.message}"
+        }
+        return if (issues.size > 8) "$lines\n• …" else lines
+    }
+
+    private fun gridStep(): Float = dp(16)
+    /** Snap to the editing grid; moving keeps the size, resizing snaps every edge. */
+    private fun gridRect(rect: TouchRect, resize: Boolean): TouchRect {
+        if (!snapToGrid) return rect
+        val step = gridStep()
+        fun snap(value: Float): Float = (value / step).roundToInt() * step
+        return if (!resize) {
+            rect.copy(x = snap(rect.x), y = snap(rect.y))
+        } else {
+            val left = snap(rect.x)
+            val top = snap(rect.y)
+            val right = snap(rect.right).coerceAtLeast(left + step)
+            val bottom = snap(rect.bottom).coerceAtLeast(top + step)
+            TouchRect(left, top, right - left, bottom - top)
+        }
+    }
 }

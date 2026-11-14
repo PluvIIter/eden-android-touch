@@ -377,7 +377,9 @@ class TouchRuntime(private val sink: InputSink) {
     private fun recognize(capture: Capture) {
         val control = capture.control!!
         if (capture.gesture != null || capture.maxDistance < control.gestureDistance * density) return
-        val direction = TouchHitGeometry.direction(capture.x - capture.startX, capture.y - capture.startY, control.diagonalGestures)
+        val allowed = control.gestures.keys.filter { it != GestureDirection.TAP }.toSet()
+        if (allowed.isEmpty()) return
+        val direction = TouchHitGeometry.direction(capture.x - capture.startX, capture.y - capture.startY, allowed) ?: return
         capture.gesture = direction
         if (control.gestureTiming == GestureTiming.IMMEDIATE) applyGesture(capture.source, control.gestures[direction])
     }

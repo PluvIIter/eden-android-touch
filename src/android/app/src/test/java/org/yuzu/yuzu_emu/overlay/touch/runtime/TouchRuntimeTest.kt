@@ -469,6 +469,20 @@ class TouchRuntimeTest {
         assertTrue(sink.pressed.isEmpty())
     }
 
+    @Test fun unmappedGestureDirectionsFallBackToTheNearestMappedDirection() {
+        val gesture = area(type = ControlType.GESTURE).copy(
+            gestures = mapOf(
+                GestureDirection.UP to GestureBinding(button = 0),
+                GestureDirection.LEFT to GestureBinding(button = 1)
+            )
+        )
+        configure(gesture)
+        runtime.down(1, 110f, 50f, 0)
+        // Up-right is not mapped; the nearest mapped direction is UP.
+        runtime.up(1, 160f, 0f, 10)
+        assertEquals(setOf(0), sink.pressed)
+    }
+
     @Test fun diagonalGestureVectorsHaveUnitMagnitude() {
         val gesture = area(type = ControlType.GESTURE).copy(
             diagonalGestures = true,

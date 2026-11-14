@@ -143,7 +143,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         val h = safe.height()
         canvas.save()
         canvas.translate(safe.left, safe.top)
-        if (!workspace.gameAvailable) drawGrid(canvas, w, h)
+        if (workspace.isEditing) drawGrid(canvas, w, h, overlay = workspace.gameAvailable)
         val snapshot = workspace.runtime.snapshot()
         for (control in workspace.template.controls.sortedBy { if (it.isArea) 0 else 1 }) {
             if (!workspace.controlsVisible && !workspace.isEditing && !workspace.testing) continue
@@ -183,15 +183,15 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         canvas.restore()
     }
 
-    private fun drawGrid(canvas: Canvas, w: Float, h: Float) {
-        canvas.drawColor(surface)
-        stroke(ink, dp(0.5f), 0.035f)
-        val step = dp(32)
+    private fun drawGrid(canvas: Canvas, w: Float, h: Float, overlay: Boolean = false) {
+        if (!overlay) canvas.drawColor(surface)
+        stroke(ink, dp(0.5f), if (overlay) 0.06f else 0.035f)
+        val step = dp(16)
         var x = 0f
         while (x < w) { canvas.drawLine(x, 0f, x, h, paint); x += step }
         var y = 0f
         while (y < h) { canvas.drawLine(0f, y, w, y, paint); y += step }
-        fill(ink, 0.12f)
+        fill(ink, if (overlay) 0.1f else 0.12f)
         x = 0f
         while (x < w) {
             y = 0f

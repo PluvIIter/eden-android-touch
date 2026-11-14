@@ -234,13 +234,15 @@ object TouchDefaults {
             TouchControl(
                 name = "−",
                 text = "−",
-                bounds = TouchRect(556f, 88f, 52f, 52f),
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(556f, 88f, 56f, 48f),
                 binding = ButtonBinding(setOf(11))
             ),
             TouchControl(
                 name = "+",
                 text = "+",
-                bounds = TouchRect(644f, 88f, 52f, 52f),
+                shape = ControlShape.RECTANGLE,
+                bounds = TouchRect(644f, 88f, 56f, 48f),
                 binding = ButtonBinding(setOf(10))
             ),
             TouchControl(

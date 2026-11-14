@@ -63,24 +63,28 @@ object TouchHitGeometry {
         }
     }
 
-    internal fun direction(dx: Float, dy: Float, diagonals: Boolean): GestureDirection {
-        val directions = if (diagonals) {
-            listOf(
-                GestureDirection.RIGHT,
-                GestureDirection.DOWN_RIGHT,
-                GestureDirection.DOWN,
-                GestureDirection.DOWN_LEFT,
-                GestureDirection.LEFT,
-                GestureDirection.UP_LEFT,
-                GestureDirection.UP,
-                GestureDirection.UP_RIGHT
-            )
-        } else {
-            listOf(GestureDirection.RIGHT, GestureDirection.DOWN, GestureDirection.LEFT, GestureDirection.UP)
+    internal fun direction(dx: Float, dy: Float, allowed: Set<GestureDirection>): GestureDirection? {
+        val candidates = allowed.filter { it != GestureDirection.TAP }
+        if (candidates.isEmpty()) return null
+        val angle = atan2(dy.toDouble(), dx.toDouble())
+        return candidates.minByOrNull { direction ->
+            var delta = abs(angle - angleOf(direction))
+            if (delta > PI) delta = 2.0 * PI - delta
+            delta
         }
-        val step = 2.0 * PI / directions.size
-        val index = kotlin.math.floor((atan2(dy.toDouble(), dx.toDouble()) + step / 2) / step).toInt()
-        return directions[(index % directions.size + directions.size) % directions.size]
+    }
+
+    /** Screen-space angle of a mapped direction (y grows downwards). */
+    private fun angleOf(direction: GestureDirection): Double = when (direction) {
+        GestureDirection.UP -> -PI / 2.0
+        GestureDirection.UP_RIGHT -> -PI / 4.0
+        GestureDirection.RIGHT -> 0.0
+        GestureDirection.DOWN_RIGHT -> PI / 4.0
+        GestureDirection.DOWN -> PI / 2.0
+        GestureDirection.DOWN_LEFT -> 3.0 * PI / 4.0
+        GestureDirection.LEFT -> PI
+        GestureDirection.UP_LEFT -> -3.0 * PI / 4.0
+        GestureDirection.TAP -> 0.0
     }
 
     internal fun vector(direction: GestureDirection): StickVector = when (direction) {

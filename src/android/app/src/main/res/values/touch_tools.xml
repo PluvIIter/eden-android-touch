@@ -68,7 +68,7 @@
     <string name="touch_tools_copy_tune">Copy preset and tune</string>
     <string name="touch_tools_single_live">Single-control live debug</string>
     <string name="touch_tools_eight_directions">Eight recognition directions</string>
-    <string name="touch_tools_recognition_hint">Recognition direction · select a compass cell to set its output</string>
+    <string name="touch_tools_recognition_hint">Recognition uses only the directions you mapped; a swipe toward an unmapped direction falls back to the nearest mapped one.</string>
     <string name="touch_tools_recognition_distance">Recognition distance (dp)</string>
     <string name="touch_tools_swipe_timing">Swipe timing</string>
     <string name="touch_tools_gesture_timing_hint">Immediate: hold until UP. Release: finite pulse. Tap always produces a pulse.</string>
@@ -78,6 +78,12 @@
     <string name="touch_tools_control_name">Control name</string>
     <string name="touch_tools_display_text">Display text</string>
     <string name="touch_tools_shape">Shape</string>
+    <string name="touch_tools_shape_value">Shape: %1$s (tap to switch)</string>
+    <string name="touch_tools_grid_on">Grid: on</string>
+    <string name="touch_tools_grid_off">Grid: off</string>
+    <string name="touch_tools_grid_toggle">Toggle grid snapping</string>
+    <string name="touch_tools_collapse">Collapse toolbar</string>
+    <string name="touch_tools_expand">Expand toolbar</string>
     <string name="touch_tools_opacity">Opacity (0–100%)</string>
     <string name="touch_tools_active_diameter">Active stick diameter (dp)</string>
     <string name="touch_tools_opacity_hint">Opacity never disables input. Use Enabled in the control list to disable a control.</string>

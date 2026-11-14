@@ -118,20 +118,21 @@ class TouchWorkspaceScreenshotTest {
             assertNotNull("Property form tabs are missing", tabs)
             assertFullyVisible(workspace, tabs!!, "Property form tabs")
             if (chinese) assertChinese(workspace)
-            val openKeys = workspace.tools.exportState().windows.map { it.key }.toSet()
             for (actionId in listOf(R.string.touch_tools_controls, R.string.touch_tools_add, R.string.touch_tools_tool_opacity)) {
                 val action = descendants(workspace.tools.getChildAt(0)).filterIsInstance<MaterialButton>()
                     .single { it.text.toString() == activity.getString(actionId) || it.contentDescription?.toString() == activity.getString(actionId) }
                 action.performClick()
                 settle(workspace, width, height)
-                assertTrue("Opening another tool closed properties", workspace.tools.exportState().windows.map { it.key }.containsAll(openKeys))
+                assertEquals(
+                    "Only one tool window may be open",
+                    1,
+                    workspace.tools.exportState().windows.size
+                )
             }
-            assertTrue("Independent tool windows must coexist", workspace.tools.exportState().windows.size >= 4)
-            writePng(workspace, "$name-coexisting-tools")
-            val count = workspace.tools.exportState().windows.size
+            writePng(workspace, "$name-single-tool")
             workspace.tools.closeTopWindow(false)
             settle(workspace, width, height)
-            assertEquals("Closing one tool must not close others", count - 1, workspace.tools.exportState().windows.size)
+            assertEquals("Closing the tool must leave no window", 0, workspace.tools.exportState().windows.size)
             workspace.tools.closePanel()
             workspace.selectedId = null
             workspace.tools.restoreState(TouchToolState())
