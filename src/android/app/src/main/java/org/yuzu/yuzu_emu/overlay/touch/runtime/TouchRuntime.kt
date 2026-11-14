@@ -27,8 +27,8 @@ class TouchRuntime(private val sink: InputSink) {
         val startX: Float,
         val startY: Float,
         val started: Long,
-        val centerX: Float,
-        val centerY: Float,
+        var centerX: Float,
+        var centerY: Float,
         var x: Float,
         var y: Float,
         var maxDistance: Float = 0f,
@@ -155,11 +155,11 @@ class TouchRuntime(private val sink: InputSink) {
         }
         val captured = if (occupied) null else control
         val native = control == null && touchscreenEnabled && isolatedSwipe == null
-        val free = captured?.freeStick == true
+        val isStick = captured?.type == ControlType.STICK
         val capture = Capture(
             pointerId, captured, bounds, key, native, x, y, time,
-            if (free) x else bounds.x + bounds.width / 2f,
-            if (free) y else bounds.y + bounds.height / 2f, x, y
+            if (isStick) x else bounds.x + bounds.width / 2f,
+            if (isStick) y else bounds.y + bounds.height / 2f, x, y
         )
         captures[pointerId] = capture
         when (captured?.type) {
@@ -343,10 +343,17 @@ class TouchRuntime(private val sink: InputSink) {
 
     private fun updateStick(capture: Capture) {
         val control = capture.control!!
-        val radius = if (control.triggerOnly) {
-            control.stickDiameter * density / 2f
-        } else {
-            min(capture.bounds.width, capture.bounds.height) / 2f
+        val radius = control.stickDiameter * density / 2f
+        if (control.freeStick) {
+            // Keep the current finger exactly on the edge by moving the center with it.
+            val dx = capture.x - capture.centerX
+            val dy = capture.y - capture.centerY
+            val distance = hypot(dx, dy)
+            if (distance > radius) {
+                val scale = radius / distance
+                capture.centerX = capture.x - dx * scale
+                capture.centerY = capture.y - dy * scale
+            }
         }
         val dx = (capture.x.toDouble() - capture.centerX) / radius
         val dy = (capture.centerY.toDouble() - capture.y) / radius
@@ -379,7 +386,7 @@ class TouchRuntime(private val sink: InputSink) {
 
     private fun applyGesture(source: String, binding: GestureBinding?) {
         if (binding == null) return
-        binding.button?.let { aggregate.buttons(source, setOf(it)) }
+        if (binding.buttons.isNotEmpty()) aggregate.buttons(source, binding.buttons)
         binding.stick?.let { aggregate.acquire(source, it, TouchHitGeometry.vector(binding.direction)) }
     }
 
@@ -407,12 +414,19 @@ class TouchRuntime(private val sink: InputSink) {
     private fun validate(control: TouchControl, bounds: TouchRect, presets: List<SwipePreset>) {
         require(listOf(bounds.x, bounds.y, bounds.width, bounds.height, bounds.right, bounds.bottom).all { it.isFinite() } && bounds.width > 0f && bounds.height > 0f)
         require(!control.triggerOnly || control.type == ControlType.STICK)
+        if (control.isVisibleStick) {
+            val diameter = control.stickDiameter * density
+            require(
+                kotlin.math.abs(bounds.width - diameter) < 0.01f &&
+                    kotlin.math.abs(bounds.height - diameter) < 0.01f
+            ) { "Visible stick must be a circle matching its size" }
+        }
         require(control.type != ControlType.BUTTON_GROUP || control.groupKeys.size == 4)
         val targets = (0..15).toSet() + setOf(18, 19)
         require(control.auxiliaryButton == null || control.auxiliaryButton in targets)
         control.gestures.values.forEach {
-            require((it.button != null) xor (it.stick != null))
-            require(it.button == null || it.button in targets)
+            require((it.buttons.isNotEmpty()) xor (it.stick != null))
+            require(it.buttons.all { button -> button in targets })
             require(it.stick == null || it.direction != GestureDirection.TAP)
         }
         require(control.stickDeadzone.isFinite() && control.stickDeadzone >= 0f && control.stickDeadzone < 1f)

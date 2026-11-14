@@ -43,7 +43,7 @@ data class TouchImportResult(
 )
 
 object TouchImportExport {
-    internal val json = Json { encodeDefaults = true; prettyPrint = true }
+    internal val json = Json { encodeDefaults = true; prettyPrint = true; ignoreUnknownKeys = true }
 
     fun exportTemplate(library: TouchLibrary, templateId: String): String {
         TouchValidator.requireValid(library)

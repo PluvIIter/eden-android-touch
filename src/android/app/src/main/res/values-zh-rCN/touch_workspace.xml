@@ -45,6 +45,8 @@
     <string name="touch_workspace_test_in_game_disabled">游戏内编辑不支持整体测试。请退出编辑后运行游戏；需要边玩边调，请使用滑动区的「单控件调试」。</string>
     <string name="touch_workspace_place_prompt">请在画板上点按选择放置位置</string>
     <string name="touch_workspace_cancel_placement">取消放置</string>
+    <string name="touch_workspace_removed_title">组件配置错误</string>
+    <string name="touch_workspace_removed_message">以下组件配置无效，已自动删除：\n\n%1$s</string>
     <string name="touch_workspace_invalid_detail">布局无法保存：\n%1$s</string>
     <string name="touch_workspace_out_of_bounds">控件超出当前安全区范围。</string>
     <string name="touch_workspace_screen_overflow">控件在已保存的屏幕配置「%1$s」中会越界，请调整位置或移除该屏幕配置。</string>

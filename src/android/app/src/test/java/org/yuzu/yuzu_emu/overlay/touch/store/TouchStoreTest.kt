@@ -274,6 +274,21 @@ class TouchStoreTest {
         assertEquals(imported.library, target.load())
     }
 
+    @Test fun sanitizerRemovesInvalidControlsOnly() {
+        val bad = TouchControl(type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDiameter = 80f)
+        val badButton = TouchControl(bounds = TouchRect(100f, 0f, 64f, 64f), binding = ButtonBinding(emptySet()))
+        val good = TouchControl(bounds = TouchRect(200f, 0f, 64f, 64f), binding = ButtonBinding(setOf(0)))
+        val result = TouchSanitizer.sanitize(library(listOf(bad, badButton, good)))
+        assertEquals(listOf(good.id), result.library.templates.single().controls.map { it.id })
+        assertEquals(setOf(bad.id, badButton.id), result.removed.map { it.id }.toSet())
+    }
+
+    @Test fun sanitizerKeepsDefaultLayout() {
+        val result = TouchSanitizer.sanitize(TouchDefaults.library())
+        assertTrue(result.removed.isEmpty())
+        assertTrue(TouchValidator.validate(result.library).isEmpty())
+    }
+
     @Test fun areasAllowOverlapAndTouchingEdges() {
         val preset = SwipePreset()
         val a = TouchControl(type = ControlType.SWIPE, bounds = TouchRect(0f, 0f, 100f, 100f), swipePresetId = preset.id)
@@ -301,8 +316,8 @@ class TouchStoreTest {
             TouchControl(binding = ButtonBinding(setOf(0), true, Float.POSITIVE_INFINITY)),
             TouchControl(binding = ButtonBinding(setOf(0), true, 61f)),
             TouchControl(type = ControlType.SWIPE, swipePresetId = "missing"),
-            TouchControl(type = ControlType.GESTURE, gestures = mapOf(GestureDirection.UP to GestureBinding(button = 0, stick = StickTarget.RIGHT))),
-            TouchControl(type = ControlType.GESTURE, gesturePulseMs = 0, gestures = mapOf(GestureDirection.TAP to GestureBinding(button = 0)))
+            TouchControl(type = ControlType.GESTURE, gestures = mapOf(GestureDirection.UP to GestureBinding(buttons = setOf(0), stick = StickTarget.RIGHT))),
+            TouchControl(type = ControlType.GESTURE, gesturePulseMs = 0, gestures = mapOf(GestureDirection.TAP to GestureBinding(buttons = setOf(0))))
         )
         bad.forEach { control -> assertTrue("Expected validation error for $control", TouchValidator.validate(library(listOf(control))).isNotEmpty()) }
         val fixedTriggerIssues = TouchValidator.validate(library(listOf(TouchControl(type = ControlType.STICK, triggerOnly = true))))

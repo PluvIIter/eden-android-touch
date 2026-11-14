@@ -720,6 +720,15 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                     throw it
                 }
             }
+            workspace.onSanitized = { clean ->
+                runCatching {
+                    touchLibrary = repository.save(clean, workspace.draftBaselineRevision)
+                    workspace.acceptSaved(touchLibrary!!)
+                }.onFailure {
+                    Toast.makeText(requireContext(), R.string.touch_workspace_save_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+            if (workspace.removedOnBind.isNotEmpty()) workspace.onSanitized?.invoke(workspace.draft)
             workspace.onExit = {
                 TouchDraftState.discard(requireContext(), workspace)
                 workspace.releaseInputs()

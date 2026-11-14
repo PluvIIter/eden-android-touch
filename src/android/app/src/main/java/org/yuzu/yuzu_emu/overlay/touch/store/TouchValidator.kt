@@ -108,6 +108,8 @@ object TouchValidator {
             template.controls.forEach { control ->
                 val c = "$t.controls.${control.id}"
                 range(control.opacity, 0f, 1f, "$c.opacity")
+                check(!control.showBorder || control.isArea, "$c.showBorder", "Borders are only available on area controls")
+                check(!control.showText || control.showBorder, "$c.showText", "Text requires a border")
                 check(!control.triggerOnly || control.type == ControlType.STICK, "$c.triggerOnly", "Trigger-only display requires a stick")
                 when (control.type) {
                     ControlType.BUTTON -> binding(control.binding, "$c.binding")
@@ -128,14 +130,13 @@ object TouchValidator {
                     }
                     ControlType.SWIPE -> check(control.swipePresetId in presetIds, "$c.swipePresetId", "Missing swipe preset")
                     ControlType.GESTURE -> {
-                        check(control.gestures.isNotEmpty(), "$c.gestures", "At least one gesture mapping is required")
                         positive(control.gestureDistance, "$c.gestureDistance")
                         check(control.gesturePulseMs in 1..10000, "$c.gesturePulseMs", "Must be 1..10000 ms")
                         check(control.tapTimeoutMs in 1..10000, "$c.tapTimeoutMs", "Must be 1..10000 ms")
                         range(control.tapSlop, 0f, Float.MAX_VALUE, "$c.tapSlop")
                         control.gestures.forEach { (direction, target) ->
-                            check((target.button != null) xor (target.stick != null), "$c.gestures.$direction", "Choose exactly one button or stick target")
-                            check(target.button == null || target.button in buttonTargets, "$c.gestures.$direction", "Invalid button")
+                            check((target.buttons.isNotEmpty()) xor (target.stick != null), "$c.gestures.$direction", "Choose exactly one button set or stick target")
+                            check(target.buttons.all { it in buttonTargets }, "$c.gestures.$direction", "Invalid button")
                             check(target.stick == null || target.direction != GestureDirection.TAP, "$c.gestures.$direction", "Stick output requires one of eight directions")
                         }
                     }
@@ -156,6 +157,12 @@ object TouchValidator {
                             kotlin.math.abs(bounds.width - bounds.height) < 0.001f,
                         "$s.placements.${control.id}",
                         "Circular buttons must have equal width and height"
+                    )
+                    check(
+                        !control.isVisibleStick ||
+                            kotlin.math.abs(bounds.width - bounds.height) < 0.001f,
+                        "$s.placements.${control.id}",
+                        "Visible sticks must be circles"
                     )
                 }
             }

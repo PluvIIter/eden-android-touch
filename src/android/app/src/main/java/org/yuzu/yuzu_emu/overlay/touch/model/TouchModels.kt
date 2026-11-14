@@ -66,7 +66,7 @@ data class GroupKey(
 
 @Serializable
 data class GestureBinding(
-    val button: Int? = null,
+    val buttons: Set<Int> = emptySet(),
     val stick: StickTarget? = null,
     val direction: GestureDirection = GestureDirection.UP
 )
@@ -80,6 +80,8 @@ data class TouchControl(
     val enabled: Boolean = true,
     val locked: Boolean = false,
     val opacity: Float = 0.7f,
+    val showBorder: Boolean = false,
+    val showText: Boolean = false,
     val text: String = "A",
     val shape: ControlShape = ControlShape.CIRCLE,
     val binding: ButtonBinding = ButtonBinding(setOf(0)),
@@ -110,6 +112,22 @@ data class TouchControl(
     val isArea: Boolean
         get() = type == ControlType.SWIPE || type == ControlType.GESTURE ||
             (type == ControlType.STICK && triggerOnly)
+
+    /** A visible stick is only a circle: its diameter is the trigger range and input range. */
+    val isVisibleStick: Boolean
+        get() = type == ControlType.STICK && !triggerOnly
+
+    /** Square placement used by visible sticks; hidden sticks keep their rectangular touch area. */
+    fun stickBounds(rect: TouchRect = bounds, density: Float = 1f): TouchRect {
+        if (!isVisibleStick) return rect
+        val diameter = stickDiameter * density
+        return rect.copy(
+            x = rect.x + rect.width / 2f - diameter / 2f,
+            y = rect.y + rect.height / 2f - diameter / 2f,
+            width = diameter,
+            height = diameter
+        )
+    }
 }
 
 @Serializable

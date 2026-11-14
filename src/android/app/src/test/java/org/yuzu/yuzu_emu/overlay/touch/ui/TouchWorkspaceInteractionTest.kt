@@ -448,6 +448,82 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
+    fun visibleStickUsesOnlyItsCircleSize() = withWorkspace { workspace ->
+        val stick = workspace.template.controls.first { it.type == ControlType.STICK }
+        tapControl(workspace, stick.id)
+        settle(workspace)
+        descendants(topCard(workspace)).filterIsInstance<MaterialSwitch>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_trigger_only) }
+            .performClick()
+        settle(workspace)
+
+        val visible = control(workspace, stick.id)
+        assertFalse(visible.triggerOnly)
+        val density = workspace.resources.displayMetrics.density
+        assertEquals(visible.stickDiameter * density, visible.bounds.width, 0.01f)
+        assertEquals(visible.stickDiameter * density, visible.bounds.height, 0.01f)
+
+        descendants(topCard(workspace)).filterIsInstance<TabLayout>().single().getTabAt(2)!!.select()
+        settle(workspace)
+        val hints = descendants(topCard(workspace)).filterIsInstance<TextInputLayout>()
+            .mapNotNull { it.hint?.toString() }
+        assertTrue(hints.contains(workspace.context.getString(R.string.touch_tools_x)))
+        assertTrue(hints.contains(workspace.context.getString(R.string.touch_tools_stick_size)))
+        assertFalse(hints.contains(workspace.context.getString(R.string.touch_tools_width)))
+        assertFalse(hints.contains(workspace.context.getString(R.string.touch_tools_height)))
+    }
+
+    @Test
+    fun bindingInvalidControlsRemovesAndReportsThem() = withWorkspace { workspace ->
+        val bad = TouchControl(type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDiameter = 80f)
+        val template = workspace.template
+        val library = workspace.draft.copy(templates = listOf(template.copy(controls = template.controls + bad)))
+        workspace.bind(library, template.id, false, object : InputSink {})
+        settle(workspace)
+        assertTrue(workspace.template.controls.none { it.id == bad.id })
+        assertTrue(ShadowDialog.getLatestDialog() != null)
+    }
+
+    @Test
+    fun unifiedGesturePickerSupportsButtonCombinations() = withWorkspace { workspace ->
+        placeGestureArea(workspace)
+        descendants(topCard(workspace)).filterIsInstance<MaterialButton>()
+            .first { it.text.toString().startsWith(workspace.context.getString(R.string.touch_tools_tap)) }
+            .performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowDialog.getLatestDialog()
+        val root = dialog.window!!.decorView
+        descendants(root).filterIsInstance<MaterialButton>().first { it.text.toString() == "A" }.performClick()
+        descendants(root).filterIsInstance<MaterialButton>().first { it.text.toString() == "B" }.performClick()
+        descendants(root).filterIsInstance<MaterialButton>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_done) }
+            .performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        assertEquals(setOf(0, 1), gesture.gestures.getValue(GestureDirection.TAP).buttons)
+    }
+
+    @Test
+    fun areaBorderEnablesTextOverlay() = withWorkspace { workspace ->
+        placeGestureArea(workspace)
+        descendants(topCard(workspace)).filterIsInstance<TabLayout>().single().getTabAt(1)!!.select()
+        settle(workspace)
+        descendants(topCard(workspace)).filterIsInstance<MaterialSwitch>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_area_border) }
+            .performClick()
+        settle(workspace)
+        var gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        assertTrue(gesture.showBorder)
+        descendants(topCard(workspace)).filterIsInstance<MaterialSwitch>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_area_text) }
+            .performClick()
+        settle(workspace)
+        gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        assertTrue(gesture.showText)
+    }
+
+    @Test
     fun panelResizeIsPersistedInTheToolState() = withWorkspace { workspace ->
         val control = workspace.template.controls.first { it.type == ControlType.BUTTON }
         tapControl(workspace, control.id)

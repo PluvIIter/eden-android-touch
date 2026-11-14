@@ -245,20 +245,21 @@ class TouchRuntimeTest {
     }
 
     @Test fun stickOwnershipDoesNotChangeOnMovesAndRestoresCurrentState() {
-        val a = TouchControl(id = "a", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val a = TouchControl(id = "a", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         val b = a.copy(id = "b", bounds = TouchRect(200f, 0f, 100f, 100f))
         configure(a, b)
-        runtime.down(1, 100f, 50f, 0)
+        runtime.down(1, 50f, 50f, 0)
+        runtime.move(1, 100f, 50f, 1)
         assertVector(1f, 0f)
-        runtime.down(2, 250f, 50f, 1)
+        runtime.down(2, 250f, 50f, 2)
         assertVector(0f, 0f)
-        runtime.move(1, 50f, 0f, 2)
+        runtime.move(1, 50f, 0f, 3)
         assertVector(0f, 0f)
-        runtime.move(2, 200f, 50f, 3)
+        runtime.move(2, 200f, 50f, 4)
         assertVector(-1f, 0f)
-        runtime.up(2, 200f, 50f, 4)
+        runtime.up(2, 200f, 50f, 5)
         assertVector(0f, 1f)
-        runtime.up(1, 50f, 0f, 5)
+        runtime.up(1, 50f, 0f, 6)
         assertVector(0f, 0f)
     }
 
@@ -280,6 +281,44 @@ class TouchRuntimeTest {
         assertEquals(0f, right().y, 0.0001f)
     }
 
+    @Test fun visibleFixedStickKeepsItsPressCenter() {
+        val stick = TouchControl(
+            id = "stick",
+            type = ControlType.STICK,
+            bounds = TouchRect(0f, 0f, 100f, 100f),
+            stickDeadzone = 0f,
+            stickDiameter = 100f
+        )
+        configure(stick)
+        runtime.down(1, 20f, 20f, 0)
+        assertEquals(20f, runtime.snapshot().pointers.single().centerX)
+        runtime.move(1, 100f, 20f, 1)
+        assertEquals(20f, runtime.snapshot().pointers.single().centerX)
+        assertVector(1f, 0f)
+    }
+
+    @Test fun freeStickFollowsOnlyAfterLeavingItsRadius() {
+        val stick = TouchControl(
+            id = "stick",
+            type = ControlType.STICK,
+            bounds = TouchRect(0f, 0f, 100f, 100f),
+            freeStick = true,
+            stickDeadzone = 0f,
+            stickDiameter = 100f
+        )
+        configure(stick)
+        runtime.down(1, 50f, 50f, 0)
+        assertVector(0f, 0f)
+        runtime.move(1, 90f, 50f, 1)
+        assertVector(0.8f, 0f)
+        assertEquals(50f, runtime.snapshot().pointers.single().centerX)
+        runtime.move(1, 150f, 50f, 2)
+        assertVector(1f, 0f)
+        assertEquals(100f, runtime.snapshot().pointers.single().centerX)
+        runtime.move(1, 60f, 50f, 3)
+        assertVector(-0.8f, 0f)
+    }
+
     @Test fun freeMaximumStickPreservesLogicalCenterAndPushAuxiliary() {
         val stick = TouchControl(
             id = "stick",
@@ -287,6 +326,7 @@ class TouchRuntimeTest {
             bounds = TouchRect(0f, 0f, 100f, 100f),
             freeStick = true,
             maximumDeflection = true,
+            stickDiameter = 100f,
             auxiliaryButton = 10
         )
         configure(stick)
@@ -307,6 +347,7 @@ class TouchRuntimeTest {
             type = ControlType.STICK,
             bounds = TouchRect(0f, 0f, 100f, 100f),
             freeStick = true,
+            stickDiameter = 100f,
             auxiliaryButton = 10,
             auxiliaryMode = AuxiliaryMode.DOUBLE_TAP
         )
@@ -337,9 +378,9 @@ class TouchRuntimeTest {
     }
 
     @Test fun stoppedSwipeRetainsZeroOwnershipUntilUp() {
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         configure(stick, area())
-        runtime.down(1, 100f, 50f, 0)
+        runtime.down(1, 50f, 50f, 0)
         runtime.down(2, 110f, 20f, 1)
         assertVector(0f, 0f)
         runtime.move(2, 118f, 20f, 9)
@@ -450,8 +491,8 @@ class TouchRuntimeTest {
     @Test fun releaseGestureIsFiniteAndCancelNeverFires() {
         val gesture = area(type = ControlType.GESTURE).copy(
             gestures = mapOf(
-                GestureDirection.RIGHT to GestureBinding(button = 0),
-                GestureDirection.TAP to GestureBinding(button = 1)
+                GestureDirection.RIGHT to GestureBinding(buttons = setOf(0)),
+                GestureDirection.TAP to GestureBinding(buttons = setOf(1))
             )
         )
         configure(gesture)
@@ -471,7 +512,7 @@ class TouchRuntimeTest {
     }
 
     @Test fun tapCannotBecomeHoldAndMovementOutAndBackInvalidatesTap() {
-        val gesture = area(type = ControlType.GESTURE).copy(gestures = mapOf(GestureDirection.TAP to GestureBinding(button = 1)))
+        val gesture = area(type = ControlType.GESTURE).copy(gestures = mapOf(GestureDirection.TAP to GestureBinding(buttons = setOf(1))))
         configure(gesture)
         runtime.down(1, 110f, 20f, 0)
         runtime.up(1, 110f, 20f, 10)
@@ -490,8 +531,8 @@ class TouchRuntimeTest {
     @Test fun unmappedGestureDirectionsFallBackToTheNearestMappedDirection() {
         val gesture = area(type = ControlType.GESTURE).copy(
             gestures = mapOf(
-                GestureDirection.UP to GestureBinding(button = 0),
-                GestureDirection.LEFT to GestureBinding(button = 1)
+                GestureDirection.UP to GestureBinding(buttons = setOf(0)),
+                GestureDirection.LEFT to GestureBinding(buttons = setOf(1))
             )
         )
         configure(gesture)
@@ -517,15 +558,16 @@ class TouchRuntimeTest {
     }
 
     @Test fun stickGesturePulseTakesOwnershipAndRestoresUnderlyingCurrentVector() {
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         val gesture = area(type = ControlType.GESTURE).copy(
             gestures = mapOf(
                 GestureDirection.RIGHT to GestureBinding(stick = StickTarget.RIGHT, direction = GestureDirection.LEFT)
             )
         )
         configure(stick, gesture)
-        runtime.down(1, 100f, 50f, 0)
-        runtime.down(2, 110f, 20f, 1)
+        runtime.down(1, 50f, 50f, 0)
+        runtime.move(1, 100f, 50f, 1)
+        runtime.down(2, 110f, 20f, 2)
         assertVector(1f, 0f)
         runtime.up(2, 150f, 20f, 10)
         assertVector(-1f, 0f)
@@ -537,10 +579,11 @@ class TouchRuntimeTest {
     }
 
     @Test fun hiddenSwipeSamplesAreConsumedRatherThanReplayedAfterRestore() {
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(0f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         configure(stick, area())
         runtime.down(1, 110f, 20f, 0)
-        runtime.down(2, 100f, 50f, 1)
+        runtime.down(2, 50f, 50f, 1)
+        runtime.move(2, 100f, 50f, 2)
         runtime.move(1, 118f, 20f, 8)
         runtime.tick(8)
         assertVector(1f, 0f)
@@ -551,8 +594,18 @@ class TouchRuntimeTest {
         assertVector(0f, 0f)
     }
 
+    @Test fun gestureOutputPressesAButtonCombination() {
+        val gesture = area(type = ControlType.GESTURE).copy(
+            gestures = mapOf(GestureDirection.TAP to GestureBinding(buttons = setOf(0, 1)))
+        )
+        configure(gesture)
+        runtime.down(1, 110f, 20f, 0)
+        runtime.up(1, 110f, 20f, 10)
+        assertEquals(setOf(0, 1), sink.pressed)
+    }
+
     @Test fun pointerCancelReleasesOnlyItsNativeTouchAndNeverFiresGesture() {
-        val gesture = area(type = ControlType.GESTURE).copy(gestures = mapOf(GestureDirection.TAP to GestureBinding(button = 1)))
+        val gesture = area(type = ControlType.GESTURE).copy(gestures = mapOf(GestureDirection.TAP to GestureBinding(buttons = setOf(1))))
         configure(button("button", 0f), gesture)
         runtime.down(1, 30f, 30f, 0)
         runtime.down(2, 900f, 900f, 0)

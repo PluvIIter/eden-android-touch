@@ -58,7 +58,7 @@
     <string name="touch_tools_right">右</string>
     <string name="touch_tools_bottom">下</string>
     <string name="touch_tools_left">左</string>
-    <string name="touch_tools_trigger_only">仅触摸时显示（区域）</string>
+    <string name="touch_tools_trigger_only">触摸时显示</string>
     <string name="touch_tools_max_deflection">离开死区后最大偏转</string>
     <string name="touch_tools_stick_deadzone">摇杆死区［0–0.95］</string>
     <string name="touch_tools_none">无</string>
@@ -91,6 +91,9 @@
     <string name="touch_tools_opacity">不透明度（0–100%）</string>
     <string name="touch_tools_active_diameter">活动摇杆直径（dp）</string>
     <string name="touch_tools_opacity_hint">透明度不影响命中。停用控件请关闭控件列表中的“启用”。</string>
+    <string name="touch_tools_area_border">显示边框</string>
+    <string name="touch_tools_area_text">显示文字</string>
+    <string name="touch_tools_area_overlay_hint">边框应用此控件的透明度；文字按该透明度的一半绘制。</string>
     <string name="touch_tools_child_geometry_hint">子键使用整组的固定位置与尺寸。</string>
     <string name="touch_tools_geometry_error">超出安全区或与其他区域重叠</string>
     <string name="touch_tools_x">X 坐标（像素）</string>
@@ -246,7 +249,8 @@
     <string name="touch_tools_hint_accumulation">允许排队的总位移；越小越跟手。</string>
     <string name="touch_tools_hint_scale">切换尺度时会自动在 dp/秒 与 屏幕短边/秒 之间换算最大转速。</string>
     <string name="touch_tools_stick_size">摇杆大小</string>
-    <string name="touch_tools_hint_stick_size">触摸时显示的摇杆直径；触摸区域大小在「位置」页设置。</string>
+    <string name="touch_tools_hint_stick_size">摇杆圆的直径，同时决定输入半径；开启触摸时显示后，矩形只决定触发范围。</string>
+    <string name="touch_tools_hint_stick_visible">摇杆圆的直径；这个圆同时就是触发范围。</string>
     <string name="touch_tools_default_swipe">划屏</string>
     <string name="touch_tools_default_gesture">手势</string>
     <string name="touch_tools_mapping_hint">按手柄实际位置点选按键；选中多个即为组合键。</string>

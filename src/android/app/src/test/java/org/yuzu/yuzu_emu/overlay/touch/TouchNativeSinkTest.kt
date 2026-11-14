@@ -142,7 +142,7 @@ class TouchNativeSinkTest {
     @Test fun runtimeCancelAndSinkClearLeaveNoStaleInputsAcrossPortSwitch() {
         val runtime = TouchRuntime(sink)
         val button = TouchControl(id = "button", bounds = TouchRect(0f, 0f, 60f, 60f))
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         runtime.configure(
             TouchTemplate(controls = listOf(button, stick)),
             mapOf(button.id to button.bounds, stick.id to stick.bounds),
@@ -166,7 +166,7 @@ class TouchNativeSinkTest {
     @Test fun runtimeTickMigratesUnchangedHeldOutputsWithoutNewPointerEvents() {
         val runtime = TouchRuntime(sink)
         val button = TouchControl(id = "button", bounds = TouchRect(0f, 0f, 60f, 60f))
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         runtime.configure(
             TouchTemplate(controls = listOf(button, stick)),
             mapOf(button.id to button.bounds, stick.id to stick.bounds),
@@ -176,7 +176,8 @@ class TouchNativeSinkTest {
             1f
         )
         runtime.down(1, 30f, 30f, 0)
-        runtime.down(2, 200f, 50f, 0)
+        runtime.down(2, 150f, 50f, 0)
+        runtime.move(2, 200f, 50f, 1)
         native.events.clear()
         native.selectedPort = 8
         runtime.tick(8)
@@ -192,7 +193,7 @@ class TouchNativeSinkTest {
     @Test fun runtimeCancelResetsNativeBeforeAggregateReleasesWithoutTransientPortMigration() {
         val runtime = TouchRuntime(sink)
         val button = TouchControl(id = "button", bounds = TouchRect(0f, 0f, 60f, 60f))
-        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f)
+        val stick = TouchControl(id = "stick", type = ControlType.STICK, bounds = TouchRect(100f, 0f, 100f, 100f), stickDeadzone = 0f, stickDiameter = 100f)
         runtime.configure(
             TouchTemplate(controls = listOf(button, stick)),
             mapOf(button.id to button.bounds, stick.id to stick.bounds),
@@ -202,7 +203,8 @@ class TouchNativeSinkTest {
             1f
         )
         runtime.down(1, 30f, 30f, 0)
-        runtime.down(2, 200f, 50f, 0)
+        runtime.down(2, 150f, 50f, 0)
+        runtime.move(2, 200f, 50f, 1)
         runtime.down(3, 400f, 400f, 0)
         native.events.clear()
         native.selectedPort = 8

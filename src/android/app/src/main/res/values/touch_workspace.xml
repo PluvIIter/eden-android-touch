@@ -45,6 +45,8 @@
     <string name="touch_workspace_test_in_game_disabled">Whole-layout testing is unavailable while editing inside a game. Exit editing to run the game, or use single-control live debug from a swipe area.</string>
     <string name="touch_workspace_place_prompt">Tap the canvas to place the control</string>
     <string name="touch_workspace_cancel_placement">Cancel placement</string>
+    <string name="touch_workspace_removed_title">Invalid components removed</string>
+    <string name="touch_workspace_removed_message">The following components had invalid configuration and were removed automatically:\n\n%1$s</string>
     <string name="touch_workspace_invalid_detail">This layout cannot be saved:\n%1$s</string>
     <string name="touch_workspace_out_of_bounds">The control does not fit inside the current safe area.</string>
     <string name="touch_workspace_screen_overflow">The control would fall outside the saved screen “%1$s”. Adjust it or remove that screen configuration.</string>

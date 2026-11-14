@@ -58,7 +58,7 @@
     <string name="touch_tools_right">Right</string>
     <string name="touch_tools_bottom">Bottom</string>
     <string name="touch_tools_left">Left</string>
-    <string name="touch_tools_trigger_only">Show only when touched (area)</string>
+    <string name="touch_tools_trigger_only">Show on touch</string>
     <string name="touch_tools_max_deflection">Maximum deflection outside deadzone</string>
     <string name="touch_tools_stick_deadzone">Stick deadzone [0–0.95]</string>
     <string name="touch_tools_none">None</string>
@@ -91,6 +91,9 @@
     <string name="touch_tools_opacity">Opacity (0–100%)</string>
     <string name="touch_tools_active_diameter">Active stick diameter (dp)</string>
     <string name="touch_tools_opacity_hint">Opacity never disables input. Use Enabled in the control list to disable a control.</string>
+    <string name="touch_tools_area_border">Show border</string>
+    <string name="touch_tools_area_text">Show text</string>
+    <string name="touch_tools_area_overlay_hint">Border uses this control\'s opacity; text is drawn at half that opacity.</string>
     <string name="touch_tools_child_geometry_hint">Child keys use the whole group\'s fixed geometry.</string>
     <string name="touch_tools_geometry_error">Outside the safe area or overlaps another area</string>
     <string name="touch_tools_x">X (px)</string>
@@ -246,7 +249,8 @@
     <string name="touch_tools_hint_accumulation">Largest queued motion. Smaller values follow the finger more closely.</string>
     <string name="touch_tools_hint_scale">Switching scale converts max speed between dp/s and screen short-edges/s.</string>
     <string name="touch_tools_stick_size">Stick size</string>
-    <string name="touch_tools_hint_stick_size">Diameter of the stick drawn while touching. The touch region is set on the position page.</string>
+    <string name="touch_tools_hint_stick_size">Stick circle diameter; also the input radius. With show-on-touch, the rectangle only sets the trigger area.</string>
+    <string name="touch_tools_hint_stick_visible">Stick circle diameter; this circle is also the trigger range.</string>
     <string name="touch_tools_default_swipe">Swipe</string>
     <string name="touch_tools_default_gesture">Gestures</string>
     <string name="touch_tools_mapping_hint">Tap the controller buttons to map. Multiple buttons make a combination.</string>

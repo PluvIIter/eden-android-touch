@@ -670,6 +670,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             name = "",
             text = "",
             type = type,
+            bounds = if (type == ControlType.STICK) {
+                TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)
+            } else {
+                TouchRect()
+            },
             shape = if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
             binding = if (type == ControlType.BUTTON) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),
             groupKeys = if (type == ControlType.BUTTON_GROUP) faceKeys else TouchControl().groupKeys,
@@ -689,6 +694,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ControlType.GESTURE -> s(R.string.touch_tools_default_gesture)
         }
         control = control.copy(name = autoName())
+        if (type == ControlType.STICK) control = control.copy(bounds = control.stickBounds(density = resources.displayMetrics.density))
         val body = openPanel(s(R.string.touch_tools_new_control, control.name), key = "add") ?: return
         var nameEdited = false
         var updatingName = false
@@ -741,7 +747,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     renameIfAuto()
                 }
                 stickModeButton(body, control.freeStick) { free -> control = control.copy(freeStick = free) }
-                toggle(body, s(R.string.touch_tools_trigger_only), control.triggerOnly) { control = control.copy(triggerOnly = it) }
+                toggle(body, s(R.string.touch_tools_trigger_only), control.triggerOnly) { value ->
+                    control = control.copy(triggerOnly = value)
+                    if (!value) control = control.copy(bounds = control.stickBounds(density = resources.displayMetrics.density))
+                }
             }
             ControlType.SWIPE -> {
                 choice(body, s(R.string.touch_tools_target_stick), StickTarget.values().toList(), control.stickTarget) { control = control.copy(stickTarget = it) }
@@ -1006,16 +1015,18 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
         if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
             number(body, s(R.string.touch_tools_opacity), control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
-            if (control.type == ControlType.STICK && control.triggerOnly) {
-                number(
-                    body,
-                    s(R.string.touch_tools_stick_size),
-                    control.stickDiameter,
-                    24f,
-                    400f,
-                    true,
-                    helper = s(R.string.touch_tools_hint_stick_size)
-                ) { change { c -> c.copy(stickDiameter = it) } }
+        }
+        if (control.isArea) {
+            toggle(body, s(R.string.touch_tools_area_border), control.showBorder) { value ->
+                change { c -> c.copy(showBorder = value, showText = if (value) c.showText else false) }
+                showProperties()
+            }
+            if (control.showBorder) {
+                toggle(body, s(R.string.touch_tools_area_text), control.showText) { value ->
+                    change { c -> c.copy(showText = value) }
+                    showProperties()
+                }
+                body.addView(label(s(R.string.touch_tools_area_overlay_hint)))
             }
         }
         body.addView(label(s(R.string.touch_tools_opacity_hint)))
@@ -1039,20 +1050,22 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(y = value))) workspace.message(s(R.string.touch_tools_position_error)) }
         }
         val circle = control.type == ControlType.BUTTON && control.shape == ControlShape.CIRCLE
-        number(body, if (circle) s(R.string.touch_tools_diameter) else s(R.string.touch_tools_width), rect.width, 1f, workspace.safe.width(), validate = { value ->
-            val current = workspace.placements[control.id] ?: rect
-            geometryError(current.copy(width = value, height = if (circle) value else current.height))
-        }) { value ->
-            workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(width = value, height = if (circle) value else r.height))) workspace.message(s(R.string.touch_tools_size_error)) }
-        }
-        if (!circle) {
-            number(body, s(R.string.touch_tools_height), rect.height, 1f, workspace.safe.height(), validate = { value ->
-                geometryError((workspace.placements[control.id] ?: rect).copy(height = value))
+        if (!control.isVisibleStick) {
+            number(body, if (circle) s(R.string.touch_tools_diameter) else s(R.string.touch_tools_width), rect.width, 1f, workspace.safe.width(), validate = { value ->
+                val current = workspace.placements[control.id] ?: rect
+                geometryError(current.copy(width = value, height = if (circle) value else current.height))
             }) { value ->
-                workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(height = value))) workspace.message(s(R.string.touch_tools_size_error)) }
+                workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(width = value, height = if (circle) value else r.height))) workspace.message(s(R.string.touch_tools_size_error)) }
+            }
+            if (!circle) {
+                number(body, s(R.string.touch_tools_height), rect.height, 1f, workspace.safe.height(), validate = { value ->
+                    geometryError((workspace.placements[control.id] ?: rect).copy(height = value))
+                }) { value ->
+                    workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(height = value))) workspace.message(s(R.string.touch_tools_size_error)) }
+                }
             }
         }
-        if (control.type == ControlType.STICK && control.triggerOnly) {
+        if (control.type == ControlType.STICK) {
             number(
                 body,
                 s(R.string.touch_tools_stick_size),
@@ -1060,7 +1073,10 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 24f,
                 400f,
                 true,
-                helper = s(R.string.touch_tools_hint_stick_size)
+                helper = s(
+                    if (control.isVisibleStick) R.string.touch_tools_hint_stick_visible
+                    else R.string.touch_tools_hint_stick_size
+                )
             ) { value -> change { c -> c.copy(stickDiameter = value) } }
         }
         val steps = row()
@@ -1370,7 +1386,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val directionKeys = mutableMapOf<Pair<StickTarget, GestureDirection>, MaterialButton>()
         fun refresh() {
             summary.text = gestureSummary(selected)
-            controllerKeys.forEach { (id, key) -> styleSelection(key, selected?.button == id) }
+            controllerKeys.forEach { (id, key) -> styleSelection(key, selected?.buttons?.contains(id) == true) }
             directionKeys.forEach { (pair, key) ->
                 styleSelection(key, selected?.stick == pair.first && selected?.direction == pair.second)
             }
@@ -1379,7 +1395,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val picker = GamepadPicker(context, mappingSlots, 36f, 4.4f)
         for (slot in mappingSlots) {
             val key = mappingKey(slot.id) {
-                selected = GestureBinding(button = slot.id)
+                val buttons = selected?.buttons.orEmpty().toMutableSet()
+                if (!buttons.add(slot.id)) buttons.remove(slot.id)
+                selected = if (buttons.isEmpty()) null else GestureBinding(buttons = buttons)
                 refresh()
             }
             controllerKeys[slot.id] = key
@@ -1721,7 +1739,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     private fun gestureSummary(value: GestureBinding?): String = when {
         value == null -> s(R.string.touch_tools_unassigned)
-        value.button != null -> buttonName(value.button)
+        value.buttons.isNotEmpty() -> mappingLabel(value.buttons)
         else -> s(R.string.touch_tools_stick_direction, enumLabel(value.stick), enumLabel(value.direction))
     }
 

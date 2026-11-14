@@ -33,8 +33,11 @@ import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
 import org.yuzu.yuzu_emu.overlay.touch.model.newTouchId
 import org.yuzu.yuzu_emu.overlay.touch.runtime.InputSink
+import org.yuzu.yuzu_emu.overlay.touch.runtime.TouchHitGeometry
 import org.yuzu.yuzu_emu.overlay.touch.runtime.TouchRuntime
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchEditSession
+import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationIssue
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
 import kotlin.math.abs
@@ -45,6 +48,9 @@ import kotlin.math.roundToInt
 class TouchWorkspace(context: Context) : FrameLayout(context) {
     var onSave: ((TouchLibrary, String) -> Unit)? = null
     var onExit: (() -> Unit)? = null
+    var onSanitized: ((TouchLibrary) -> Unit)? = null
+    internal var removedOnBind: List<RemovedControl> = emptyList()
+        private set
     var onTestState: ((Boolean) -> Unit)? = null
     var onTouchActivity: ((MotionEvent) -> Unit)? = null
     var gameId: String? = null
@@ -260,10 +266,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     fun bind(library: TouchLibrary, templateId: String, gameAvailable: Boolean, sink: InputSink) {
         releaseInputs()
-        require(library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_template) }
+        val sanitized = TouchSanitizer.sanitize(library, resources.displayMetrics.density)
+        removedOnBind = sanitized.removed
+        require(sanitized.library.templates.any { it.id == templateId }) { context.getString(R.string.touch_workspace_missing_template) }
         layoutRetired = false
-        this.draft = library
-        this.saved = library
+        this.draft = sanitized.library
+        this.saved = sanitized.library
         this.templateId = templateId
         this.gameAvailable = gameAvailable
         output = sink
@@ -275,6 +283,18 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         tools.closePanel()
         updateGeometry()
         tools.refreshToolbar()
+        if (sanitized.removed.isNotEmpty()) {
+            onSanitized?.invoke(sanitized.library)
+            post { reportRemoved(sanitized.removed) }
+        }    }
+
+    private fun reportRemoved(removed: List<RemovedControl>) {
+        val details = removed.joinToString("\n") { "「${it.name}」：${it.reason}" }
+        MaterialAlertDialogBuilder(context)
+            .setTitle(context.getString(R.string.touch_workspace_removed_title))
+            .setMessage(context.getString(R.string.touch_workspace_removed_message, details))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     fun setEditing(editing: Boolean) {
@@ -426,6 +446,44 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun updateControl(value: TouchControl): Boolean {
+        if (value.isVisibleStick) {
+            val diameter = value.stickDiameter * resources.displayMetrics.density
+            val screens = template.screens.map { screen ->
+                val current = TouchGeometry.savedBounds(template, screen, value)
+                val centerX = current.x + current.width / 2f
+                val centerY = current.y + current.height / 2f
+                screen.copy(
+                    placements = screen.placements + (value.id to TouchRect(
+                        centerX - diameter / 2f,
+                        centerY - diameter / 2f,
+                        diameter,
+                        diameter
+                    ))
+                )
+            }
+            val centerX = value.bounds.x + value.bounds.width / 2f
+            val centerY = value.bounds.y + value.bounds.height / 2f
+            replaceTemplate(
+                template.copy(
+                    screens = screens,
+                    controls = template.controls.map {
+                        if (it.id == value.id) {
+                            value.copy(
+                                bounds = TouchRect(
+                                    centerX - diameter / 2f,
+                                    centerY - diameter / 2f,
+                                    diameter,
+                                    diameter
+                                )
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                )
+            )
+            return true
+        }
         val makeCircle = value.type == ControlType.BUTTON && value.shape == ControlShape.CIRCLE
         if (makeCircle) {
             val screens = template.screens.map { screen ->
@@ -679,9 +737,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun setGeometry(id: String, rect: TouchRect): Boolean {
         val control = template.controls.firstOrNull { it.id == id } ?: return false
-        if (!legal(control, rect)) return false
+        val target = control.stickBounds(rect, density = resources.displayMetrics.density)
+        if (!legal(control, target)) return false
         val screen = currentScreen()
-        val updated = screen.copy(placements = placements + (id to rect))
+        val updated = screen.copy(placements = placements + (id to target))
         replaceTemplate(template.copy(screens = template.screens.filterNot { it.id == screen.id } + updated))
         return true
     }
@@ -696,7 +755,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     )
 
     internal fun canSetGeometry(id: String, rect: TouchRect): Boolean =
-        template.controls.firstOrNull { it.id == id }?.let { legal(it, rect) } ?: false
+        template.controls.firstOrNull { it.id == id }?.let { legal(it, it.stickBounds(rect, density = resources.displayMetrics.density)) } ?: false
 
     private fun legal(control: TouchControl, rect: TouchRect): Boolean {
         if (!TouchEditorGeometry.fits(rect, safe.width(), safe.height())) {
@@ -796,7 +855,15 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private fun beginGeometry(pointer: Int, x: Float, y: Float) {
         pendingControl?.let { control ->
             val size = min(dp(72), min(safe.width(), safe.height()))
-            val rect = if (control.isArea) {
+            val rect = if (control.isVisibleStick) {
+                val diameter = control.stickDiameter * resources.displayMetrics.density
+                TouchRect(
+                    (x - diameter / 2).coerceIn(0f, max(0f, safe.width() - diameter)),
+                    (y - diameter / 2).coerceIn(0f, max(0f, safe.height() - diameter)),
+                    diameter,
+                    diameter
+                )
+            } else if (control.isArea) {
                 TouchRect(x, y, 1f, 1f)
             } else {
                 TouchRect(
@@ -812,7 +879,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         }
         val active = selected
         val activeRect = active?.let { placements[it.id] }
-        val handle = activeRect?.let { handleAt(it, x, y) } ?: -1
+        val handle = if (active?.isVisibleStick == true) -1 else activeRect?.let { handleAt(it, x, y) } ?: -1
         val value = if (adjustSelected && active != null) {
             active
         } else if (handle >= 0) active else hitControl(x, y)
@@ -838,7 +905,15 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val control = if (state.creating) pendingControl else template.controls.firstOrNull { it.id == state.controlId }
         if (control == null) return
         val original = state.original
-        var rect = if (state.creating && control.isArea) {
+        var rect = if (state.creating && control.isVisibleStick) {
+            val diameter = control.stickDiameter * resources.displayMetrics.density
+            TouchRect(
+                (x - diameter / 2).coerceIn(0f, max(0f, safe.width() - diameter)),
+                (y - diameter / 2).coerceIn(0f, max(0f, safe.height() - diameter)),
+                diameter,
+                diameter
+            )
+        } else if (state.creating && control.isArea) {
             TouchRect(
                 min(state.startX, x).coerceAtLeast(0f),
                 min(state.startY, y).coerceAtLeast(0f),
@@ -861,6 +936,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             val diameter = min(rect.width, rect.height)
             rect = rect.copy(width = diameter, height = diameter)
         }
+        rect = control.stickBounds(rect, density = resources.displayMetrics.density)
         rect = gridRect(rect, resize = state.creating || state.handle >= 0)
         if (state.handle < 0 && !state.creating) {
             rect = rect.copy(
@@ -890,13 +966,16 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 checkpoint(state.before)
                 val screen = currentScreen()
                 val base = template.screens.firstOrNull { it.id == template.baseScreenId } ?: screen
-                val rect = state.accepted
-                fun mapped(screen: ScreenLayout): TouchRect = TouchEditorGeometry.map(
-                    rect,
-                    safe.width(),
-                    safe.height(),
-                    screen.width,
-                    screen.height
+                val rect = control.stickBounds(state.accepted, density = resources.displayMetrics.density)
+                fun mapped(screen: ScreenLayout): TouchRect = control.stickBounds(
+                    TouchEditorGeometry.map(
+                        rect,
+                        safe.width(),
+                        safe.height(),
+                        screen.width,
+                        screen.height
+                    ),
+                    density = resources.displayMetrics.density
                 )
                 val baseRect = mapped(base)
                 replaceTemplate(
@@ -991,7 +1070,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val tolerance = dp(10)
         return template.controls.sortedBy { if (it.isArea) 0 else 1 }.asReversed().firstOrNull {
             val r = placements[it.id] ?: it.bounds
-            x >= r.x - tolerance && x <= r.right + tolerance && y >= r.y - tolerance && y <= r.bottom + tolerance
+            if (it.isVisibleStick) {
+                TouchHitGeometry.contains(it, r, x, y)
+            } else {
+                x >= r.x - tolerance && x <= r.right + tolerance && y >= r.y - tolerance && y <= r.bottom + tolerance
+            }
         }
     }
 

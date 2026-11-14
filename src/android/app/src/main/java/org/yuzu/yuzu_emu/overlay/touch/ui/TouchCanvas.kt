@@ -121,7 +121,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         } else {
             when (control.type) {
                 ControlType.BUTTON_GROUP -> control.groupKeys.flatMap { it.binding.buttons }.toSet()
-                ControlType.GESTURE -> control.gestures.values.mapNotNull { it.button }.toSet()
+                ControlType.GESTURE -> control.gestures.values.flatMap { it.buttons }.toSet()
                 else -> control.binding.buttons
             }.joinToString(" + ") { buttonName(it) }
         }
@@ -158,7 +158,11 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 ControlType.BUTTON_GROUP -> drawGroup(canvas, control, rect, pointers, opacity)
                 ControlType.STICK -> drawStick(canvas, control, rect, pointers, snapshot, opacity, w, h)
                 ControlType.SWIPE, ControlType.GESTURE -> {
-                    if (workspace.isEditing || workspace.testing) drawArea(canvas, control, rect, active)
+                    if (workspace.isEditing || workspace.testing) {
+                        drawArea(canvas, control, rect, active)
+                    } else if (control.showBorder) {
+                        drawAreaOverlay(canvas, control, rect)
+                    }
                 }
             }
             if (workspace.isEditing && !control.enabled) {
@@ -288,6 +292,23 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         chip(canvas, label, rect.x + rect.width / 2, rect.y + rect.height / 2, (rect.width - dp(12)).coerceAtLeast(1f), accent)
     }
 
+    private fun drawAreaOverlay(canvas: Canvas, control: TouchControl, rect: TouchRect) {
+        stroke(ink, dp(1.5f), control.opacity)
+        shape(canvas, rect, false)
+        if (!control.showText) return
+        val label = control.name.ifBlank {
+            context.getString(
+                when (control.type) {
+                    ControlType.STICK -> R.string.touch_canvas_free_stick
+                    ControlType.SWIPE -> R.string.touch_canvas_swipe
+                    else -> R.string.touch_canvas_gesture
+                }
+            )
+        }
+        fill(ink, control.opacity * 0.5f)
+        text(canvas, label, rect.x + rect.width / 2, rect.y + rect.height / 2, sp(14), (rect.width - dp(16)).coerceAtLeast(1f))
+    }
+
     private fun drawStick(
         canvas: Canvas,
         control: TouchControl,
@@ -300,24 +321,21 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     ) {
         val p = pointers.firstOrNull { it.controlId == control.id }
         if (control.triggerOnly && (workspace.isEditing || workspace.testing)) drawArea(canvas, control, rect, p != null)
-        if (control.triggerOnly && p == null) return
-        val radius = if (control.triggerOnly) {
-            min(control.stickDiameter * resources.displayMetrics.density / 2, min(w, h) / 2)
-        } else {
-            min(rect.width, rect.height) / 2
+        if (control.triggerOnly && !workspace.isEditing && !workspace.testing && control.showBorder) {
+            drawAreaOverlay(canvas, control, rect)
         }
+        if (control.triggerOnly && p == null) return
+        val radius = min(control.stickDiameter * resources.displayMetrics.density / 2f, min(w, h) / 2f)
         val vector = snapshot.sticks[control.stickTarget]
         val owns = snapshot.stickOwners[control.stickTarget] == control.id
         val vx = if (owns) vector?.x ?: 0f else 0f
         val vy = if (owns) vector?.y ?: 0f else 0f
         val knobOffsetX = vx * radius * 0.55f
         val knobOffsetY = -vy * radius * 0.55f
-        // Free sticks keep their input origin at the first touch, but the rendered base trails the
-        // finger so the knob stays under the thumb while the whole stick follows it.
-        val logicalX = if (control.freeStick && p != null) p.x - knobOffsetX else rect.x + rect.width / 2
-        val logicalY = if (control.freeStick && p != null) p.y - knobOffsetY else rect.y + rect.height / 2
-        val cx = logicalX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
-        val cy = logicalY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
+        val centerX = if (p != null) p.centerX else rect.x + rect.width / 2
+        val centerY = if (p != null) p.centerY else rect.y + rect.height / 2
+        val cx = centerX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
+        val cy = centerY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
         fill(variant, opacity * 0.7f)
         canvas.drawCircle(cx, cy, radius, paint)
         stroke(outline, dp(1.5f), opacity)
@@ -345,7 +363,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             control.type == ControlType.STICK && !control.isArea
         stroke(primary, dp(2.5f))
         shape(canvas, rect, circle)
-        if (!control.locked) {
+        if (!control.locked && !control.isVisibleStick) {
             val corners = listOf(rect.x to rect.y, rect.right to rect.y, rect.right to rect.bottom, rect.x to rect.bottom)
             corners.forEachIndexed { index, (x, y) ->
                 fill(surface)

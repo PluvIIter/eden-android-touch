@@ -55,6 +55,8 @@ import org.yuzu.yuzu_emu.overlay.touch.runtime.InputSink
 import org.yuzu.yuzu_emu.overlay.touch.store.ImportConflictResolution
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportExport
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportPreview
+import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchObjectKind
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRepository
@@ -67,6 +69,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     private lateinit var repository: TouchRepository
     private lateinit var library: TouchLibrary
     private var workspace: TouchWorkspace? = null
+    private var pendingRemoved: List<RemovedControl> = emptyList()
     private var exporting: String? = null
     private var exportRecovery: File? = null
     private var selectedTab = 0
@@ -125,6 +128,12 @@ class TouchTemplateActivity : AppCompatActivity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         repository = repository(this)
         runCatching { library = repository.load() }.onFailure { report(it); finish(); return }
+        val sanitized = TouchSanitizer.sanitize(library, resources.displayMetrics.density)
+        if (sanitized.removed.isNotEmpty()) {
+            library = sanitized.library
+            pendingRemoved = sanitized.removed
+            runCatching { library = repository.save(library, library.revision) }.onFailure { report(it) }
+        }
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -145,6 +154,7 @@ class TouchTemplateActivity : AppCompatActivity() {
             }
         }
         showManager()
+        showRemovedDialog()
         if (savedInstanceState?.containsKey("touch_workspace_draft") == true) {
             runCatching {
                 val initial = library.templateFor(gameId) ?: library.templates.first()
@@ -168,6 +178,18 @@ class TouchTemplateActivity : AppCompatActivity() {
             }
         }.onFailure { report(it) }
         super.onSaveInstanceState(outState)
+    }
+
+    private fun showRemovedDialog() {
+        val removed = pendingRemoved
+        pendingRemoved = emptyList()
+        if (removed.isEmpty()) return
+        val details = removed.joinToString("\n") { "「${it.name}」：${it.reason}" }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.touch_workspace_removed_title)
+            .setMessage(getString(R.string.touch_workspace_removed_message, details))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun showManager() {
@@ -576,8 +598,14 @@ class TouchTemplateActivity : AppCompatActivity() {
         background {
             val result = repository.importBundle(value, revision, resolution)
             withContext(Dispatchers.Main) {
-                library = result.library
+                val sanitized = TouchSanitizer.sanitize(result.library, resources.displayMetrics.density)
+                library = sanitized.library
+                if (sanitized.removed.isNotEmpty()) {
+                    pendingRemoved = sanitized.removed
+                    runCatching { library = repository.save(library, library.revision) }.onFailure { report(it) }
+                }
                 showManager()
+                showRemovedDialog()
                 val imported = library.templates.filter { it.id in result.templateIds.values }
                 if (imported.isNotEmpty()) {
                     MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(R.string.touch_manager_import_complete)
