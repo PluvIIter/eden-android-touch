@@ -89,6 +89,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private var toolbarSignature: String? = null
     private var toolbarCollapsed = false
     private var relayoutQueued = false
+    private var imeWindow: ToolWindow? = null
+    private var imeBaseHeight = 0
     private val invalidFields get() = current?.invalid ?: mutableSetOf<TextInputLayout>()
     val hasPanel: Boolean get() = windows.isNotEmpty()
     var hasModalDialog: Boolean = false
@@ -126,7 +128,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     saved.presetId != null -> showTuning(saved.presetId, false, saved.tab, restored = saved)
                     saved.key == "controls" -> showControls()
                     saved.key == "add" -> showAdd()
-                    saved.key == "opacity" -> showToolOpacity()
+                    saved.key == "appearance" -> showAppearance()
                 }
                 windows[saved.key]?.let { window ->
                     window.snapshot = saved
@@ -255,13 +257,30 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     fun onImeInsets(bottom: Int) {
-        val focused = findFocus() ?: return
-        val window = windows.values.firstOrNull { focused.isDescendantOf(it.card) } ?: return
-        val base = if (window.snapshot.height > 0f) px(window.snapshot.height).toInt() else panelHeight()
-        val available = (height - bottom - window.card.y.toInt() - px(8)).coerceAtLeast(px(128))
-        val nextHeight = if (bottom > 0) min(base, available) else base
-        window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply { height = nextHeight }
-        focused.post { focused.requestRectangleOnScreen(android.graphics.Rect(0, 0, focused.width, focused.height), false) }
+        val focused = findFocus()
+        val focusedWindow = focused?.let { view ->
+            windows.values.firstOrNull { view.isDescendantOf(it.card) }
+        }
+        if (bottom > 0) {
+            val window = focusedWindow ?: current ?: return
+            imeWindow = window
+            imeBaseHeight = if (window.snapshot.height > 0f) px(window.snapshot.height).toInt() else panelHeight()
+            val available = (height - bottom - window.card.y.toInt() - px(8)).coerceAtLeast(px(128))
+            window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply {
+                height = min(imeBaseHeight, available)
+            }
+            focused?.post { focused.requestRectangleOnScreen(android.graphics.Rect(0, 0, focused.width, focused.height), false) }
+        } else {
+            val window = imeWindow ?: focusedWindow ?: current ?: return
+            val base = imeBaseHeight.takeIf { it > 0 } ?: if (window.snapshot.height > 0f) {
+                px(window.snapshot.height).toInt()
+            } else {
+                panelHeight()
+            }
+            window.card.layoutParams = (window.card.layoutParams as LayoutParams).apply { height = base }
+            imeWindow = null
+            imeBaseHeight = 0
+        }
     }
 
     private fun positionOf(view: View): TouchToolPosition = TouchToolPosition(
@@ -393,7 +412,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 }
             )
             add(button(s(R.string.touch_tools_toolbar_base)) { if (validateAndCompleteAll()) workspace.setCurrentScreenAsBase() }.apply { contentDescription = s(R.string.touch_tools_set_base) })
-            add(button(s(R.string.touch_tools_toolbar_opacity)) { showToolOpacity() }.apply { contentDescription = s(R.string.touch_tools_tool_opacity) })
+            add(button(s(R.string.touch_tools_appearance)) { showAppearance() }.apply { contentDescription = s(R.string.touch_tools_appearance) })
             add(
                 button(s(if (workspace.snapToGrid) R.string.touch_tools_grid_on else R.string.touch_tools_grid_off)) {
                     workspace.toggleSnapToGrid()
@@ -592,14 +611,83 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         return max(0f, right - left) * max(0f, bottom - top)
     }
 
-    private fun showToolOpacity() {
-        val body = openPanel(s(R.string.touch_tools_tool_background), key = "opacity") ?: return
-        number(body, s(R.string.touch_tools_background_opacity), panelAlpha, 0.4f, 1f, true) {
-            panelAlpha = it
-            toolbar.setCardBackgroundColor(surfaceColor())
-            windows.values.forEach { it.card.setCardBackgroundColor(surfaceColor()) }
+    private fun showAppearance() {
+        val body = openPanel(s(R.string.touch_tools_appearance), key = "appearance") ?: return
+        val template = workspace.template
+        val commonColor = template.controls.mapNotNull { it.color }.distinct().singleOrNull()
+        body.addView(button(s(R.string.touch_tools_global_color, colorLabel(commonColor))) {
+            chooseColor(commonColor) { color ->
+                workspace.applyAllColors(color)
+                showAppearance()
+            }
+        })
+        body.addView(button(s(R.string.touch_tools_global_color_default)) {
+            workspace.applyAllColors(null)
+            showAppearance()
+        })
+        number(body, s(R.string.touch_tools_global_opacity), template.globalOpacity * 100f, 0f, 100f, true) {
+            workspace.updateGlobalOpacity(it / 100f)
         }
+        body.addView(button(s(R.string.touch_tools_override_opacity)) {
+            workspace.overrideGlobalOpacity()
+            showAppearance()
+        })
+        body.addView(label(s(R.string.touch_tools_appearance_hint)))
         body.addView(button(s(R.string.touch_tools_done)) { completePanel() })
+    }
+
+    private fun colorLabel(color: Int?): String =
+        color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) } ?: s(R.string.touch_tools_color_default)
+
+    private fun chooseColor(currentColor: Int?, onPick: (Int?) -> Unit) {
+        val owner = current
+        val content = column()
+        val input = TextInputEditText(context).apply {
+            hint = s(R.string.touch_tools_color_hex)
+            setText(currentColor?.let { String.format(java.util.Locale.ROOT, "%08X", it) }.orEmpty())
+            setSingleLine()
+        }
+        content.addView(input, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        val palette = listOf(
+            0xFFFFFFFF.toInt(), 0xFF000000.toInt(), 0xFFF44336.toInt(), 0xFF4CAF50.toInt(),
+            0xFF2196F3.toInt(), 0xFFFFEB3B.toInt(), 0xFF00BCD4.toInt(), 0xFFE91E63.toInt(),
+            0xFFFF9800.toInt(), 0xFF9C27B0.toInt(), 0xFF9E9E9E.toInt(), 0xFF00E6E6.toInt()
+        )
+        palette.chunked(6).forEach { colors ->
+            val line = row()
+            colors.forEach { value ->
+                line.addView(
+                    android.view.View(context).apply {
+                        setBackgroundColor(value)
+                        contentDescription = String.format(java.util.Locale.ROOT, "#%08X", value)
+                        setOnClickListener {
+                            input.setText(String.format(java.util.Locale.ROOT, "%08X", value))
+                        }
+                    },
+                    LinearLayout.LayoutParams(0, px(34), 1f).apply {
+                        marginStart = px(3)
+                        marginEnd = px(3)
+                        topMargin = px(3)
+                        bottomMargin = px(3)
+                    }
+                )
+            }
+            content.addView(line)
+        }
+        fun parse(): Int? {
+            val text = input.text?.toString()?.trim()?.removePrefix("#").orEmpty()
+            val normalized = if (text.length == 6) "FF$text" else text
+            return if (normalized.length == 8) normalized.toLongOrNull(16)?.toInt() else null
+        }
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.touch_tools_color_pick)
+            .setView(content)
+            .setNeutralButton(R.string.touch_tools_color_default) { _, _ -> within(owner) { onPick(null) } }
+            .setNegativeButton(R.string.touch_tools_cancel, null)
+            .setPositiveButton(R.string.touch_tools_done) { _, _ ->
+                parse()?.let { value -> within(owner) { onPick(value) } }
+            }
+            .show()
     }
 
     private fun showControls() {
@@ -1014,19 +1102,30 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             )
         }
         if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
+            body.addView(button(s(R.string.touch_tools_color, colorLabel(control.color))) {
+                chooseColor(control.color) { color ->
+                    change { it.copy(color = color) }
+                    showProperties()
+                }
+            })
             number(body, s(R.string.touch_tools_opacity), control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
         }
         if (control.isArea) {
             toggle(body, s(R.string.touch_tools_area_border), control.showBorder) { value ->
-                change { c -> c.copy(showBorder = value, showText = if (value) c.showText else false) }
+                change { c -> c.copy(showBorder = value, showText = if (value) c.showText else false, showFill = if (value) c.showFill else false) }
                 showProperties()
             }
             if (control.showBorder) {
+                toggle(body, s(R.string.touch_tools_area_fill), control.showFill) { value ->
+                    change { c -> c.copy(showFill = value) }
+                    showProperties()
+                }
                 toggle(body, s(R.string.touch_tools_area_text), control.showText) { value ->
                     change { c -> c.copy(showText = value) }
                     showProperties()
                 }
                 body.addView(label(s(R.string.touch_tools_area_overlay_hint)))
+                body.addView(label(s(R.string.touch_tools_area_fill_hint)))
             }
         }
         body.addView(label(s(R.string.touch_tools_opacity_hint)))

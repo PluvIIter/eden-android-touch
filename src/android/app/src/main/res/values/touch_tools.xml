@@ -94,6 +94,17 @@
     <string name="touch_tools_area_border">Show border</string>
     <string name="touch_tools_area_text">Show text</string>
     <string name="touch_tools_area_overlay_hint">Border uses this control\'s opacity; text is drawn at half that opacity.</string>
+    <string name="touch_tools_area_fill">Show background fill</string>
+    <string name="touch_tools_area_fill_hint">Background fill is drawn at 10% of this control\'s effective opacity.</string>
+    <string name="touch_tools_global_opacity">Global opacity (multiplies controls)</string>
+    <string name="touch_tools_global_color">Global color: %1$s</string>
+    <string name="touch_tools_global_color_default">Reset all control colors</string>
+    <string name="touch_tools_override_opacity">Apply opacity to all controls</string>
+    <string name="touch_tools_appearance_hint">Global opacity multiplies each control. Applying it copies the value into every control and resets global opacity to 100%.</string>
+    <string name="touch_tools_color">Color: %1$s</string>
+    <string name="touch_tools_color_default">Default</string>
+    <string name="touch_tools_color_pick">Choose color</string>
+    <string name="touch_tools_color_hex">Color (#AARRGGBB)</string>
     <string name="touch_tools_child_geometry_hint">Child keys use the whole group\'s fixed geometry.</string>
     <string name="touch_tools_geometry_error">Outside the safe area or overlaps another area</string>
     <string name="touch_tools_x">X (px)</string>

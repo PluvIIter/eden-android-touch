@@ -118,7 +118,7 @@ class TouchWorkspaceScreenshotTest {
             assertNotNull("Property form tabs are missing", tabs)
             assertFullyVisible(workspace, tabs!!, "Property form tabs")
             if (chinese) assertChinese(workspace)
-            for (actionId in listOf(R.string.touch_tools_controls, R.string.touch_tools_add, R.string.touch_tools_tool_opacity)) {
+            for (actionId in listOf(R.string.touch_tools_controls, R.string.touch_tools_add, R.string.touch_tools_appearance)) {
                 val action = descendants(workspace.tools.getChildAt(0)).filterIsInstance<MaterialButton>()
                     .single { it.text.toString() == activity.getString(actionId) || it.contentDescription?.toString() == activity.getString(actionId) }
                 action.performClick()
@@ -185,7 +185,7 @@ class TouchWorkspaceScreenshotTest {
             R.string.touch_tools_test,
             R.string.touch_tools_save,
             R.string.touch_tools_set_base,
-            R.string.touch_tools_tool_opacity
+            R.string.touch_tools_appearance
         )
         for (id in required) {
             assertTrue("Missing direct toolbar action ${workspace.context.getString(id)}", actions.any { it.text.toString() == workspace.context.getString(id) || it.contentDescription?.toString() == workspace.context.getString(id) })

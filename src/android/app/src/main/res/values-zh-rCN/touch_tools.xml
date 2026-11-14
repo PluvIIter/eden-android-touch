@@ -94,6 +94,17 @@
     <string name="touch_tools_area_border">显示边框</string>
     <string name="touch_tools_area_text">显示文字</string>
     <string name="touch_tools_area_overlay_hint">边框应用此控件的透明度；文字按该透明度的一半绘制。</string>
+    <string name="touch_tools_area_fill">显示背景填充</string>
+    <string name="touch_tools_area_fill_hint">背景填充按控件最终透明度的 10% 绘制。</string>
+    <string name="touch_tools_global_opacity">全局透明度（与控件相乘）</string>
+    <string name="touch_tools_global_color">全局颜色：%1$s</string>
+    <string name="touch_tools_global_color_default">重置所有控件颜色</string>
+    <string name="touch_tools_override_opacity">覆盖透明度到所有控件</string>
+    <string name="touch_tools_appearance_hint">全局透明度会与每个控件自身的透明度相乘。覆盖后会写入所有控件，并把全局透明度重置为 100%，避免叠加。</string>
+    <string name="touch_tools_color">颜色：%1$s</string>
+    <string name="touch_tools_color_default">默认</string>
+    <string name="touch_tools_color_pick">选择颜色</string>
+    <string name="touch_tools_color_hex">颜色（#AARRGGBB）</string>
     <string name="touch_tools_child_geometry_hint">子键使用整组的固定位置与尺寸。</string>
     <string name="touch_tools_geometry_error">超出安全区或与其他区域重叠</string>
     <string name="touch_tools_x">X 坐标（像素）</string>

@@ -517,6 +517,27 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         canvas.invalidate()
     }
 
+    internal fun updateGlobalOpacity(value: Float) {
+        replaceTemplate(template.copy(globalOpacity = value.coerceIn(0f, 1f)))
+        canvas.invalidate()
+    }
+
+    internal fun applyAllColors(color: Int?) {
+        replaceTemplate(template.copy(controls = template.controls.map { it.copy(color = color) }))
+        canvas.invalidate()
+    }
+
+    internal fun overrideGlobalOpacity() {
+        val opacity = template.globalOpacity
+        replaceTemplate(
+            template.copy(
+                globalOpacity = 1f,
+                controls = template.controls.map { it.copy(opacity = opacity) }
+            )
+        )
+        canvas.invalidate()
+    }
+
     internal fun addPreset(value: SwipePreset) {
         draft = draft.copy(presets = draft.presets + value)
         runtime.updatePresets(draft.presets)

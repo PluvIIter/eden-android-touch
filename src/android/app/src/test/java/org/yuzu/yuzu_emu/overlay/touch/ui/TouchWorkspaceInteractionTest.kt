@@ -203,7 +203,7 @@ class TouchWorkspaceInteractionTest {
             R.string.touch_tools_test,
             R.string.touch_tools_save,
             R.string.touch_tools_set_base,
-            R.string.touch_tools_tool_opacity,
+            R.string.touch_tools_appearance,
             R.string.touch_tools_grid_on
         )
         for (id in required) {
@@ -219,8 +219,8 @@ class TouchWorkspaceInteractionTest {
 
         toolbarClick(workspace, R.string.touch_tools_add)
         assertEquals(setOf("add"), windowKeys(workspace))
-        toolbarClick(workspace, R.string.touch_tools_tool_opacity)
-        assertEquals(setOf("opacity"), windowKeys(workspace))
+        toolbarClick(workspace, R.string.touch_tools_appearance)
+        assertEquals(setOf("appearance"), windowKeys(workspace))
         assertEquals("X commits this form only", control(workspace, a.id).name)
     }
 
@@ -521,6 +521,42 @@ class TouchWorkspaceInteractionTest {
         settle(workspace)
         gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
         assertTrue(gesture.showText)
+        descendants(topCard(workspace)).filterIsInstance<MaterialSwitch>()
+            .first { it.text.toString() == workspace.context.getString(R.string.touch_tools_area_fill) }
+            .performClick()
+        settle(workspace)
+        gesture = workspace.template.controls.last { it.type == ControlType.GESTURE }
+        assertTrue(gesture.showFill)
+    }
+
+    @Test
+    fun globalAppearanceColorAndOpacityAreApplied() = withWorkspace { workspace ->
+        val color = 0xFF12AB34.toInt()
+        workspace.applyAllColors(color)
+        assertTrue(workspace.template.controls.all { it.color == color })
+
+        workspace.updateGlobalOpacity(0.5f)
+        assertEquals(0.5f, workspace.template.globalOpacity, 0.001f)
+        workspace.overrideGlobalOpacity()
+        assertEquals(1f, workspace.template.globalOpacity, 0.001f)
+        assertTrue(workspace.template.controls.all { kotlin.math.abs(it.opacity - 0.5f) < 0.001f })
+    }
+
+    @Test
+    fun imeHeightRestoresEvenAfterFocusIsLost() = withWorkspace { workspace ->
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        settle(workspace)
+        val card = topCard(workspace)
+        val start = card.height
+        descendants(card).filterIsInstance<TextInputEditText>().first().requestFocus()
+        workspace.tools.onImeInsets(700)
+        settle(workspace)
+        assertTrue(card.height < start)
+        descendants(card).filterIsInstance<TextInputEditText>().first().clearFocus()
+        workspace.tools.onImeInsets(0)
+        settle(workspace)
+        assertEquals(start, card.height)
     }
 
     @Test

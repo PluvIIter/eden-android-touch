@@ -80,8 +80,10 @@ data class TouchControl(
     val enabled: Boolean = true,
     val locked: Boolean = false,
     val opacity: Float = 0.7f,
+    val color: Int? = null,
     val showBorder: Boolean = false,
     val showText: Boolean = false,
+    val showFill: Boolean = false,
     val text: String = "A",
     val shape: ControlShape = ControlShape.CIRCLE,
     val binding: ButtonBinding = ButtonBinding(setOf(0)),
@@ -168,7 +170,8 @@ data class TouchTemplate(
     val name: String = "Default layout",
     val controls: List<TouchControl> = emptyList(),
     val screens: List<ScreenLayout> = listOf(ScreenLayout()),
-    val baseScreenId: String = screens.first().id
+    val baseScreenId: String = screens.first().id,
+    val globalOpacity: Float = 1f
 )
 
 @Serializable

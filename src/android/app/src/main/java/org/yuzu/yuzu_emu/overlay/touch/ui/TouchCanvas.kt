@@ -152,9 +152,9 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             val rect = workspace.placements[control.id] ?: control.bounds
             val pointers = snapshot.pointers.filter { it.controlId == control.id }
             val active = pointers.isNotEmpty()
-            val opacity = if (workspace.isEditing) control.opacity.coerceAtLeast(0.55f) else control.opacity
+            val opacity = (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
             when (control.type) {
-                ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity)
+                ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity, control.color)
                 ControlType.BUTTON_GROUP -> drawGroup(canvas, control, rect, pointers, opacity)
                 ControlType.STICK -> drawStick(canvas, control, rect, pointers, snapshot, opacity, w, h)
                 ControlType.SWIPE, ControlType.GESTURE -> {
@@ -204,18 +204,18 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         }
     }
 
-    private fun drawButton(canvas: Canvas, rect: TouchRect, label: String, circle: Boolean, active: Boolean, opacity: Float) {
+    private fun drawButton(canvas: Canvas, rect: TouchRect, label: String, circle: Boolean, active: Boolean, opacity: Float, color: Int? = null) {
         val base = if (active) primary else ColorUtils.blendARGB(surface, variant, 0.68f)
         fill(base, opacity * 0.94f)
         shape(canvas, rect, circle)
-        stroke(if (active) primary else outline, dp(if (active) 2f else 1.4f), opacity)
+        stroke(color ?: if (active) primary else outline, dp(if (active) 2f else 1.4f), opacity)
         shape(canvas, rect, circle)
         if (min(rect.width, rect.height) > dp(28)) {
             val inset = dp(3)
-            stroke(if (active) onPrimary else ink, dp(0.6f), opacity * 0.2f)
+            stroke(color ?: if (active) onPrimary else ink, dp(0.6f), opacity * 0.2f)
             shape(canvas, TouchRect(rect.x + inset, rect.y + inset, rect.width - inset * 2, rect.height - inset * 2), circle)
         }
-        fill(if (active) onPrimary else ink, opacity)
+        fill(color ?: if (active) onPrimary else ink, opacity)
         text(
             canvas,
             label,
@@ -261,7 +261,8 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 control.groupKeys.getOrNull(index)?.text.orEmpty(),
                 control.groupStyle == GroupStyle.FACE,
                 pointers.any { index in it.activeKeys },
-                opacity
+                opacity,
+                control.color
             )
         }
     }
@@ -293,7 +294,13 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     }
 
     private fun drawAreaOverlay(canvas: Canvas, control: TouchControl, rect: TouchRect) {
-        stroke(ink, dp(1.5f), control.opacity)
+        val opacity = (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
+        val color = control.color ?: ink
+        if (control.showFill) {
+            fill(color, opacity * 0.1f)
+            shape(canvas, rect, false)
+        }
+        stroke(color, dp(1.5f), opacity)
         shape(canvas, rect, false)
         if (!control.showText) return
         val label = control.name.ifBlank {
@@ -305,7 +312,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 }
             )
         }
-        fill(ink, control.opacity * 0.5f)
+        fill(color, opacity * 0.5f)
         text(canvas, label, rect.x + rect.width / 2, rect.y + rect.height / 2, sp(14), (rect.width - dp(16)).coerceAtLeast(1f))
     }
 
@@ -336,20 +343,21 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         val centerY = if (p != null) p.centerY else rect.y + rect.height / 2
         val cx = centerX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
         val cy = centerY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
-        fill(variant, opacity * 0.7f)
+        val tint = control.color
+        fill(tint?.let { ColorUtils.blendARGB(variant, it, 0.4f) } ?: variant, opacity * 0.7f)
         canvas.drawCircle(cx, cy, radius, paint)
-        stroke(outline, dp(1.5f), opacity)
+        stroke(tint ?: outline, dp(1.5f), opacity)
         canvas.drawCircle(cx, cy, radius, paint)
-        stroke(ink, dp(0.8f), opacity * 0.17f)
+        stroke(tint ?: ink, dp(0.8f), opacity * 0.17f)
         canvas.drawCircle(cx, cy, radius * 0.72f, paint)
         canvas.drawLine(cx - radius * 0.3f, cy, cx + radius * 0.3f, cy, paint)
         canvas.drawLine(cx, cy - radius * 0.3f, cx, cy + radius * 0.3f, paint)
         val knobRadius = radius * 0.34f
         val knobX = cx + knobOffsetX
         val knobY = cy + knobOffsetY
-        fill(if (p != null) primary else surface, opacity)
+        fill(tint ?: if (p != null) primary else surface, opacity)
         canvas.drawCircle(knobX, knobY, knobRadius, paint)
-        stroke(if (p != null) primary else outline, dp(1.4f), opacity)
+        stroke(tint ?: if (p != null) primary else outline, dp(1.4f), opacity)
         canvas.drawCircle(knobX, knobY, knobRadius, paint)
         if (workspace.isEditing && !control.triggerOnly) {
             chip(canvas, stickName(control.stickTarget), cx, rect.bottom - dp(12), rect.width, outline)

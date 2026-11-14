@@ -98,6 +98,7 @@ object TouchValidator {
         library.templates.forEach { template ->
             val t = "templates.${template.id}"
             check(template.name.isNotBlank(), "$t.name", "Name must not be blank")
+            range(template.globalOpacity, 0f, 1f, "$t.globalOpacity")
             ids(template.controls.map { it.id }, "$t.controls")
             ids(template.screens.map { it.id }, "$t.screens")
             check(template.screens.isNotEmpty(), "$t.screens", "At least one saved screen is required")
@@ -110,6 +111,7 @@ object TouchValidator {
                 range(control.opacity, 0f, 1f, "$c.opacity")
                 check(!control.showBorder || control.isArea, "$c.showBorder", "Borders are only available on area controls")
                 check(!control.showText || control.showBorder, "$c.showText", "Text requires a border")
+                check(!control.showFill || control.showBorder, "$c.showFill", "Fill requires a border")
                 check(!control.triggerOnly || control.type == ControlType.STICK, "$c.triggerOnly", "Trigger-only display requires a stick")
                 when (control.type) {
                     ControlType.BUTTON -> binding(control.binding, "$c.binding")
