@@ -75,6 +75,7 @@ object TouchValidator {
             positive(preset.exponent, "$p.exponent")
             positive(preset.maximumSpeed, "$p.maximumSpeed")
             range(preset.smoothingMs, 0f, 10000f, "$p.smoothingMs")
+            range(preset.turnSmoothingMs, 0f, 10000f, "$p.turnSmoothingMs")
             check(preset.stopTimeoutMs in 1..10000, "$p.stopTimeoutMs", "Must be 1..10000 ms")
             if (preset.curve.isNotEmpty()) {
                 check(

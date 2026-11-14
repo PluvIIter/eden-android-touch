@@ -253,6 +253,8 @@
     <string name="touch_tools_hint_max_speed_edge">Finger speed in screen short-edges/s that produces full stick output. Higher is less sensitive.</string>
     <string name="touch_tools_hint_deadzone">Smallest output once movement starts. Raise it if the game ignores small stick input.</string>
     <string name="touch_tools_hint_smoothing">0 follows the finger immediately. Higher is steadier but lags.</string>
+    <string name="touch_tools_turn_smoothing">Turn smoothing (0–10000 ms)</string>
+    <string name="touch_tools_hint_turn_smoothing">Smooths direction changes without reducing output magnitude. 0 snaps instantly.</string>
     <string name="touch_tools_hint_exponent">Below 1 is livelier; above 1 is finer near the centre.</string>
     <string name="touch_tools_hint_curve">Control points are input:output pairs; keep inputs increasing from 0:0 to 1:1.</string>
     <string name="touch_tools_hint_stop_timeout">How long after the finger stops before output returns to zero.</string>

@@ -253,6 +253,8 @@
     <string name="touch_tools_hint_max_speed_edge">手指速度达到该值（屏幕短边/秒）时输出满幅；越大越不灵敏。</string>
     <string name="touch_tools_hint_deadzone">开始移动后的最小输出；游戏对手柄小幅度输入不敏感时调大。</string>
     <string name="touch_tools_hint_smoothing">0 表示立刻跟手；越大越稳，但延迟越明显。</string>
+    <string name="touch_tools_turn_smoothing">转向平滑（0–10000 毫秒）</string>
+    <string name="touch_tools_hint_turn_smoothing">平滑方向变化但不降低输出幅度；0 表示方向立即切换。</string>
     <string name="touch_tools_hint_exponent">小于 1 更灵敏；大于 1 在中心附近更细腻。</string>
     <string name="touch_tools_hint_curve">控制点按「输入:输出」填写，输入必须从 0:0 单调递增到 1:1。</string>
     <string name="touch_tools_hint_stop_timeout">手指停止移动后多久，输出归零。</string>

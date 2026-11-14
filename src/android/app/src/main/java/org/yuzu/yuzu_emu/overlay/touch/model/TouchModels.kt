@@ -150,6 +150,7 @@ data class SwipePreset(
     val curve: List<CurvePoint> = emptyList(),
     val maximumSpeed: Float = 2f,
     val smoothingMs: Float = 0f,
+    val turnSmoothingMs: Float = 24f,
     val stopTimeoutMs: Long = 40,
     val notes: String = ""
 )

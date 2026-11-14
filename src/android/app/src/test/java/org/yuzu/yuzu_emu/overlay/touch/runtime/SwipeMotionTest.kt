@@ -68,6 +68,19 @@ class SwipeMotionTest {
         assertTrue(second > first)
     }
 
+    @Test fun turnSmoothingPreservesMagnitudeAcrossAxisSwitch() {
+        val motion = SwipeMotion(preset.copy(smoothingMs = 0f, turnSmoothingMs = 30f), 1f, 1000f, 0)
+        motion.move(8000f, 0f, 8)
+        assertEquals(1f, motion.tick(8, 8).x, 0.0001f)
+        motion.move(0f, -8000f, 16)
+        var minimum = 2f
+        for (time in 16L..48L step 8) {
+            val output = motion.tick(time, 8)
+            minimum = minOf(minimum, kotlin.math.hypot(output.x, output.y))
+        }
+        assertTrue("minimum=$minimum", minimum > 0.95f)
+    }
+
     @Test fun partialTickStillAppliesDeadzoneAndCurve() {
         val motion = SwipeMotion(preset.copy(deadzone = 0.2f, exponent = 2f), 1f, 1000f, 0)
         motion.move(500f, 0f, 1)
@@ -111,6 +124,7 @@ class SwipeMotionTest {
         assertFalse(SwipeMotion.valid(preset.copy(sensitivityX = Float.POSITIVE_INFINITY)))
         assertFalse(SwipeMotion.valid(preset.copy(curve = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 0.5f)))))
         assertFalse(SwipeMotion.valid(preset.copy(stopTimeoutMs = 0)))
+        assertFalse(SwipeMotion.valid(preset.copy(turnSmoothingMs = -1f)))
         assertTrue(SwipeMotion.valid(preset))
     }
 }

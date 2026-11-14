@@ -1317,6 +1317,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 10000f,
                 helper = s(R.string.touch_tools_hint_smoothing)
             ) { update { p -> p.copy(smoothingMs = it) } }
+            number(
+                body,
+                s(R.string.touch_tools_turn_smoothing),
+                preset.turnSmoothingMs,
+                0f,
+                10000f,
+                helper = s(R.string.touch_tools_hint_turn_smoothing)
+            ) { update { p -> p.copy(turnSmoothingMs = it) } }
             body.addView(
                 SwipeCurveView(context) { workspace.draft.presets.first { it.id == id } },
                 LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, px(130))
@@ -1330,6 +1338,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             sensitivityY = 1f,
                             deadzone = 0.15f,
                             smoothingMs = 0f,
+                            turnSmoothingMs = 24f,
                             maximumSpeed = if (p.scale == MotionScale.DP) 2f * shortEdgeDp else 2f
                         )
                     }

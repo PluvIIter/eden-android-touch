@@ -25,8 +25,9 @@ internal class SwipeMotion(
 ) {
     private var targetX = 0.0
     private var targetY = 0.0
-    private var velocityX = 0.0
-    private var velocityY = 0.0
+    private var magnitude = 0.0
+    private var angle = 0.0
+    private var hasAngle = false
     private var lastEvent = timeMs
     private var lastMotion = timeMs
     private var output = StickVector()
@@ -36,8 +37,9 @@ internal class SwipeMotion(
     fun reset(timeMs: Long) {
         targetX = 0.0
         targetY = 0.0
-        velocityX = 0.0
-        velocityY = 0.0
+        magnitude = 0.0
+        angle = 0.0
+        hasAngle = false
         lastEvent = timeMs
         lastMotion = timeMs
         output = StickVector()
@@ -74,30 +76,62 @@ internal class SwipeMotion(
         if (timeMs - lastMotion >= preset.stopTimeoutMs) {
             targetX = 0.0
             targetY = 0.0
-            velocityX = 0.0
-            velocityY = 0.0
+            magnitude = 0.0
+            angle = 0.0
+            hasAngle = false
             saturated = false
             output = ZERO
             return output
         }
-        val alpha = if (preset.smoothingMs <= 0f) {
+        val targetMagnitude = hypot(targetX, targetY)
+        val targetAngle = if (targetMagnitude > EPSILON) {
+            kotlin.math.atan2(targetY, targetX)
+        } else {
+            angle
+        }
+        val magnitudeAlpha = if (preset.smoothingMs <= 0f) {
             1.0
         } else {
             1.0 - exp(-elapsedMs / preset.smoothingMs.toDouble())
         }
-        velocityX += (targetX - velocityX) * alpha
-        velocityY += (targetY - velocityY) * alpha
-        val magnitude = hypot(velocityX, velocityY)
-        if (magnitude <= EPSILON) {
+        val angleAlpha = if (preset.turnSmoothingMs <= 0f) {
+            1.0
+        } else {
+            1.0 - exp(-elapsedMs / preset.turnSmoothingMs.toDouble())
+        }
+        if (targetMagnitude > EPSILON) {
+            if (!hasAngle) {
+                angle = targetAngle
+                hasAngle = true
+            } else {
+                angle = normalizeAngle(angle + shortestAngle(targetAngle - angle) * angleAlpha)
+            }
+        }
+        magnitude += (targetMagnitude - magnitude) * magnitudeAlpha
+        if (!hasAngle || magnitude <= EPSILON) {
             output = ZERO
             return output
         }
         val compensated = compensate(min(magnitude, 1.0).toFloat(), preset)
         output = StickVector(
-            (velocityX / magnitude * compensated).toFloat(),
-            (velocityY / magnitude * compensated).toFloat()
+            (kotlin.math.cos(angle) * compensated).toFloat(),
+            (kotlin.math.sin(angle) * compensated).toFloat()
         )
         return output
+    }
+
+    private fun shortestAngle(delta: Double): Double {
+        var value = delta % TWO_PI
+        if (value > kotlin.math.PI) value -= TWO_PI
+        if (value < -kotlin.math.PI) value += TWO_PI
+        return value
+    }
+
+    private fun normalizeAngle(value: Double): Double {
+        var result = value % TWO_PI
+        if (result > kotlin.math.PI) result -= TWO_PI
+        if (result < -kotlin.math.PI) result += TWO_PI
+        return result
     }
 
     fun update(updated: SwipePreset, timeMs: Long): Boolean {
@@ -133,11 +167,14 @@ internal class SwipeMotion(
     companion object {
         private val ZERO = StickVector()
         private const val EPSILON = 0.000000001
+        private const val TWO_PI = Math.PI * 2.0
         fun valid(preset: SwipePreset): Boolean = with(preset) {
             sensitivityX.isFinite() && sensitivityY.isFinite() && sensitivityX > 0f && sensitivityY > 0f &&
                 deadzone.isFinite() && deadzone >= 0f && deadzone < 1f &&
                 exponent.isFinite() && exponent > 0f && maximumSpeed.isFinite() && maximumSpeed > 0f &&
-                smoothingMs.isFinite() && smoothingMs in 0f..10000f && stopTimeoutMs in 1..10000 &&
+                smoothingMs.isFinite() && smoothingMs in 0f..10000f &&
+                turnSmoothingMs.isFinite() && turnSmoothingMs in 0f..10000f &&
+                stopTimeoutMs in 1..10000 &&
                 curve.all { it.input.isFinite() && it.output.isFinite() && it.input in 0f..1f && it.output in 0f..1f } &&
                 (
                     curve.isEmpty() || (
