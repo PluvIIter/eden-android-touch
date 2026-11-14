@@ -18,7 +18,7 @@ import org.yuzu.yuzu_emu.model.GamesViewModel
 import org.yuzu.yuzu_emu.model.HomeViewModel
 import org.yuzu.yuzu_emu.model.InstallResult
 import org.yuzu.yuzu_emu.model.TaskState
-import org.yuzu.yuzu_emu.overlay.touch.store.TouchStorage
+import org.yuzu.yuzu_emu.overlay.touch.TouchStorage
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File

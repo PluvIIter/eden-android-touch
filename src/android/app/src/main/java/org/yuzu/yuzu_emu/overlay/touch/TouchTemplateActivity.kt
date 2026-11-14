@@ -57,7 +57,6 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportExport
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportPreview
 import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
-import org.yuzu.yuzu_emu.overlay.touch.store.TouchStorage
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchObjectKind
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
