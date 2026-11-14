@@ -1419,22 +1419,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     10000f,
                     helper = s(R.string.touch_tools_hint_stop_timeout)
                 ) { update { p -> p.copy(stopTimeoutMs = it.toLong()) } }
-                number(
-                    section,
-                    s(R.string.touch_tools_accumulation),
-                    preset.maxAccumulationMs.toFloat(),
-                    1f,
-                    1000f,
-                    helper = s(R.string.touch_tools_hint_accumulation)
-                ) { update { p -> p.copy(maxAccumulationMs = it.toLong()) } }
                 section.addView(label(s(R.string.touch_tools_release_hint)))
                 section.addView(
                     button(s(R.string.touch_tools_reset_timing)) {
                         update {
-                            it.copy(
-                                stopTimeoutMs = 40,
-                                maxAccumulationMs = 16
-                            )
+                            it.copy(stopTimeoutMs = 40)
                         }
                         showTuning(id, live, tab, snapshot)
                     }

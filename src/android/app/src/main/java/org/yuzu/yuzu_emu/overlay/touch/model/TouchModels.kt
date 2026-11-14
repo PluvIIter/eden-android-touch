@@ -151,7 +151,6 @@ data class SwipePreset(
     val maximumSpeed: Float = 2f,
     val smoothingMs: Float = 0f,
     val stopTimeoutMs: Long = 40,
-    val maxAccumulationMs: Long = 16,
     val notes: String = ""
 )
 

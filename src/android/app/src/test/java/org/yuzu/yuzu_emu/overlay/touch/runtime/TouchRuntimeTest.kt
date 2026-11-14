@@ -385,7 +385,7 @@ class TouchRuntimeTest {
         assertVector(0f, 0f)
         runtime.move(2, 118f, 20f, 9)
         runtime.tick(16)
-        assertVector(0.5f, 0f)
+        assertVector(1f, 0f)
         runtime.tick(56)
         assertVector(0f, 0f)
         runtime.move(1, 50f, 0f, 57)

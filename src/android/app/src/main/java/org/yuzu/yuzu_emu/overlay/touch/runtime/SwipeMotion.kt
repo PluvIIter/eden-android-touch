@@ -10,29 +10,23 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.pow
 
+/**
+ * Continuous-time swipe response.
+ *
+ * Touch samples establish a target velocity; ticks smooth that velocity in real time. This keeps
+ * the output independent of the Android touch sample rate (60/90/120 Hz or jittered batches)
+ * instead of consuming discrete per-event segments on a fixed 8 ms grid.
+ */
 internal class SwipeMotion(
     var preset: SwipePreset,
     private val density: Float,
     private val shortEdge: Float,
     timeMs: Long
 ) {
-    private class Response(val preset: SwipePreset) {
-        var queued = 0
-        var inputX = 0.0
-        var inputY = 0.0
-        var remainingX = 0.0
-        var remainingY = 0.0
-        var velocityX = 0.0
-        var velocityY = 0.0
-        var emittedX = 0.0
-        var emittedY = 0.0
-    }
-    private data class Segment(var duration: Double, val vx: Double, val vy: Double, val response: Response)
-
-    private val pending = ArrayDeque<Segment>()
-    private val responses = ArrayList<Response>()
-    private var response = Response(preset).also { responses.add(it) }
-    private var pendingMs = 0.0
+    private var targetX = 0.0
+    private var targetY = 0.0
+    private var velocityX = 0.0
+    private var velocityY = 0.0
     private var lastEvent = timeMs
     private var lastMotion = timeMs
     private var output = StickVector()
@@ -40,10 +34,10 @@ internal class SwipeMotion(
         private set
 
     fun reset(timeMs: Long) {
-        pending.clear()
-        pendingMs = 0.0
-        responses.clear()
-        response = Response(preset).also { responses.add(it) }
+        targetX = 0.0
+        targetY = 0.0
+        velocityX = 0.0
+        velocityY = 0.0
         lastEvent = timeMs
         lastMotion = timeMs
         output = StickVector()
@@ -71,178 +65,48 @@ internal class SwipeMotion(
             vx /= speed
             vy /= speed
         }
-        pending.addLast(Segment(duration, vx, vy, response))
-        response.queued++
-        pendingMs += duration
-        // A sample's elapsed history is not future backlog and must not be compressed into the cap.
-        var excess = pendingMs - maxOf(duration, preset.maxAccumulationMs.toDouble())
-        while (excess > EPSILON && pending.isNotEmpty()) {
-            val first = pending.first()
-            val removed = min(excess, first.duration)
-            first.duration -= removed
-            pendingMs -= removed
-            excess -= removed
-            saturated = true
-            if (first.duration <= EPSILON) pending.removeFirst().response.queued--
-        }
+        targetX = vx
+        targetY = vy
     }
 
     fun tick(timeMs: Long, elapsedMs: Long): StickVector {
         require(elapsedMs > 0)
-        if (pending.isEmpty() && responses.all {
-            hypot(it.remainingX, it.remainingY) <= EPSILON &&
-                hypot(it.velocityX, it.velocityY) <= EPSILON
-        }
-        ) {
+        if (timeMs - lastMotion >= preset.stopTimeoutMs) {
+            targetX = 0.0
+            targetY = 0.0
+            velocityX = 0.0
+            velocityY = 0.0
+            saturated = false
             output = ZERO
             return output
         }
-        if (timeMs - lastMotion >= preset.stopTimeoutMs) {
-            clearMotion()
+        val alpha = if (preset.smoothingMs <= 0f) {
+            1.0
+        } else {
+            1.0 - exp(-elapsedMs / preset.smoothingMs.toDouble())
+        }
+        velocityX += (targetX - velocityX) * alpha
+        velocityY += (targetY - velocityY) * alpha
+        val magnitude = hypot(velocityX, velocityY)
+        if (magnitude <= EPSILON) {
+            output = ZERO
             return output
         }
-        var remaining = elapsedMs.toDouble()
-        while (remaining > EPSILON && pending.isNotEmpty()) {
-            val segment = pending.first()
-            val duration = min(remaining, segment.duration)
-            segment.response.inputX += segment.vx * duration
-            segment.response.inputY += segment.vy * duration
-            remaining -= duration
-            segment.duration -= duration
-            pendingMs -= duration
-            if (segment.duration <= EPSILON) pending.removeFirst().response.queued--
-        }
-        val finalFrame = timeMs + elapsedMs - lastMotion >= preset.stopTimeoutMs
-        if (finalFrame) {
-            while (pending.isNotEmpty()) {
-                val segment = pending.removeFirst()
-                segment.response.queued--
-                segment.response.inputX += segment.vx * segment.duration
-                segment.response.inputY += segment.vy * segment.duration
-            }
-            pendingMs = 0.0
-        }
-        var x = 0.0
-        var y = 0.0
-        for (state in responses) {
-            state.remainingX += state.inputX
-            state.remainingY += state.inputY
-            val alpha = if (state.preset.smoothingMs == 0f) {
-                1.0
-            } else {
-                1.0 - exp(-elapsedMs / state.preset.smoothingMs.toDouble())
-            }
-            state.velocityX += (state.inputX / elapsedMs - state.velocityX) * alpha
-            state.velocityY += (state.inputY / elapsedMs - state.velocityY) * alpha
-            // Limit filter latency without throwing away an otherwise achievable request.
-            val horizon = maxOf(
-                elapsedMs.toDouble(),
-                minOf(
-                    state.preset.maxAccumulationMs.toDouble(),
-                    (lastMotion + preset.stopTimeoutMs - timeMs).toDouble()
-                )
-            )
-            val release = elapsedMs / horizon
-            state.emittedX = state.remainingX * release / elapsedMs
-            state.emittedY = state.remainingY * release / elapsedMs
-            if (!finalFrame && hypot(state.velocityX, state.velocityY) > hypot(state.emittedX, state.emittedY)) {
-                state.emittedX = state.velocityX
-                state.emittedY = state.velocityY
-            }
-            val debtLength = hypot(state.remainingX, state.remainingY)
-            val emittedLength = hypot(state.emittedX, state.emittedY)
-            if (finalFrame || emittedLength * elapsedMs >= debtLength ||
-                state.emittedX * state.remainingX + state.emittedY * state.remainingY <= 0.0
-            ) {
-                state.emittedX = state.remainingX / elapsedMs
-                state.emittedY = state.remainingY / elapsedMs
-            }
-            x += state.emittedX
-            y += state.emittedY
-            state.inputX = 0.0
-            state.inputY = 0.0
-        }
-        val magnitude = hypot(x, y)
-        saturated = saturated || magnitude > 1.0
-        var amplitude = 0.0
-        var weight = 0.0
-        for (state in responses) {
-            val share = hypot(state.emittedX, state.emittedY)
-            amplitude += compensate(min(magnitude, 1.0).toFloat(), state.preset) * share
-            weight += share
-            // Saturated excess is discarded rather than returned to the smoothing accumulator.
-            state.remainingX -= state.emittedX * elapsedMs
-            state.remainingY -= state.emittedY * elapsedMs
-            val debt = hypot(state.remainingX, state.remainingY)
-            if (debt > state.preset.maxAccumulationMs) {
-                val bounded = state.preset.maxAccumulationMs / debt
-                state.remainingX *= bounded
-                state.remainingY *= bounded
-                saturated = true
-            }
-        }
-        output = if (magnitude <= EPSILON || weight <= EPSILON) {
-            ZERO
-        } else {
-            val compensated = amplitude / weight
-            StickVector(
-                (x / magnitude * compensated).toFloat(),
-                (y / magnitude * compensated).toFloat()
-            )
-        }
-        if (finalFrame) {
-            responses.forEach {
-                it.remainingX = 0.0
-                it.remainingY = 0.0
-                it.velocityX = 0.0
-                it.velocityY = 0.0
-            }
-        }
-        pruneResponses()
+        val compensated = compensate(min(magnitude, 1.0).toFloat(), preset)
+        output = StickVector(
+            (velocityX / magnitude * compensated).toFloat(),
+            (velocityY / magnitude * compensated).toFloat()
+        )
         return output
-    }
-
-    private fun pruneResponses() {
-        val iterator = responses.iterator()
-        while (iterator.hasNext()) {
-            val state = iterator.next()
-            if (state !== response && state.queued == 0 &&
-                hypot(state.remainingX, state.remainingY) <= EPSILON &&
-                hypot(state.velocityX, state.velocityY) <= EPSILON
-            ) {
-                iterator.remove()
-            }
-        }
-    }
-
-    private fun clearMotion() {
-        pending.clear()
-        pendingMs = 0.0
-        responses.forEach {
-            it.queued = 0
-            it.inputX = 0.0
-            it.inputY = 0.0
-            it.remainingX = 0.0
-            it.remainingY = 0.0
-            it.velocityX = 0.0
-            it.velocityY = 0.0
-        }
-        pruneResponses()
-        output = ZERO
     }
 
     fun update(updated: SwipePreset, timeMs: Long): Boolean {
         val incompatible = preset.scale != updated.scale || preset.invertX != updated.invertX ||
             preset.invertY != updated.invertY || preset.swapAxes != updated.swapAxes
         preset = updated
-        val stationary = pending.isEmpty() && timeMs - lastMotion >= updated.stopTimeoutMs
-        if (incompatible || stationary) {
-            reset(timeMs)
-        } else {
-            response = Response(updated).also { responses.add(it) }
-            pruneResponses()
-        }
-        return incompatible || stationary
+        val needsReset = incompatible || timeMs - lastMotion >= updated.stopTimeoutMs
+        if (needsReset) reset(timeMs)
+        return needsReset
     }
 
     private fun compensate(speed: Float, preset: SwipePreset): Float {
@@ -273,7 +137,7 @@ internal class SwipeMotion(
             sensitivityX.isFinite() && sensitivityY.isFinite() && sensitivityX > 0f && sensitivityY > 0f &&
                 deadzone.isFinite() && deadzone >= 0f && deadzone < 1f &&
                 exponent.isFinite() && exponent > 0f && maximumSpeed.isFinite() && maximumSpeed > 0f &&
-                smoothingMs.isFinite() && smoothingMs in 0f..10000f && stopTimeoutMs in 1..10000 && maxAccumulationMs in 1..1000 &&
+                smoothingMs.isFinite() && smoothingMs in 0f..10000f && stopTimeoutMs in 1..10000 &&
                 curve.all { it.input.isFinite() && it.output.isFinite() && it.input in 0f..1f && it.output in 0f..1f } &&
                 (
                     curve.isEmpty() || (

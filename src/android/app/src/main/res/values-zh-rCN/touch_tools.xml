@@ -145,8 +145,7 @@
     <string name="touch_tools_speed_edge">最大速度（屏幕短边／秒）</string>
     <string name="touch_tools_smoothing">平滑时间（0–10000 毫秒）</string>
     <string name="touch_tools_stop_timeout">停止归零时间（1–10000 毫秒）</string>
-    <string name="touch_tools_accumulation">积压时间上限（1–1000 毫秒）</string>
-    <string name="touch_tools_release_hint">抬手始终清空待消费位移；超过积压上限的位移直接丢弃。</string>
+    <string name="touch_tools_release_hint">手指停止移动后，输出保持当前速度直到停止超时，然后归零；抬手会立即清空。</string>
     <string name="touch_tools_reset_timing">重置时间响应</string>
     <string name="touch_tools_preset_name">参数模板名称</string>
     <string name="touch_tools_calibration_notes">校准与游戏内灵敏度备注</string>
@@ -257,7 +256,6 @@
     <string name="touch_tools_hint_exponent">小于 1 更灵敏；大于 1 在中心附近更细腻。</string>
     <string name="touch_tools_hint_curve">控制点按「输入:输出」填写，输入必须从 0:0 单调递增到 1:1。</string>
     <string name="touch_tools_hint_stop_timeout">手指停止移动后多久，输出归零。</string>
-    <string name="touch_tools_hint_accumulation">允许排队的总位移；越小越跟手。</string>
     <string name="touch_tools_hint_scale">切换尺度时会自动在 dp/秒 与 屏幕短边/秒 之间换算最大转速。</string>
     <string name="touch_tools_stick_size">摇杆大小</string>
     <string name="touch_tools_hint_stick_size">摇杆圆的直径，同时决定输入半径；开启触摸时显示后，矩形只决定触发范围。</string>

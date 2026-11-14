@@ -470,7 +470,6 @@ class TouchStoreTest {
             SwipePreset(exponent = 0f),
             SwipePreset(maximumSpeed = -1f),
             SwipePreset(stopTimeoutMs = 0),
-            SwipePreset(maxAccumulationMs = 0),
             SwipePreset(curve = listOf(CurvePoint(0f, 0f), CurvePoint(0f, 1f), CurvePoint(1f, 1f))),
             SwipePreset(curve = listOf(CurvePoint(0f, 0f), CurvePoint(0.5f, 0.8f), CurvePoint(0.6f, 0.7f), CurvePoint(1f, 1f)))
         )

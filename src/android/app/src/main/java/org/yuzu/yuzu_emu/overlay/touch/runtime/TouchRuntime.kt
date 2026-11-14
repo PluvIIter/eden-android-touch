@@ -241,13 +241,12 @@ class TouchRuntime(private val sink: InputSink) {
             }
             tickTime = time
         } else {
-            val elapsed = (time - previous) / TICK_MS * TICK_MS
+            val elapsed = time - previous
             if (elapsed > 0) {
-                val frame = previous + elapsed
                 for (capture in captures.values) {
-                    capture.motion?.let { aggregate.vector(capture.source, it.tick(frame, elapsed)) }
+                    capture.motion?.let { aggregate.vector(capture.source, it.tick(time, elapsed)) }
                 }
-                tickTime = frame
+                tickTime = time
             }
         }
         for ((source, repeater) in repeaters) {
