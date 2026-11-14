@@ -57,6 +57,7 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportExport
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportPreview
 import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchStorage
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchObjectKind
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
@@ -723,7 +724,16 @@ class TouchTemplateActivity : AppCompatActivity() {
         private const val MAX_IMPORT_BYTES = 4_000_000
         private const val MENU_IMPORT = 1
         private const val MENU_DEFAULT = 2
-        fun repository(context: Context): TouchRepository = TouchRepository(File(context.filesDir, "touch/templates.json")) { TouchDefaultLibrary.create(context) }
+        fun repository(context: Context): TouchRepository {
+            val appContext = context.applicationContext
+            val target = TouchStorage.file(appContext)
+            val file = if (TouchStorage.migrate(appContext)) {
+                target
+            } else {
+                TouchStorage.legacyFile(appContext)
+            }
+            return TouchRepository(file) { TouchDefaultLibrary.create(appContext) }
+        }
         fun intent(context: Context, gameId: String? = null): Intent = Intent(context, TouchTemplateActivity::class.java).putExtra(EXTRA_GAME_ID, gameId)
     }
 }

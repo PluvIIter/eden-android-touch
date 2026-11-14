@@ -18,6 +18,7 @@ import org.yuzu.yuzu_emu.model.GamesViewModel
 import org.yuzu.yuzu_emu.model.HomeViewModel
 import org.yuzu.yuzu_emu.model.InstallResult
 import org.yuzu.yuzu_emu.model.TaskState
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchStorage
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -313,6 +314,7 @@ object InstallableActions {
             R.string.exporting_user_data,
             true
         ) { progressCallback, _ ->
+            TouchStorage.migrate(activity.applicationContext)
             val zipResult = FileUtil.zipFromInternalStorage(
                 File(userDirectory),
                 userDirectory,
@@ -390,6 +392,7 @@ object InstallableActions {
 
             NativeLibrary.initializeSystem(true)
             NativeConfig.initializeGlobalConfig()
+            TouchStorage.deleteLegacy(activity.applicationContext)
             gamesViewModel.reloadGames(false)
             driverViewModel.reloadDriverData()
 

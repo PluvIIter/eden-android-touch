@@ -12,6 +12,7 @@ import org.yuzu.yuzu_emu.features.settings.model.IntSetting
 import org.yuzu.yuzu_emu.features.settings.model.Settings
 import org.yuzu.yuzu_emu.overlay.model.OverlayControlData
 import org.yuzu.yuzu_emu.overlay.model.OverlayControl
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchStorage
 import org.yuzu.yuzu_emu.overlay.model.OverlayLayout
 import org.yuzu.yuzu_emu.utils.PreferenceUtil.migratePreference
 
@@ -23,6 +24,7 @@ object DirectoryInitialization {
     fun start() {
         if (!areDirectoriesReady) {
             initializeInternalStorage()
+            TouchStorage.migrate(YuzuApplication.appContext)
             NativeConfig.initializeGlobalConfig()
             NativeLibrary.initializeSystem(false)
             NativeLibrary.reloadProfiles()
