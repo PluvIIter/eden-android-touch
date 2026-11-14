@@ -57,6 +57,7 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportExport
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchImportPreview
 import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
+import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchObjectKind
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRepository
@@ -132,7 +133,9 @@ class TouchTemplateActivity : AppCompatActivity() {
         if (sanitized.removed.isNotEmpty()) {
             library = sanitized.library
             pendingRemoved = sanitized.removed
-            runCatching { library = repository.save(library, library.revision) }.onFailure { report(it) }
+            if (TouchValidator.validate(library).isEmpty()) {
+                runCatching { library = repository.save(library, library.revision) }
+            }
         }
         onBackPressedDispatcher.addCallback(
             this,

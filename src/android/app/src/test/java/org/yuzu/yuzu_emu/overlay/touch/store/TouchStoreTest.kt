@@ -75,6 +75,26 @@ class TouchStoreTest {
         assertArrayEquals(bytes, file.readBytes())
     }
 
+    @Test fun semanticallyInvalidLibraryLoadsForAutomaticCleanup() {
+        val file = File(Files.createTempDirectory("touch-invalid-load").toFile(), "library.json")
+        val original = TouchDefaults.library()
+        val template = original.templates.single()
+        val invalid = original.copy(
+            templates = listOf(
+                template.copy(
+                    controls = template.controls + TouchControl(binding = ButtonBinding(emptySet()))
+                )
+            )
+        )
+        file.writeText(TouchImportExport.json.encodeToString(invalid))
+        val loaded = TouchRepository(file).load()
+        assertEquals(invalid.templates.single().controls, loaded.templates.single().controls)
+        val sanitized = TouchSanitizer.sanitize(loaded, 1f)
+        assertTrue(sanitized.removed.isNotEmpty())
+        val remaining = TouchValidator.validate(sanitized.library)
+        assertTrue("$remaining", remaining.isEmpty())
+    }
+
     @Test fun corruptAndUnsupportedLibraryAreNotReplacedWithDefaults() {
         val file = File(Files.createTempDirectory("touch-corrupt-test").toFile(), "library.json")
         file.writeText("{\"version\":99,\"revision\":0}")

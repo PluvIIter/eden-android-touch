@@ -67,7 +67,6 @@ class TouchRepository(file: File, private val createDefaults: () -> TouchLibrary
         require(root.containsKey("revision")) { "Missing touch library revision" }
         TouchImportExport.requireStableIds(root)
         val library = TouchImportExport.json.decodeFromString<TouchLibrary>(text).immutableSnapshot()
-        TouchValidator.requireValid(library)
         return library
     }
 

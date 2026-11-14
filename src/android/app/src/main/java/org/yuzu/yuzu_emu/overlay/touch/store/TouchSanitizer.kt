@@ -23,10 +23,10 @@ object TouchSanitizer {
         current = current.copy(templates = current.templates.map { template ->
             val seen = mutableSetOf<String>()
             val kept = template.controls.filter { control ->
-                if (seen.add(control.id)) {
+                if (control.id.isNotBlank() && seen.add(control.id)) {
                     true
                 } else {
-                    if (!removed.containsKey(control.id)) {
+                    if (control.id.isNotBlank() && !removed.containsKey(control.id)) {
                         removed[control.id] = RemovedControl(
                             control.id,
                             control.name.ifBlank { control.text },
@@ -36,17 +36,13 @@ object TouchSanitizer {
                     false
                 }
             }
-            if (kept.size == template.controls.size) {
-                template
-            } else {
-                val ids = kept.map { it.id }.toSet()
-                template.copy(
-                    controls = kept,
-                    screens = template.screens.map { screen ->
-                        screen.copy(placements = screen.placements.filterKeys { it in ids })
-                    }
-                )
-            }
+            val ids = kept.map { it.id }.toSet()
+            template.copy(
+                controls = kept,
+                screens = template.screens.map { screen ->
+                    screen.copy(placements = screen.placements.filterKeys { it in ids })
+                }
+            )
         })
         repeat(4) {
             val issues = TouchValidator.validate(current)
