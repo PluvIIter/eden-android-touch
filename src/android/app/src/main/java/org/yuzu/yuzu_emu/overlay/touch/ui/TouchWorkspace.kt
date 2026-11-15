@@ -87,6 +87,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             runtime.setTouchscreenEnabled(value && isolatedId == null)
         }
     private var controlsHidden = false
+    internal data class LastGeometry(
+        val bounds: TouchRect,
+        val shape: ControlShape,
+        val stickDiameter: Float
+    )
+    private val lastGeometryByType = mutableMapOf<ControlType, LastGeometry>()
     var snapToGrid: Boolean = runCatching {
         BooleanSetting.OVERLAY_SNAP_TO_GRID.getBoolean()
     }.getOrDefault(true)
@@ -570,7 +576,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun applyAllColors(color: Int?) {
-        replaceTemplate(template.copy(controls = template.controls.map { it.copy(color = color) }))
+        replaceTemplate(
+            template.copy(
+                globalColor = color,
+                controls = template.controls.map { it.copy(color = color) }
+            )
+        )
         canvas.invalidate()
     }
 
@@ -612,11 +623,22 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     internal fun select(id: String) {
         if (layoutRetired) return
+        template.controls.firstOrNull { it.id == id }?.let(::rememberGeometry)
         selectedId = id
         tools.refreshToolbar()
         canvas.invalidate()
         if (isEditing) tools.onControlSelected(id)
     }
+
+    private fun rememberGeometry(control: TouchControl) {
+        lastGeometryByType[control.type] = LastGeometry(
+            placements[control.id] ?: control.bounds,
+            control.shape,
+            control.stickDiameter
+        )
+    }
+
+    internal fun lastGeometry(type: ControlType): LastGeometry? = lastGeometryByType[type]
 
     internal fun prepareGeometryAdjustment() {
         hideKeyboard()
@@ -922,7 +944,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     private fun beginGeometry(pointer: Int, x: Float, y: Float) {
         pendingControl?.let { control ->
-            val size = min(dp(72), min(safe.width(), safe.height()))
+            val width = control.bounds.width.coerceAtLeast(1f)
+            val height = control.bounds.height.coerceAtLeast(1f)
             val rect = if (control.isVisibleStick) {
                 val diameter = control.stickDiameter * resources.displayMetrics.density
                 TouchRect(
@@ -931,14 +954,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     diameter,
                     diameter
                 )
-            } else if (control.isArea) {
-                TouchRect(x, y, 1f, 1f)
             } else {
                 TouchRect(
-                    (x - size / 2).coerceIn(0f, safe.width() - size),
-                    (y - size / 2).coerceIn(0f, safe.height() - size),
-                    size,
-                    size
+                    (x - width / 2).coerceIn(0f, max(0f, safe.width() - width)),
+                    (y - height / 2).coerceIn(0f, max(0f, safe.height() - height)),
+                    width,
+                    height
                 )
             }
             gesture = GeometryGesture(pointer, x, y, rect, draft, 4, control.id, true, true)
@@ -988,7 +1009,18 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 abs(dx).coerceAtLeast(1f),
                 abs(dy).coerceAtLeast(1f)
             )
-        } else if (state.handle < 0 || state.creating) {
+        } else if (state.creating) {
+            val left = min(state.startX, x).coerceAtLeast(0f)
+            val top = min(state.startY, y).coerceAtLeast(0f)
+            val width = abs(dx).coerceAtLeast(1f)
+            val height = abs(dy).coerceAtLeast(1f)
+            if (control.shape == ControlShape.CIRCLE) {
+                val side = max(width, height)
+                TouchRect(left, top, side, side)
+            } else {
+                TouchRect(left, top, width, height)
+            }
+        } else if (state.handle < 0) {
             original.copy(
                 x = (original.x + dx).coerceIn(0f, max(0f, safe.width() - original.width)),
                 y = (original.y + dy).coerceIn(0f, max(0f, safe.height() - original.height))
@@ -1000,7 +1032,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             val bottom = if (state.handle == 2 || state.handle == 3) max(y, original.y + 1) else original.bottom
             TouchRect(left.coerceAtLeast(0f), top.coerceAtLeast(0f), right - left, bottom - top)
         }
-        if (control.type == ControlType.BUTTON && control.shape == ControlShape.CIRCLE) {
+        if ((control.type == ControlType.BUTTON || control.type == ControlType.VISIBILITY) &&
+            control.shape == ControlShape.CIRCLE
+        ) {
             val diameter = min(rect.width, rect.height)
             rect = rect.copy(width = diameter, height = diameter)
         }
@@ -1065,6 +1099,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     )
                 )
                 selectedId = control.id
+                rememberGeometry(control)
                 pendingControl = null
                 placementCancel.visibility = GONE
                 if (isEditing || testing) tools.visibility = VISIBLE

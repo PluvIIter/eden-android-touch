@@ -37,8 +37,10 @@ object TouchSanitizer {
                 }
             }
             val ids = kept.map { it.id }.toSet()
+            val inferredColor = kept.mapNotNull { it.color }.distinct().singleOrNull()
             template.copy(
                 controls = kept,
+                globalColor = template.globalColor ?: inferredColor,
                 screens = template.screens.map { screen ->
                     screen.copy(placements = screen.placements.filterKeys { it in ids })
                 }

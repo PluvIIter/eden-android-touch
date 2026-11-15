@@ -572,20 +572,29 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val h = surface.height.toFloat()
         if (w <= 0f || h <= 0f) return
         val margin = px(12f)
-        val maxX = (width - w).coerceAtLeast(0f)
-        val maxY = (height - h).coerceAtLeast(0f)
-        fun clamp(x: Float, y: Float): Pair<Float, Float> = x.coerceIn(0f, maxX) to y.coerceIn(0f, maxY)
+        val maxX = max(margin, width - w - margin)
+        val maxY = max(margin, height - h - margin)
+        fun clamp(x: Float, y: Float): Pair<Float, Float> =
+            x.coerceIn(margin, maxX) to y.coerceIn(margin, maxY)
+        // Keep the properties card away from the selected control instead of hugging its edge.
+        // Opposite corners and edge midpoints give the panel the clearest work area.
         val candidates = listOf(
-            clamp(avoid.right + margin, avoid.y),
-            clamp(avoid.x - margin - w, avoid.y),
-            clamp(avoid.x, avoid.bottom + margin),
-            clamp(avoid.x, avoid.y - margin - h),
-            clamp(avoid.right - w, avoid.y),
-            clamp(avoid.x, avoid.bottom - h),
-            clamp(avoid.right - w, avoid.bottom - h),
-            clamp(avoid.x, avoid.y)
+            clamp(margin, margin),
+            clamp(maxX, margin),
+            clamp(margin, maxY),
+            clamp(maxX, maxY),
+            clamp((margin + maxX) / 2f, margin),
+            clamp((margin + maxX) / 2f, maxY),
+            clamp(margin, (margin + maxY) / 2f),
+            clamp(maxX, (margin + maxY) / 2f)
         )
-        val (x, y) = candidates.minByOrNull { (cx, cy) -> overlapArea(cx, cy, w, h, avoid) } ?: (0f to 0f)
+        val controlX = avoid.x + avoid.width / 2f
+        val controlY = avoid.y + avoid.height / 2f
+        val (x, y) = candidates.maxByOrNull { (cx, cy) ->
+            val dx = cx + w / 2f - controlX
+            val dy = cy + h / 2f - controlY
+            dx * dx + dy * dy
+        } ?: (margin to margin)
         surface.x = x
         surface.y = y
         windows.values.firstOrNull { it.card === surface }?.let {
@@ -614,7 +623,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private fun showAppearance() {
         val body = openPanel(s(R.string.touch_tools_appearance), key = "appearance") ?: return
         val template = workspace.template
-        val commonColor = template.controls.mapNotNull { it.color }.distinct().singleOrNull()
+        val commonColor = template.globalColor
+            ?: template.controls.mapNotNull { it.color }.distinct().singleOrNull()
         body.addView(button(s(R.string.touch_tools_global_color, colorLabel(commonColor))) {
             chooseColor(commonColor) { color ->
                 workspace.applyAllColors(color)
@@ -755,19 +765,23 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             GroupKey(text = "↓", binding = ButtonBinding(setOf(15))),
             GroupKey(text = "←", binding = ButtonBinding(setOf(12)))
         )
+        val previous = workspace.lastGeometry(type)
         var control = TouchControl(
             name = "",
             text = "",
             type = type,
-            bounds = if (type == ControlType.STICK) {
+            opacity = workspace.template.globalOpacity.coerceIn(0f, 1f),
+            color = workspace.template.globalColor,
+            bounds = previous?.bounds ?: if (type == ControlType.STICK) {
                 TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)
             } else {
                 TouchRect()
             },
-            shape = if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
+            shape = previous?.shape ?: if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
             binding = if (type == ControlType.BUTTON || type == ControlType.VISIBILITY) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),
             groupKeys = if (type == ControlType.BUTTON_GROUP) faceKeys else TouchControl().groupKeys,
             stickTarget = if (type == ControlType.STICK) StickTarget.LEFT else StickTarget.RIGHT,
+            stickDiameter = previous?.stickDiameter ?: 96f,
             swipePresetId = workspace.draft.presets.firstOrNull()?.id,
             gestures = emptyMap()
         )
