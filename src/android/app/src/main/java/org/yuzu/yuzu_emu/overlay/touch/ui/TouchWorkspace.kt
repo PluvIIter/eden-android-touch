@@ -315,14 +315,19 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         )
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            tools.onImeInsets(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
-            val changed = insetsLeft != bars.left || insetsTop != bars.top ||
-                insetsRight != bars.right || insetsBottom != bars.bottom
-            insetsLeft = bars.left
-            insetsTop = bars.top
-            insetsRight = bars.right
-            insetsBottom = bars.bottom
-            if (changed) { releaseInputs(); updateGeometry() }
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            tools.onImeInsets(imeBottom)
+            // IME visibility can change the navigation-bar insets. While editing, keep the layout
+            // geometry stable so opening the keyboard does not resize/reposition every control.
+            if (imeBottom == 0 || !isEditing) {
+                val changed = insetsLeft != bars.left || insetsTop != bars.top ||
+                    insetsRight != bars.right || insetsBottom != bars.bottom
+                insetsLeft = bars.left
+                insetsTop = bars.top
+                insetsRight = bars.right
+                insetsBottom = bars.bottom
+                if (changed) { releaseInputs(); updateGeometry() }
+            }
             insets
         }
         tools.refreshToolbar()

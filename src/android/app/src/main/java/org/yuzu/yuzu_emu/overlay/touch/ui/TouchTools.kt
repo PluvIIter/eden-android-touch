@@ -775,7 +775,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             bounds = previous?.bounds ?: if (type == ControlType.STICK) {
                 TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)
             } else {
-                TouchRect(0f, 0f, 72f * resources.displayMetrics.density, 72f * resources.displayMetrics.density)
+                TouchRect()
             },
             shape = previous?.shape ?: if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
             binding = if (type == ControlType.BUTTON || type == ControlType.VISIBILITY) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),

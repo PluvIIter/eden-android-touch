@@ -633,6 +633,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     }
 
     private fun edit(templateId: String) {
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
