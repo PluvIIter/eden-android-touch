@@ -775,7 +775,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             bounds = previous?.bounds ?: if (type == ControlType.STICK) {
                 TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)
             } else {
-                TouchRect()
+                TouchRect(0f, 0f, 72f * resources.displayMetrics.density, 72f * resources.displayMetrics.density)
             },
             shape = previous?.shape ?: if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
             binding = if (type == ControlType.BUTTON || type == ControlType.VISIBILITY) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),
@@ -786,7 +786,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             gestures = emptyMap()
         )
         fun autoName(): String = when (type) {
-            ControlType.BUTTON -> if (control.binding.buttons.isEmpty()) "" else mappingLabel(control.binding.buttons)
+            ControlType.BUTTON -> if (control.buttonAction != ButtonAction.NONE) {
+                buttonActionName(control.buttonAction)
+            } else if (control.binding.buttons.isEmpty()) {
+                ""
+            } else {
+                mappingLabel(control.binding.buttons)
+            }
             ControlType.BUTTON_GROUP -> if (control.groupStyle == GroupStyle.DPAD) {
                 s(R.string.touch_workspace_dpad)
             } else {
@@ -819,20 +825,43 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ControlType.BUTTON -> {
                 body.addView(label(s(R.string.touch_tools_select_mapping)))
                 lateinit var mappingButton: MaterialButton
-                mappingButton = button(
-                    if (control.binding.buttons.isEmpty()) {
-                        s(R.string.touch_tools_select_mapping)
+                fun updateMappingLabel() {
+                    mappingButton.text = if (control.buttonAction == ButtonAction.NONE) {
+                        if (control.binding.buttons.isEmpty()) s(R.string.touch_tools_select_mapping) else mappingLabel(control.binding.buttons)
                     } else {
-                        mappingLabel(control.binding.buttons)
+                        s(R.string.touch_tools_action_value, buttonActionName(control.buttonAction))
                     }
+                }
+                mappingButton = button(
+                    if (control.binding.buttons.isEmpty()) s(R.string.touch_tools_select_mapping) else mappingLabel(control.binding.buttons)
                 ) {
-                    mapping(control.binding.buttons, false) {
+                    mapping(control.binding.buttons, false, special = { action ->
+                        control = control.copy(
+                            buttonAction = action,
+                            binding = ButtonBinding(emptySet()),
+                            targetTemplateId = null,
+                            hideSelf = false,
+                            text = buttonActionName(action)
+                        )
+                        updateMappingLabel()
+                        renameIfAuto()
+                        if (action == ButtonAction.SWITCH_TEMPLATE) {
+                            chooseNewButtonTemplate { target ->
+                                control = control.copy(targetTemplateId = target)
+                                updateMappingLabel()
+                                renameIfAuto()
+                            }
+                        }
+                    }) {
                         control = control.copy(
                             binding = control.binding.copy(buttons = it),
+                            buttonAction = ButtonAction.NONE,
+                            targetTemplateId = null,
+                            hideSelf = false,
                             shape = defaultButtonShape(it),
                             text = mappingLabel(it)
                         )
-                        mappingButton.text = mappingLabel(it)
+                        updateMappingLabel()
                         renameIfAuto()
                     }
                 }
@@ -880,8 +909,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             button(s(R.string.touch_tools_place)) {
                 if (!validFields()) return@button
                 if (control.name.isBlank()) { workspace.message(s(R.string.touch_tools_enter_name)); return@button }
-                if (control.type == ControlType.BUTTON && control.binding.buttons.isEmpty()) {
-                    workspace.message(s(R.string.touch_tools_mapping_missing)); return@button
+                if (control.type == ControlType.BUTTON) {
+                    if (control.buttonAction == ButtonAction.NONE && control.binding.buttons.isEmpty()) {
+                        workspace.message(s(R.string.touch_tools_mapping_missing)); return@button
+                    }
+                    if (control.buttonAction == ButtonAction.SWITCH_TEMPLATE && control.targetTemplateId == null) {
+                        workspace.message(s(R.string.touch_tools_missing_template)); return@button
+                    }
                 }
                 if (control.type == ControlType.SWIPE && control.swipePresetId == null) {
                     val preset = SwipePreset()
@@ -1305,6 +1339,27 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         body.addView(frequency)
     }
 
+    private fun buttonActionName(action: ButtonAction): String = when (action) {
+        ButtonAction.NONE -> s(R.string.touch_tools_action_normal)
+        ButtonAction.TOGGLE_VISIBILITY -> s(R.string.touch_tools_action_toggle_visibility)
+        ButtonAction.SWITCH_TEMPLATE -> s(R.string.touch_tools_action_switch_template)
+    }
+
+    private fun chooseNewButtonTemplate(onPick: (String) -> Unit) {
+        val templates = workspace.draft.templates.filter { it.id != workspace.templateId }
+        if (templates.isEmpty()) {
+            workspace.message(s(R.string.touch_tools_no_other_templates))
+            return
+        }
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.touch_tools_choose_template)
+            .setItems(templates.map { it.name }.toTypedArray()) { _, index ->
+                onPick(templates[index].id)
+            }
+            .setNegativeButton(R.string.touch_tools_cancel, null)
+            .show()
+    }
+
     private fun chooseButtonTemplate(controlId: String) {
         val templates = workspace.draft.templates.filter { it.id != workspace.templateId }
         if (templates.isEmpty()) {
@@ -1688,13 +1743,16 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun mappingKey(id: Int, onClick: () -> Unit): MaterialButton =
+        mappingKey(pickerLabel(id), s(R.string.touch_tools_mapping_button, buttonName(id)), onClick)
+
+    private fun mappingKey(label: String, description: String, onClick: () -> Unit): MaterialButton =
         MaterialButton(
             androidx.appcompat.view.ContextThemeWrapper(context, R.style.TouchButton_Theme_Text),
             null,
             com.google.android.material.R.attr.materialButtonStyle
         ).apply {
-            text = pickerLabel(id)
-            contentDescription = s(R.string.touch_tools_mapping_button, buttonName(id))
+            text = label
+            contentDescription = description
             isAllCaps = false
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
             minWidth = 0
@@ -1745,8 +1803,17 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val owner = current
         val update: (Set<Int>) -> Unit = { value -> within(owner) { onUpdate(value) } }
         val values = initial.filter { it in TouchValidator.buttonTargets }.toMutableSet()
+        val dialog = Dialog(context)
         val summary = ChipGroup(context).apply { chipSpacingHorizontal = px(4); chipSpacingVertical = px(4) }
-        val picker = GamepadPicker(context, mappingSlots)
+        val specialSlots = if (special == null) {
+            emptyList()
+        } else {
+            listOf(
+                MappingSlot(SPECIAL_VISIBILITY, 0.42f, 0.40f),
+                MappingSlot(SPECIAL_SWITCH_TEMPLATE, 0.58f, 0.40f)
+            )
+        }
+        val picker = GamepadPicker(context, mappingSlots + specialSlots)
         val keys = mutableMapOf<Int, MaterialButton>()
         fun refresh() {
             summary.removeAllViews()
@@ -1780,8 +1847,23 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             keys[slot.id] = key
             picker.addView(key)
         }
+        if (special != null) {
+            picker.addView(mappingKey(
+                s(R.string.touch_tools_action_toggle_short),
+                s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_toggle_visibility))
+            ) {
+                dialog.dismiss()
+                within(owner) { special(ButtonAction.TOGGLE_VISIBILITY) }
+            })
+            picker.addView(mappingKey(
+                s(R.string.touch_tools_action_switch_short),
+                s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_switch_template))
+            ) {
+                dialog.dismiss()
+                within(owner) { special(ButtonAction.SWITCH_TEMPLATE) }
+            })
+        }
         refresh()
-        val dialog = Dialog(context)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setCanceledOnTouchOutside(true)
         val root = LinearLayout(context).apply {
@@ -1792,20 +1874,6 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         root.addView(label(s(if (single) R.string.touch_tools_button_output else R.string.touch_tools_button_combination), 16f))
         root.addView(label(s(if (single) R.string.touch_tools_mapping_hint_single else R.string.touch_tools_mapping_hint), 12f))
         root.addView(summary)
-        if (special != null) {
-            root.addView(
-                button(s(R.string.touch_tools_action_toggle_visibility)) {
-                    dialog.dismiss()
-                    within(owner) { special(ButtonAction.TOGGLE_VISIBILITY) }
-                }
-            )
-            root.addView(
-                button(s(R.string.touch_tools_action_switch_template)) {
-                    dialog.dismiss()
-                    within(owner) { special(ButtonAction.SWITCH_TEMPLATE) }
-                }
-            )
-        }
         root.addView(picker, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         fun applySelection() {
             if (values.isEmpty() && !allowEmpty) {
@@ -1844,6 +1912,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private data class MappingSlot(val id: Int, val x: Float, val y: Float)
+
+    private val SPECIAL_VISIBILITY = -101
+    private val SPECIAL_SWITCH_TEMPLATE = -102
 
     private val mappingSlots = listOf(
         MappingSlot(8, 0.07f, 0.14f),

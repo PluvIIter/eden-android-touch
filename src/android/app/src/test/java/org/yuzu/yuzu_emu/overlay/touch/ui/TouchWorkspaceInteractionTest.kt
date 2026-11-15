@@ -335,6 +335,54 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
+    fun clickPlacementReusesTheSelectedSameTypeSize() = withWorkspace { workspace ->
+        val existing = workspace.template.controls.first { it.type == ControlType.BUTTON }
+        val expected = workspace.placements.getValue(existing.id)
+        val beforeIds = workspace.template.controls.map { it.id }.toSet()
+        tapControl(workspace, existing.id)
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialogRoot = ShadowDialog.getLatestDialog().window!!.decorView
+        action(dialogRoot, "L").performClick()
+        action(dialogRoot, workspace.context.getString(R.string.touch_tools_done)).performClick()
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+        val downTime = SystemClock.uptimeMillis()
+        for ((eventAction, time) in listOf(MotionEvent.ACTION_DOWN to downTime, MotionEvent.ACTION_UP to downTime + 16)) {
+            val event = MotionEvent.obtain(downTime, time, eventAction, workspace.safe.left + 700f, workspace.safe.top + 900f, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
+        val placed = workspace.template.controls.first { it.id !in beforeIds }
+        val rect = workspace.placements.getValue(placed.id)
+        assertEquals(expected.width, rect.width, 0.5f)
+        assertEquals(expected.height, rect.height, 0.5f)
+    }
+
+    @Test
+    fun newButtonCanUseVisibilityActionFromTheMappingGrid() = withWorkspace { workspace ->
+        val before = workspace.template.controls.map { it.id }.toSet()
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialogRoot = ShadowDialog.getLatestDialog().window!!.decorView
+        action(dialogRoot, workspace.context.getString(R.string.touch_tools_action_toggle_short)).performClick()
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+        val downTime = SystemClock.uptimeMillis()
+        for ((eventAction, time) in listOf(MotionEvent.ACTION_DOWN to downTime, MotionEvent.ACTION_UP to downTime + 16)) {
+            val event = MotionEvent.obtain(downTime, time, eventAction, workspace.safe.left + 700f, workspace.safe.top + 900f, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
+        val placed = workspace.template.controls.first { it.id !in before }
+        assertEquals(org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction.TOGGLE_VISIBILITY, placed.buttonAction)
+    }
+
+    @Test
     fun shapeTogglesFromThePropertyButton() = withWorkspace { workspace ->
         val control = workspace.template.controls.first { it.type == ControlType.BUTTON }
         tapControl(workspace, control.id)

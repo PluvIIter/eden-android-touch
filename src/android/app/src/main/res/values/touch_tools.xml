@@ -36,6 +36,9 @@
     <string name="touch_tools_hide_self">Hide this button too</string>
     <string name="touch_tools_gesture_hold">Hold until release</string>
     <string name="touch_tools_gesture_hold_hint">After the slide crosses the threshold, keep the mapped buttons held until you lift the finger.</string>
+    <string name="touch_tools_action_normal">Normal mapping</string>
+    <string name="touch_tools_action_toggle_short">Show</string>
+    <string name="touch_tools_action_switch_short">Layout</string>
     <string name="touch_tools_action_toggle_visibility">Show/Hide</string>
     <string name="touch_tools_action_switch_template">Switch template</string>
     <string name="touch_tools_action_value">Action: %1$s</string>

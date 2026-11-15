@@ -964,8 +964,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
 
     private fun beginGeometry(pointer: Int, x: Float, y: Float) {
         pendingControl?.let { control ->
-            val width = control.bounds.width.coerceAtLeast(1f)
-            val height = control.bounds.height.coerceAtLeast(1f)
+            val saved = lastGeometry(control.type)?.bounds
+            val width = (saved?.width ?: control.bounds.width).coerceAtLeast(1f)
+            val height = (saved?.height ?: control.bounds.height).coerceAtLeast(1f)
             val rect = if (control.isVisibleStick) {
                 val diameter = control.stickDiameter * resources.displayMetrics.density
                 TouchRect(
