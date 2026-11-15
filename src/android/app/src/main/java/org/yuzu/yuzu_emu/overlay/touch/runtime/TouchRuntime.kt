@@ -36,7 +36,8 @@ class TouchRuntime(private val sink: InputSink) {
         var gesture: GestureDirection? = null,
         var activeKeys: Set<Int> = emptySet(),
         var motion: SwipeMotion? = null,
-        var doubleTap: Boolean = false
+        var doubleTap: Boolean = false,
+        var pendingSwitch: String? = null
     ) {
         val source: String = "pointer:$pointerId"
     }
@@ -168,7 +169,15 @@ class TouchRuntime(private val sink: InputSink) {
                 if (captured.haptics) sink.haptic(captured)
                 when (captured.buttonAction) {
                     ButtonAction.TOGGLE_VISIBILITY -> sink.toggleVisibility()
-                    ButtonAction.SWITCH_TEMPLATE -> captured.targetTemplateId?.let(sink::switchTemplate)
+                    ButtonAction.SWITCH_TEMPLATE -> {
+                        val target = captured.targetTemplateId
+                        if (captured.binding.buttons.isEmpty()) {
+                            target?.let(sink::switchTemplate)
+                        } else {
+                            activate(capture.source, captured.binding, time)
+                            capture.pendingSwitch = target
+                        }
+                    }
                     ButtonAction.NONE -> activate(capture.source, captured.binding, time)
                 }
             }
@@ -243,6 +252,7 @@ class TouchRuntime(private val sink: InputSink) {
         }
         release(capture)
         aggregate.flush()
+        capture.pendingSwitch?.let(sink::switchTemplate)
     }
 
     @Synchronized

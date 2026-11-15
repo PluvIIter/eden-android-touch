@@ -42,6 +42,7 @@
     <string name="touch_tools_action_toggle_visibility">显示/隐藏</string>
     <string name="touch_tools_action_switch_template">切换模板</string>
     <string name="touch_tools_action_value">动作：%1$s</string>
+    <string name="touch_tools_action_mapped">%1$s · %2$s</string>
     <string name="touch_tools_target_template">目标模板：%1$s</string>
     <string name="touch_tools_choose_template">选择模板</string>
     <string name="touch_tools_no_other_templates">没有其他布局模板</string>

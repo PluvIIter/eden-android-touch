@@ -828,6 +828,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 fun updateMappingLabel() {
                     mappingButton.text = if (control.buttonAction == ButtonAction.NONE) {
                         if (control.binding.buttons.isEmpty()) s(R.string.touch_tools_select_mapping) else mappingLabel(control.binding.buttons)
+                    } else if (control.buttonAction == ButtonAction.SWITCH_TEMPLATE && control.binding.buttons.isNotEmpty()) {
+                        s(R.string.touch_tools_action_mapped, buttonActionName(control.buttonAction), mappingLabel(control.binding.buttons))
                     } else {
                         s(R.string.touch_tools_action_value, buttonActionName(control.buttonAction))
                     }
@@ -838,7 +840,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     mapping(control.binding.buttons, false, special = { action ->
                         control = control.copy(
                             buttonAction = action,
-                            binding = ButtonBinding(emptySet()),
+                            binding = if (action == ButtonAction.SWITCH_TEMPLATE) control.binding else ButtonBinding(emptySet()),
                             targetTemplateId = null,
                             hideSelf = false,
                             text = buttonActionName(action)
@@ -853,10 +855,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             }
                         }
                     }) {
+                        val action = control.buttonAction
                         control = control.copy(
                             binding = control.binding.copy(buttons = it),
-                            buttonAction = ButtonAction.NONE,
-                            targetTemplateId = null,
+                            buttonAction = if (action == ButtonAction.SWITCH_TEMPLATE) action else ButtonAction.NONE,
+                            targetTemplateId = if (action == ButtonAction.SWITCH_TEMPLATE) control.targetTemplateId else null,
                             hideSelf = false,
                             shape = defaultButtonShape(it),
                             text = mappingLabel(it)
@@ -1042,7 +1045,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             change { c ->
                                 c.copy(
                                     buttonAction = action,
-                                    binding = ButtonBinding(emptySet()),
+                                    binding = if (action == ButtonAction.SWITCH_TEMPLATE) c.binding else ButtonBinding(emptySet()),
                                     targetTemplateId = null,
                                     hideSelf = if (action == ButtonAction.TOGGLE_VISIBILITY) c.hideSelf else false
                                 )
@@ -1064,6 +1067,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                         body.addView(button(s(R.string.touch_tools_target_template, target?.name ?: s(R.string.touch_tools_missing_template))) {
                             chooseButtonTemplate(control.id)
                         })
+                        bindingFields(
+                            body,
+                            control.binding,
+                            update = { value -> change { it.copy(binding = value) } },
+                            mappingUpdate = { value -> change { it.copy(binding = value) } }
+                        )
                         body.addView(button(s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_switch_template))) {
                             change { it.copy(buttonAction = ButtonAction.NONE, targetTemplateId = null) }
                             showProperties()

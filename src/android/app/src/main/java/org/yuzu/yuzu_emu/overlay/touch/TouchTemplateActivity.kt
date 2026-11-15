@@ -80,6 +80,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     private var exportRecovery: File? = null
     private var selectedTab = 0
     private var searchQuery = ""
+    private var renderedColumns = 1
     private var busy = false
     private val gameId get() = intent.getStringExtra(EXTRA_GAME_ID)?.let { TouchReferences.baseGameId(it) }
 
@@ -251,7 +252,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         val search = TextInputEditText(searchLayout.context).apply { setSingleLine(); setText(searchQuery) }
         searchLayout.addView(search, LinearLayout.LayoutParams(-1, -2))
         page.addView(searchLayout, margins(-1, -2, 16, 12, 16, 4))
-        val list = column().apply { setPadding(dp(16), dp(8), dp(16), dp(112)) }
+        val list = column().apply { setPadding(dp(8), dp(8), dp(8), dp(112)) }
         val scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false; addView(list) }
         page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val create = ExtendedFloatingActionButton(this).apply {
@@ -268,17 +269,18 @@ class TouchTemplateActivity : AppCompatActivity() {
             list.removeAllViews()
             create.setText(if (selectedTab == 0) R.string.touch_manager_create_layout else R.string.touch_manager_create_preset)
             val hint = if (selectedTab == 0) R.string.touch_manager_shared_layout_hint else R.string.touch_manager_shared_preset_hint
-            var count = 0
+            val cards = mutableListOf<View>()
             if (selectedTab == 0) {
                 library.templates.filter { it.name.contains(searchQuery, true) }.forEach { template ->
-                    list.addView(layoutCard(template)); count++
+                    cards += layoutCard(template)
                 }
             } else {
                 library.presets.filter { it.name.contains(searchQuery, true) }.forEach { preset ->
-                    list.addView(presetCard(preset)); count++
+                    cards += presetCard(preset)
                 }
             }
-            if (count == 0) {
+            addCardRows(list, cards)
+            if (cards.isEmpty()) {
                 list.addView(
                     label(getString(if (searchQuery.isBlank()) R.string.touch_manager_empty else R.string.touch_manager_no_matches)).apply {
                         gravity = Gravity.CENTER; setPadding(dp(24), dp(48), dp(24), dp(16))
@@ -287,6 +289,14 @@ class TouchTemplateActivity : AppCompatActivity() {
                 if (searchQuery.isNotBlank()) list.addView(textButton(R.string.touch_manager_clear_search) { search.setText("") })
             }
             list.addView(label(getString(hint), true).apply { setPadding(dp(4), dp(4), dp(4), dp(16)) })
+        }
+        renderedColumns = columnsForWidth(resources.displayMetrics.widthPixels)
+        root.addOnLayoutChangeListener { _, _, _, right, _, _, _, oldRight, _ ->
+            val columns = columnsForWidth(right)
+            if (columns != renderedColumns) {
+                renderedColumns = columns
+                render()
+            }
         }
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) { selectedTab = tab.position; render() }
@@ -297,6 +307,43 @@ class TouchTemplateActivity : AppCompatActivity() {
         render()
         setContentView(root)
         ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun columnsForWidth(widthPx: Int): Int {
+        val widthDp = widthPx / resources.displayMetrics.density
+        return when {
+            widthDp >= 960f -> 3
+            widthDp >= 600f -> 2
+            else -> 1
+        }
+    }
+
+    private fun addCardRows(list: LinearLayout, cards: List<View>) {
+        val columns = renderedColumns.coerceAtLeast(1)
+        cards.chunked(columns).forEach { rowCards ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.TOP
+            }
+            rowCards.forEach { card ->
+                card.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    marginStart = dp(4)
+                    marginEnd = dp(4)
+                    bottomMargin = dp(16)
+                }
+                row.addView(card)
+            }
+            repeat(columns - rowCards.size) {
+                row.addView(
+                    android.widget.Space(this),
+                    LinearLayout.LayoutParams(0, -2, 1f).apply {
+                        marginStart = dp(4)
+                        marginEnd = dp(4)
+                    }
+                )
+            }
+            list.addView(row, LinearLayout.LayoutParams(-1, -2))
+        }
     }
 
     private fun layoutCard(template: TouchTemplate): MaterialCardView {

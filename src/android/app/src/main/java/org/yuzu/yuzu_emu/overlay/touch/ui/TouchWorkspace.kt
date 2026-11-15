@@ -581,6 +581,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     internal fun replaceTemplate(value: TouchTemplate) {
         draft = draft.copy(templates = draft.templates.map { if (it.id == value.id) value else it })
         updateGeometry(false)
+        selectedId?.let { id ->
+            draft.templates.firstOrNull { it.id == templateId }?.controls?.firstOrNull { it.id == id }?.let(::rememberGeometry)
+        }
         tools.refreshToolbar()
     }
 
@@ -1014,6 +1017,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         }
         val control = if (state.creating) pendingControl else template.controls.firstOrNull { it.id == state.controlId }
         if (control == null) return
+        if (state.creating && !control.isVisibleStick &&
+            max(abs(dx), abs(dy)) < dp(24)
+        ) {
+            return
+        }
         val original = state.original
         var rect = if (state.creating && control.isVisibleStick) {
             val diameter = control.stickDiameter * resources.displayMetrics.density
@@ -1137,6 +1145,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 checkpointWindow(before, after)
                 tools.rebaseGeometry(id)
                 tools.avoidSelectedControl(id)
+                template.controls.firstOrNull { it.id == id }?.let(::rememberGeometry)
             }
         }
         adjustSelected = false

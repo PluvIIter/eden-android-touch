@@ -124,7 +124,6 @@ object TouchValidator {
                             ButtonAction.SWITCH_TEMPLATE -> {
                                 check(control.targetTemplateId != null && control.targetTemplateId in templateIds, "$c.targetTemplateId", "Missing template")
                                 check(control.targetTemplateId != template.id, "$c.targetTemplateId", "Cannot switch to itself")
-                                check(control.binding.buttons.isEmpty(), "$c.binding", "Template action takes no buttons")
                             }
                         }
                     }

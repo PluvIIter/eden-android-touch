@@ -598,6 +598,21 @@ class TouchRuntimeTest {
         runtime.up(2, 90f, 10f, 11)
     }
 
+    @Test fun mappedTemplateSwitchTriggersButtonsAndSwitchesOnRelease() {
+        val control = button("mapped-switch", 10f).copy(
+            binding = ButtonBinding(setOf(0)),
+            buttonAction = ButtonAction.SWITCH_TEMPLATE,
+            targetTemplateId = "other-template"
+        )
+        configure(control)
+        runtime.down(1, 40f, 30f, 0)
+        assertEquals(setOf(0), sink.pressed)
+        assertTrue(sink.switches.isEmpty())
+        runtime.up(1, 40f, 30f, 1)
+        assertEquals(listOf("other-template"), sink.switches)
+        assertTrue(sink.pressed.isEmpty())
+    }
+
     @Test fun releaseGestureIsFiniteAndCancelNeverFires() {
         val gesture = area(type = ControlType.GESTURE).copy(
             gestures = mapOf(
