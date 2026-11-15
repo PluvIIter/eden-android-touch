@@ -153,7 +153,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             val rect = workspace.placements[control.id] ?: control.bounds
             val pointers = snapshot.pointers.filter { it.controlId == control.id }
             val active = pointers.isNotEmpty()
-            val opacity = if (workspace.isEditing) 1f
+            val opacity = if (workspace.isEditing && !workspace.gameAvailable) 1f
             else (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
             when (control.type) {
                 ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity, control.color)

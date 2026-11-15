@@ -605,7 +605,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun updateGlobalOpacity(value: Float) {
-        replaceTemplate(template.copy(globalOpacity = value.coerceIn(0f, 1f)))
+        val normalized = value.coerceIn(0f, 1f)
+        replaceTemplate(template.copy(globalOpacity = normalized, defaultOpacity = normalized))
         canvas.invalidate()
     }
 
@@ -624,6 +625,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         replaceTemplate(
             template.copy(
                 globalOpacity = 1f,
+                defaultOpacity = template.defaultOpacity ?: opacity,
                 controls = template.controls.map { it.copy(opacity = opacity) }
             )
         )

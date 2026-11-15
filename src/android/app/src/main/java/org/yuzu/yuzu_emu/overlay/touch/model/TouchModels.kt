@@ -180,7 +180,8 @@ data class TouchTemplate(
     val screens: List<ScreenLayout> = listOf(ScreenLayout()),
     val baseScreenId: String = screens.first().id,
     val globalOpacity: Float = 1f,
-    val globalColor: Int? = null
+    val globalColor: Int? = null,
+    val defaultOpacity: Float? = null
 )
 
 @Serializable

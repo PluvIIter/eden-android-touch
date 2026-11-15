@@ -770,7 +770,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             name = "",
             text = "",
             type = type,
-            opacity = workspace.template.globalOpacity.coerceIn(0f, 1f),
+            opacity = (workspace.template.defaultOpacity ?: workspace.template.globalOpacity).coerceIn(0f, 1f),
             color = workspace.template.globalColor,
             bounds = previous?.bounds ?: if (type == ControlType.STICK) {
                 TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)

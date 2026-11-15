@@ -53,9 +53,15 @@ object TouchSanitizer {
                 }
             }
             val inferredColor = normalized.mapNotNull { it.color }.distinct().singleOrNull()
+            val inferredOpacity = if (template.globalOpacity == 1f) {
+                normalized.map { it.opacity }.distinct().singleOrNull()
+            } else {
+                null
+            }
             template.copy(
                 controls = normalized,
                 globalColor = template.globalColor ?: inferredColor,
+                defaultOpacity = template.defaultOpacity ?: inferredOpacity,
                 screens = template.screens.map { screen ->
                     screen.copy(placements = screen.placements.filterKeys { it in ids })
                 }

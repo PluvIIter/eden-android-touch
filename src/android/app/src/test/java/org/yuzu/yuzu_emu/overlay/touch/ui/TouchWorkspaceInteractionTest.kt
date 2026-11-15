@@ -602,9 +602,35 @@ class TouchWorkspaceInteractionTest {
 
         workspace.updateGlobalOpacity(0.5f)
         assertEquals(0.5f, workspace.template.globalOpacity, 0.001f)
+        assertEquals(0.5f, workspace.template.defaultOpacity ?: -1f, 0.001f)
         workspace.overrideGlobalOpacity()
         assertEquals(1f, workspace.template.globalOpacity, 0.001f)
+        assertEquals(0.5f, workspace.template.defaultOpacity ?: -1f, 0.001f)
         assertTrue(workspace.template.controls.all { kotlin.math.abs(it.opacity - 0.5f) < 0.001f })
+    }
+
+    @Test
+    fun newControlUsesTheLastAppliedGlobalOpacity() = withWorkspace { workspace ->
+        val before = workspace.template.controls.map { it.id }.toSet()
+        workspace.updateGlobalOpacity(0.15f)
+        workspace.overrideGlobalOpacity()
+        toolbarClick(workspace, R.string.touch_tools_add)
+        click(workspace, topCard(workspace), R.string.touch_tools_button_description)
+        action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialogRoot = ShadowDialog.getLatestDialog().window!!.decorView
+        action(dialogRoot, "L").performClick()
+        action(dialogRoot, workspace.context.getString(R.string.touch_tools_done)).performClick()
+        click(workspace, topCard(workspace), R.string.touch_tools_place)
+        settle(workspace)
+        val downTime = SystemClock.uptimeMillis()
+        for ((eventAction, time) in listOf(MotionEvent.ACTION_DOWN to downTime, MotionEvent.ACTION_UP to downTime + 16)) {
+            val event = MotionEvent.obtain(downTime, time, eventAction, workspace.safe.left + 700f, workspace.safe.top + 900f, 0)
+            try { workspace.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        settle(workspace)
+        val placed = workspace.template.controls.first { it.id !in before }
+        assertEquals(0.15f, placed.opacity, 0.001f)
     }
 
     @Test
