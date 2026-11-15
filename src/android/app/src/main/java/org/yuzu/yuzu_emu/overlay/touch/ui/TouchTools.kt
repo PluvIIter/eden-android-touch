@@ -962,6 +962,11 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     }
 
     private fun inputProperties(body: LinearLayout, control: TouchControl, before: TouchLibrary) {
+        if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
+            toggle(body, s(R.string.touch_tools_haptics), control.haptics) { value ->
+                change { it.copy(haptics = value) }
+            }
+        }
         when (control.type) {
             ControlType.BUTTON -> bindingFields(
                 body,
@@ -1125,9 +1130,6 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     showProperties()
                 }
             })
-            toggle(body, s(R.string.touch_tools_haptics), control.haptics) { value ->
-                change { it.copy(haptics = value) }
-            }
             number(body, s(R.string.touch_tools_opacity), control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
         }
         if (control.type == ControlType.VISIBILITY) {

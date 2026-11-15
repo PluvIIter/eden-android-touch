@@ -7,6 +7,8 @@ import android.content.Context
 import org.yuzu.yuzu_emu.R
 import android.graphics.RectF
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -66,6 +68,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     var isEditing: Boolean = true
         private set
     val isTesting: Boolean get() = testing
+    private val vibrator by lazy {
+        (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    }
     private var requestedControlsVisible = true
     var controlsVisible: Boolean
         get() = requestedControlsVisible && !layoutRetired
@@ -192,6 +197,14 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         override fun haptic(control: TouchControl, strong: Boolean) {
             if (!gameAvailable || isEditing || !control.haptics) return
             if (!BooleanSetting.HAPTIC_FEEDBACK.getBoolean()) return
+            val duration = if (strong) DOUBLE_TAP_HAPTIC_MS else NORMAL_HAPTIC_MS
+            val device = vibrator
+            if (device?.hasVibrator() == true) {
+                device.vibrate(
+                    VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+                return
+            }
             performHapticFeedback(
                 if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY
             )
@@ -1259,5 +1272,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             val bottom = snap(rect.bottom).coerceAtLeast(top + step)
             TouchRect(left, top, right - left, bottom - top)
         }
+    }
+
+    companion object {
+        private const val NORMAL_HAPTIC_MS = 20L
+        private const val DOUBLE_TAP_HAPTIC_MS = 30L
     }
 }

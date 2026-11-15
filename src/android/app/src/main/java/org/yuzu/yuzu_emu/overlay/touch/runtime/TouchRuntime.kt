@@ -35,8 +35,7 @@ class TouchRuntime(private val sink: InputSink) {
         var gesture: GestureDirection? = null,
         var activeKeys: Set<Int> = emptySet(),
         var motion: SwipeMotion? = null,
-        var doubleTap: Boolean = false,
-        var auxiliaryPressed: Boolean = false
+        var doubleTap: Boolean = false
     ) {
         val source: String = "pointer:$pointerId"
     }
@@ -173,6 +172,7 @@ class TouchRuntime(private val sink: InputSink) {
                 val tap = taps.remove(captured.id)
                 capture.doubleTap = captured.auxiliaryMode == AuxiliaryMode.DOUBLE_TAP && tap != null &&
                     time - tap.released in 0..captured.tapTimeoutMs && hypot(x - tap.x, y - tap.y) <= captured.tapSlop * density
+                if (captured.haptics) sink.haptic(captured, capture.doubleTap)
                 aggregate.acquire(capture.source, captured.stickTarget)
                 updateStick(capture)
             }
@@ -383,10 +383,6 @@ class TouchRuntime(private val sink: InputSink) {
         aggregate.vector(capture.source, vector)
         val auxiliary = control.auxiliaryButton
         val pressed = if (control.auxiliaryMode == AuxiliaryMode.PUSH) magnitude > 0f else capture.doubleTap
-        if (pressed && !capture.auxiliaryPressed && control.haptics) {
-            sink.haptic(control, control.auxiliaryMode == AuxiliaryMode.DOUBLE_TAP)
-        }
-        capture.auxiliaryPressed = pressed
         aggregate.buttons(capture.source, if (pressed && auxiliary != null) setOf(auxiliary) else emptySet())
     }
 
