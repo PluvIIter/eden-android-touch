@@ -117,6 +117,7 @@ import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import kotlinx.coroutines.flow.combine
 import org.yuzu.yuzu_emu.overlay.touch.TouchDraftState
+import org.yuzu.yuzu_emu.overlay.touch.ui.TouchDraftRevisionConflict
 import org.yuzu.yuzu_emu.overlay.touch.TouchGameOverlay
 import org.yuzu.yuzu_emu.overlay.touch.TouchNativeSink
 import org.yuzu.yuzu_emu.overlay.touch.TouchTemplateActivity
@@ -176,6 +177,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
     private var wasInputOverlayAutoHidden = false
     private var overlayTouchActive = false
+    private var pendingConflictToken: String? = null
     private var pausedFrameBitmap: Bitmap? = null
 
     var shouldUseCustom = false
@@ -188,6 +190,29 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 binding.surfaceInputOverlay.refreshControls()
             }
         }
+
+    private val exportConflictDraft = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val token = pendingConflictToken
+        pendingConflictToken = null
+        if (uri == null || token == null || !isAdded) return@registerForActivityResult
+        val context = requireContext()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val value = TouchDraftState.read(context, token)
+                    context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(value) }
+                        ?: error("Cannot write draft export")
+                }
+            }
+            result.onSuccess {
+                TouchDraftState.discardToken(context, token)
+                touchRestoredState = null
+                Toast.makeText(context, R.string.touch_manager_exported, Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     private val loadAmiiboLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -782,9 +807,33 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             binding.surfaceInputOverlay.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
                 view.visibility = View.GONE
             }
-        }.onFailure {
-            Toast.makeText(requireContext(), R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show()
+        }.onFailure { error ->
+            val token = TouchDraftState.token(touchRestoredState)
+            if (error is TouchDraftRevisionConflict && token != null) {
+                showDraftConflict(error, token)
+            } else {
+                Toast.makeText(requireContext(), R.string.touch_workspace_load_failed, Toast.LENGTH_LONG).show()
+            }
         }
+    }
+
+    private fun showDraftConflict(error: TouchDraftRevisionConflict, token: String) {
+        if (!isAdded) return
+        pendingConflictToken = token
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.touch_draft_conflict_title)
+            .setMessage(getString(R.string.touch_draft_conflict_message, error.draftRevision, error.currentRevision))
+            .setPositiveButton(R.string.touch_draft_export) { _, _ ->
+                pendingConflictToken = token
+                exportConflictDraft.launch("touch-draft-${System.currentTimeMillis()}.json")
+            }
+            .setNeutralButton(R.string.touch_draft_discard) { _, _ ->
+                TouchDraftState.discardToken(requireContext(), token)
+                touchRestoredState = null
+                Toast.makeText(requireContext(), R.string.touch_draft_discarded, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.touch_manager_cancel, null)
+            .show()
     }
 
     private fun setupOverlayGamelessEditMode() {

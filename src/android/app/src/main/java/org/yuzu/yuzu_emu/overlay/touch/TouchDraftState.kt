@@ -39,6 +39,16 @@ object TouchDraftState {
         if (token != null) store(context).discard(token)
     }
 
+    fun token(state: Bundle?): String? = state?.getString(KEY)
+
+    fun read(context: Context, token: String): String = store(context).read(token)
+
+    @Synchronized
+    fun discardToken(context: Context, token: String) {
+        store(context).discard(token)
+        tokens.entries.removeAll { it.value == token }
+    }
+
     @Synchronized
     fun discard(context: Context, state: Bundle?) {
         val token = state?.getString(KEY) ?: return

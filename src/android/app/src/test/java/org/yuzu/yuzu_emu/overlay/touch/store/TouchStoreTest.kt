@@ -27,6 +27,8 @@ import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchRect
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
 import org.yuzu.yuzu_emu.overlay.touch.model.newTouchId
+import org.yuzu.yuzu_emu.overlay.touch.ui.TouchDraftRevisionConflict
+import org.yuzu.yuzu_emu.overlay.touch.ui.TouchWorkspaceDraft
 import java.io.File
 import java.nio.file.Files
 
@@ -302,6 +304,20 @@ class TouchStoreTest {
         val result = TouchSanitizer.sanitize(library(listOf(bad, badButton, good)))
         assertEquals(listOf(good.id), result.library.templates.single().controls.map { it.id })
         assertEquals(setOf(bad.id, badButton.id), result.removed.map { it.id }.toSet())
+    }
+
+    @Test fun draftRevisionConflictIsTypedAndPreservesDraft() {
+        val library = TouchDefaults.library()
+        val draft = TouchWorkspaceDraft(
+            draft = library,
+            saved = library.copy(revision = library.revision + 1),
+            templateId = library.templates.first().id,
+            selectedId = null,
+            editing = true
+        )
+        val error = fails<TouchDraftRevisionConflict> { draft.requireRestorable(library.revision) }
+        assertEquals(library.revision + 1, error.draftRevision)
+        assertEquals(library.revision, error.currentRevision)
     }
 
     @Test fun sanitizerMigratesLegacyVisibilityControlsToButtonAction() {

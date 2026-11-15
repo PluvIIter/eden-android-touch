@@ -4,6 +4,8 @@
 // SPDX-FileCopyrightText: 2014 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <cmath>
 #include <mutex>
 #include "core/frontend/emu_window.h"
 
@@ -18,16 +20,29 @@ EmuWindow::EmuWindow() {
 
 EmuWindow::~EmuWindow() {}
 
-std::pair<f32, f32> EmuWindow::MapToTouchScreen(u32 framebuffer_x, u32 framebuffer_y) const {
-    std::tie(framebuffer_x, framebuffer_y) = ClipToTouchScreen(framebuffer_x, framebuffer_y);
-    const float x =
-        static_cast<float>(framebuffer_x - framebuffer_layout.screen.left) /
-        static_cast<float>(framebuffer_layout.screen.right - framebuffer_layout.screen.left);
-    const float y =
-        static_cast<float>(framebuffer_y - framebuffer_layout.screen.top) /
-        static_cast<float>(framebuffer_layout.screen.bottom - framebuffer_layout.screen.top);
+std::pair<f32, f32> EmuWindow::MapToTouchScreen(f32 framebuffer_x, f32 framebuffer_y) const {
+    const auto clamp_coordinate = [](f32 value, u32 low, u32 high) -> u32 {
+        if (!std::isfinite(value)) {
+            return low;
+        }
+        if (high <= low) {
+            return low;
+        }
+        return static_cast<u32>(
+            std::clamp(value, static_cast<f32>(low), static_cast<f32>(high)));
+    };
 
-    return std::make_pair(x, y);
+    const auto& screen = framebuffer_layout.screen;
+    const u32 x = clamp_coordinate(framebuffer_x, screen.left,
+                                   screen.right > screen.left ? screen.right - 1 : screen.left);
+    const u32 y = clamp_coordinate(framebuffer_y, screen.top,
+                                   screen.bottom > screen.top ? screen.bottom - 1 : screen.top);
+    const float normalized_x =
+        static_cast<float>(x - screen.left) / static_cast<float>(screen.right - screen.left);
+    const float normalized_y =
+        static_cast<float>(y - screen.top) / static_cast<float>(screen.bottom - screen.top);
+
+    return std::make_pair(normalized_x, normalized_y);
 }
 
 std::pair<u32, u32> EmuWindow::ClipToTouchScreen(u32 new_x, u32 new_y) const {

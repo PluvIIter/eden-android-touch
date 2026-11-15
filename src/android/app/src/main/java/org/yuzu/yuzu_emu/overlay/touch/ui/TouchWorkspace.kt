@@ -123,6 +123,12 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             !control.hideSelf
     }
 
+    private fun nativeTouchX(value: Float): Float =
+        if (!value.isFinite()) 0f else (value + safe.left).coerceIn(0f, (width - 1).coerceAtLeast(0).toFloat())
+
+    private fun nativeTouchY(value: Float): Float =
+        if (!value.isFinite()) 0f else (value + safe.top).coerceIn(0f, (height - 1).coerceAtLeast(0).toFloat())
+
     internal fun switchGameTemplate(id: String) {
         if (!gameAvailable || isEditing || id == templateId) return
         if (draft.templates.none { it.id == id }) return
@@ -209,10 +215,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             if (gameAvailable && !isEditing) output.stick(target, x, y)
         }
         override fun touchDown(pointerId: Int, x: Float, y: Float) {
-            if (gameAvailable && !isEditing) output.touchDown(pointerId, x + safe.left, y + safe.top)
+            if (gameAvailable && !isEditing) output.touchDown(pointerId, nativeTouchX(x), nativeTouchY(y))
         }
         override fun touchMove(pointerId: Int, x: Float, y: Float) {
-            if (gameAvailable && !isEditing) output.touchMove(pointerId, x + safe.left, y + safe.top)
+            if (gameAvailable && !isEditing) output.touchMove(pointerId, nativeTouchX(x), nativeTouchY(y))
         }
         override fun touchUp(pointerId: Int) { if (gameAvailable && !isEditing) output.touchUp(pointerId) }
         override fun haptic(control: TouchControl, strong: Boolean) {

@@ -17,8 +17,17 @@ internal data class TouchWorkspaceDraft(
     val standalonePresetId: String? = null
 ) {
     fun requireRestorable(revision: Long) {
-        require(saved.revision == revision) { "Saved library changed since this draft; reload or save a copy" }
+        if (saved.revision != revision) {
+            throw TouchDraftRevisionConflict(saved.revision, revision)
+        }
         require(draft.templates.any { it.id == templateId }) { "Recovered template is missing" }
         require(saved.templates.any { it.id == templateId }) { "Saved template is missing" }
     }
 }
+
+internal class TouchDraftRevisionConflict(
+    val draftRevision: Long,
+    val currentRevision: Long
+) : IllegalArgumentException(
+    "Saved library changed since this draft; reload or save a copy"
+)

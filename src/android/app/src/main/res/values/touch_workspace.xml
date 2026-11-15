@@ -41,6 +41,11 @@
     <string name="touch_workspace_invalid_runtime">Invalid layout. Open the control list to repair it.</string>
     <string name="touch_workspace_menu_templates">Touch templates</string>
     <string name="touch_workspace_load_failed">Could not load touch templates. Check the configuration and try again.</string>
+    <string name="touch_draft_conflict_title">Draft version conflict</string>
+    <string name="touch_draft_conflict_message">The unsaved draft is based on library revision %1$d, but the current revision is %2$d. The draft has been kept; export it to recover the layout manually.</string>
+    <string name="touch_draft_export">Export draft</string>
+    <string name="touch_draft_discard">Discard draft</string>
+    <string name="touch_draft_discarded">Draft discarded</string>
     <string name="touch_workspace_dpad">D-pad</string>
     <string name="touch_workspace_test_in_game_disabled">Whole-layout testing is unavailable while editing inside a game. Exit editing to run the game, or use single-control live debug from a swipe area.</string>
     <string name="touch_workspace_place_prompt">Tap the canvas to place the control</string>

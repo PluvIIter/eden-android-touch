@@ -68,6 +68,7 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRepository
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRevisionConflictException
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationException
+import org.yuzu.yuzu_emu.overlay.touch.ui.TouchDraftRevisionConflict
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchWorkspace
 import org.yuzu.yuzu_emu.utils.ThemeHelper
 
@@ -78,6 +79,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     private var pendingRemoved: List<RemovedControl> = emptyList()
     private var exporting: String? = null
     private var exportRecovery: File? = null
+    private var pendingDraftToken: String? = null
     private var selectedTab = 0
     private var searchQuery = ""
     private var renderedColumns = 1
@@ -121,6 +123,22 @@ class TouchTemplateActivity : AppCompatActivity() {
                 contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(value) }
                     ?: throw ManagerException(R.string.touch_manager_error_write)
                 withContext(Dispatchers.Main) { toast(R.string.touch_manager_exported) }
+            }
+        }
+    }
+
+    private val exportDraftFile = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val token = pendingDraftToken
+        pendingDraftToken = null
+        if (uri != null && token != null) {
+            background {
+                val value = TouchDraftState.read(this@TouchTemplateActivity, token)
+                contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(value) }
+                    ?: throw ManagerException(R.string.touch_manager_error_write)
+                withContext(Dispatchers.Main) {
+                    TouchDraftState.discardToken(this@TouchTemplateActivity, token)
+                    toast(R.string.touch_manager_exported)
+                }
             }
         }
     }
@@ -169,7 +187,15 @@ class TouchTemplateActivity : AppCompatActivity() {
                 val initial = library.templateFor(gameId) ?: library.templates.first()
                 edit(initial.id)
                 TouchDraftState.restore(this, savedInstanceState, workspace!!)
-            }.onFailure { report(it); showManager() }
+            }.onFailure { error ->
+                showManager()
+                val token = TouchDraftState.token(savedInstanceState)
+                if (error is TouchDraftRevisionConflict && token != null) {
+                    showDraftConflict(error, token)
+                } else {
+                    report(error)
+                }
+            }
         }
     }
 
@@ -307,6 +333,22 @@ class TouchTemplateActivity : AppCompatActivity() {
         render()
         setContentView(root)
         ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun showDraftConflict(error: TouchDraftRevisionConflict, token: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.touch_draft_conflict_title)
+            .setMessage(getString(R.string.touch_draft_conflict_message, error.draftRevision, error.currentRevision))
+            .setPositiveButton(R.string.touch_draft_export) { _, _ ->
+                pendingDraftToken = token
+                exportDraftFile.launch("touch-draft-${System.currentTimeMillis()}.json")
+            }
+            .setNeutralButton(R.string.touch_draft_discard) { _, _ ->
+                TouchDraftState.discardToken(this, token)
+                toast(R.string.touch_draft_discarded)
+            }
+            .setNegativeButton(R.string.touch_manager_cancel, null)
+            .show()
     }
 
     private fun columnsForWidth(widthPx: Int): Int {
