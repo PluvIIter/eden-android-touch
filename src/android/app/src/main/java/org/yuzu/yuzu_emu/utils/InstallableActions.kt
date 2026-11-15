@@ -18,6 +18,7 @@ import org.yuzu.yuzu_emu.model.GamesViewModel
 import org.yuzu.yuzu_emu.model.HomeViewModel
 import org.yuzu.yuzu_emu.model.InstallResult
 import org.yuzu.yuzu_emu.model.TaskState
+import org.yuzu.yuzu_emu.overlay.OverlayPresetLibrary
 import org.yuzu.yuzu_emu.overlay.touch.TouchStorage
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -315,6 +316,7 @@ object InstallableActions {
             true
         ) { progressCallback, _ ->
             TouchStorage.migrate(activity.applicationContext)
+            OverlayPresetLibrary.prepareForUserDataExport()
             val zipResult = FileUtil.zipFromInternalStorage(
                 File(userDirectory),
                 userDirectory,
@@ -382,6 +384,7 @@ object InstallableActions {
                     File(userDirectory),
                     progressCallback
                 )
+                OverlayPresetLibrary.onUserDataImportRestored()
             } catch (_: Exception) {
                 return@newInstance MessageDialogFragment.newInstance(
                     activity,
