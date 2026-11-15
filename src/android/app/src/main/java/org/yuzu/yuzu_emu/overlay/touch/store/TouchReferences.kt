@@ -81,7 +81,13 @@ object TouchReferences {
         return template.copy(
             id = ids.getValue(template.id),
             name = name,
-            controls = template.controls.map { control -> control.copy(id = ids.getValue(control.id), groupKeys = control.groupKeys.map { it.copy(id = ids.getValue(it.id)) }) },
+            controls = template.controls.map { control ->
+                control.copy(
+                    id = ids.getValue(control.id),
+                    groupKeys = control.groupKeys.map { it.copy(id = ids.getValue(it.id)) },
+                    targetTemplateId = control.targetTemplateId?.let { ids[it] ?: it }
+                )
+            },
             screens = template.screens.map { screen -> screen.copy(id = ids.getValue(screen.id), placements = screen.placements.mapKeys { ids.getValue(it.key) }) },
             baseScreenId = ids.getValue(template.baseScreenId)
         ).immutableSnapshot()

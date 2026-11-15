@@ -194,6 +194,23 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
+    fun switchingGameTemplateChangesTheActiveEditingTemplate() = withWorkspace(gameAvailable = true) { workspace ->
+        val original = workspace.draft.templates.first()
+        val alternate = original.copy(
+            id = "alternate-template",
+            name = "Alternate",
+            controls = original.controls.take(1)
+        )
+        workspace.replaceDraft(
+            workspace.draft.copy(templates = workspace.draft.templates + alternate)
+        )
+        workspace.setEditing(false)
+        workspace.switchGameTemplate(alternate.id)
+        assertEquals(alternate.id, workspace.templateId)
+        assertEquals("Alternate", workspace.template.name)
+    }
+
+    @Test
     fun mainActionsAreFullyVisibleAndOnlyOneToolWindowStaysOpen() = withWorkspace { workspace ->
         val required = listOf(
             R.string.touch_tools_add,

@@ -10,6 +10,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.yuzu.yuzu_emu.overlay.touch.model.AuxiliaryMode
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.GestureBinding
@@ -32,6 +33,7 @@ class TouchRuntimeTest {
         val sticks = mutableMapOf<StickTarget, StickVector>()
         val lifecycle = mutableListOf<String>()
         val haptics = mutableListOf<Pair<String, Boolean>>()
+        val switches = mutableListOf<String>()
         var visibilityToggles = 0
         override fun reset() { lifecycle += "reset" }
         override fun sync() { lifecycle += "sync" }
@@ -42,6 +44,7 @@ class TouchRuntimeTest {
         override fun touchUp(pointerId: Int) { native += "up:$pointerId" }
         override fun haptic(control: TouchControl, strong: Boolean) { haptics += control.id to strong }
         override fun toggleVisibility() { visibilityToggles++ }
+        override fun switchTemplate(templateId: String) { switches += templateId }
     }
 
     private val sink = Sink()
@@ -571,6 +574,28 @@ class TouchRuntimeTest {
         runtime.tick(110)
         assertTrue(sink.pressed.isEmpty())
         runtime.up(1, 130f, 0f, 120)
+    }
+
+    @Test fun specialButtonActionsDispatchWithoutButtonOutput() {
+        val toggle = button("toggle", 0f).copy(
+            binding = ButtonBinding(emptySet()),
+            buttonAction = ButtonAction.TOGGLE_VISIBILITY
+        )
+        val switch = button("switch", 80f).copy(
+            binding = ButtonBinding(emptySet()),
+            buttonAction = ButtonAction.SWITCH_TEMPLATE,
+            targetTemplateId = "other-template"
+        )
+        configure(toggle, switch)
+        runtime.down(1, 10f, 10f, 0)
+        assertEquals(1, sink.visibilityToggles)
+        assertTrue(sink.pressed.isEmpty())
+        runtime.up(1, 10f, 10f, 1)
+
+        runtime.down(2, 90f, 10f, 10)
+        assertEquals(listOf("other-template"), sink.switches)
+        assertTrue(sink.pressed.isEmpty())
+        runtime.up(2, 90f, 10f, 11)
     }
 
     @Test fun releaseGestureIsFiniteAndCancelNeverFires() {

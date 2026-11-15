@@ -36,6 +36,13 @@
     <string name="touch_tools_hide_self">同时隐藏此按钮</string>
     <string name="touch_tools_gesture_hold">长按保持</string>
     <string name="touch_tools_gesture_hold_hint">滑动距离达到阈值后，映射按键保持按下，直到松开手指。</string>
+    <string name="touch_tools_action_toggle_visibility">显示/隐藏</string>
+    <string name="touch_tools_action_switch_template">切换模板</string>
+    <string name="touch_tools_action_value">动作：%1$s</string>
+    <string name="touch_tools_target_template">目标模板：%1$s</string>
+    <string name="touch_tools_choose_template">选择模板</string>
+    <string name="touch_tools_no_other_templates">没有其他布局模板</string>
+    <string name="touch_tools_missing_template">模板缺失</string>
     <string name="touch_tools_name">名称</string>
     <string name="touch_tools_select_mapping">选择按钮映射</string>
     <string name="touch_tools_group_style">按键组样式</string>

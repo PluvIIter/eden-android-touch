@@ -11,6 +11,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.CurvePoint
@@ -301,6 +302,21 @@ class TouchStoreTest {
         val result = TouchSanitizer.sanitize(library(listOf(bad, badButton, good)))
         assertEquals(listOf(good.id), result.library.templates.single().controls.map { it.id })
         assertEquals(setOf(bad.id, badButton.id), result.removed.map { it.id }.toSet())
+    }
+
+    @Test fun sanitizerMigratesLegacyVisibilityControlsToButtonAction() {
+        val visibility = TouchControl(
+            type = ControlType.VISIBILITY,
+            bounds = TouchRect(0f, 0f, 64f, 64f),
+            binding = ButtonBinding(emptySet()),
+            hideSelf = true
+        )
+        val result = TouchSanitizer.sanitize(library(listOf(visibility)))
+        val migrated = result.library.templates.single().controls.single()
+        assertEquals(ControlType.BUTTON, migrated.type)
+        assertEquals(ButtonAction.TOGGLE_VISIBILITY, migrated.buttonAction)
+        assertTrue(migrated.hideSelf)
+        assertTrue(TouchValidator.validate(result.library).isEmpty())
     }
 
     @Test fun sanitizerKeepsDefaultLayout() {

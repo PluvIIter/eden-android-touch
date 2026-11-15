@@ -13,6 +13,9 @@ fun newTouchId(): String = UUID.randomUUID().toString()
 enum class ControlType { BUTTON, BUTTON_GROUP, STICK, SWIPE, GESTURE, VISIBILITY }
 
 @Serializable
+enum class ButtonAction { NONE, TOGGLE_VISIBILITY, SWITCH_TEMPLATE }
+
+@Serializable
 enum class ControlShape { CIRCLE, RECTANGLE }
 
 @Serializable
@@ -89,6 +92,8 @@ data class TouchControl(
     val text: String = "A",
     val shape: ControlShape = ControlShape.CIRCLE,
     val binding: ButtonBinding = ButtonBinding(setOf(0)),
+    val buttonAction: ButtonAction = ButtonAction.NONE,
+    val targetTemplateId: String? = null,
     val groupStyle: GroupStyle = GroupStyle.FACE,
     val groupKeys: List<GroupKey> = listOf(
         GroupKey(text = "X", binding = ButtonBinding(setOf(2))),

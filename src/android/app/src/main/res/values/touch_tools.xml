@@ -36,6 +36,13 @@
     <string name="touch_tools_hide_self">Hide this button too</string>
     <string name="touch_tools_gesture_hold">Hold until release</string>
     <string name="touch_tools_gesture_hold_hint">After the slide crosses the threshold, keep the mapped buttons held until you lift the finger.</string>
+    <string name="touch_tools_action_toggle_visibility">Show/Hide</string>
+    <string name="touch_tools_action_switch_template">Switch template</string>
+    <string name="touch_tools_action_value">Action: %1$s</string>
+    <string name="touch_tools_target_template">Target template: %1$s</string>
+    <string name="touch_tools_choose_template">Choose template</string>
+    <string name="touch_tools_no_other_templates">No other layout templates available</string>
+    <string name="touch_tools_missing_template">Missing template</string>
     <string name="touch_tools_name">Name</string>
     <string name="touch_tools_select_mapping">Select button mapping</string>
     <string name="touch_tools_group_style">Group style</string>

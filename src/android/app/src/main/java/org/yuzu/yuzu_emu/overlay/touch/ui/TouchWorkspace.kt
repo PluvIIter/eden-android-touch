@@ -25,6 +25,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ScreenLayout
 import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
@@ -118,7 +119,21 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (isEditing || testing) return true
         if (!controlsVisible) return false
         if (!controlsHidden) return true
-        return control.type == ControlType.VISIBILITY && !control.hideSelf
+        return (control.buttonAction == ButtonAction.TOGGLE_VISIBILITY || control.type == ControlType.VISIBILITY) &&
+            !control.hideSelf
+    }
+
+    internal fun switchGameTemplate(id: String) {
+        if (!gameAvailable || isEditing || id == templateId) return
+        if (draft.templates.none { it.id == id }) return
+        releaseInputs()
+        templateId = id
+        selectedId = null
+        controlsHidden = false
+        updateGeometry()
+        tools.refreshToolbar()
+        canvas.invalidate()
+        postFrame()
     }
 
     fun acceptSaved(library: TouchLibrary) {
@@ -217,6 +232,11 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         }
         override fun toggleVisibility() {
             if (gameAvailable && !isEditing) toggleControlsVisibility()
+        }
+        override fun switchTemplate(templateId: String) {
+            if (gameAvailable && !isEditing) {
+                post { if (gameAvailable && !isEditing) switchGameTemplate(templateId) }
+            }
         }
     })
     private var output: InputSink = object : InputSink {}

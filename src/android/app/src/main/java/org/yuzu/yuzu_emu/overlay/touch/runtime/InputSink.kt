@@ -16,6 +16,7 @@ interface InputSink {
     fun touchUp(pointerId: Int) {}
     fun haptic(control: TouchControl, strong: Boolean = false) {}
     fun toggleVisibility() {}
+    fun switchTemplate(templateId: String) {}
 }
 
 data class StickVector(val x: Float = 0f, val y: Float = 0f)

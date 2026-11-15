@@ -3,6 +3,7 @@
 
 package org.yuzu.yuzu_emu.overlay.touch.store
 
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
@@ -113,9 +114,20 @@ object TouchValidator {
                 check(!control.showText || control.showBorder, "$c.showText", "Text requires a border")
                 check(!control.showFill || control.showBorder, "$c.showFill", "Fill requires a border")
                 check(!control.triggerOnly || control.type == ControlType.STICK, "$c.triggerOnly", "Trigger-only display requires a stick")
-                check(!control.hideSelf || control.type == ControlType.VISIBILITY, "$c.hideSelf", "Only visibility controls can hide themselves")
+                check(!control.hideSelf || control.buttonAction == ButtonAction.TOGGLE_VISIBILITY ||
+                    control.type == ControlType.VISIBILITY, "$c.hideSelf", "Only visibility actions can hide themselves")
                 when (control.type) {
-                    ControlType.BUTTON -> binding(control.binding, "$c.binding")
+                    ControlType.BUTTON -> {
+                        when (control.buttonAction) {
+                            ButtonAction.NONE -> binding(control.binding, "$c.binding")
+                            ButtonAction.TOGGLE_VISIBILITY -> check(control.binding.buttons.isEmpty(), "$c.binding", "Visibility action takes no buttons")
+                            ButtonAction.SWITCH_TEMPLATE -> {
+                                check(control.targetTemplateId != null && control.targetTemplateId in templateIds, "$c.targetTemplateId", "Missing template")
+                                check(control.targetTemplateId != template.id, "$c.targetTemplateId", "Cannot switch to itself")
+                                check(control.binding.buttons.isEmpty(), "$c.binding", "Template action takes no buttons")
+                            }
+                        }
+                    }
                     ControlType.BUTTON_GROUP -> {
                         check(control.groupKeys.size == 4, "$c.groupKeys", "A button group requires four keys")
                         control.groupKeys.forEach { binding(it.binding, "$c.groupKeys.${it.id}") }

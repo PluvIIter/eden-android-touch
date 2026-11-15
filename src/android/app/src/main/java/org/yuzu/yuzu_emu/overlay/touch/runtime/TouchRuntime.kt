@@ -4,6 +4,7 @@
 package org.yuzu.yuzu_emu.overlay.touch.runtime
 
 import org.yuzu.yuzu_emu.overlay.touch.model.AuxiliaryMode
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.GestureBinding
@@ -165,7 +166,11 @@ class TouchRuntime(private val sink: InputSink) {
         when (captured?.type) {
             ControlType.BUTTON -> {
                 if (captured.haptics) sink.haptic(captured)
-                activate(capture.source, captured.binding, time)
+                when (captured.buttonAction) {
+                    ButtonAction.TOGGLE_VISIBILITY -> sink.toggleVisibility()
+                    ButtonAction.SWITCH_TEMPLATE -> captured.targetTemplateId?.let(sink::switchTemplate)
+                    ButtonAction.NONE -> activate(capture.source, captured.binding, time)
+                }
             }
             ControlType.BUTTON_GROUP -> updateGroup(capture, time)
             ControlType.STICK -> {

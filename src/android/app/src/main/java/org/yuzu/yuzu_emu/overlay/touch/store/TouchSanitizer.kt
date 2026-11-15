@@ -6,6 +6,9 @@ package org.yuzu.yuzu_emu.overlay.touch.store
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchGeometry
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
+import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
+import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import kotlin.math.abs
 
 data class RemovedControl(val id: String, val name: String, val reason: String)
@@ -37,9 +40,21 @@ object TouchSanitizer {
                 }
             }
             val ids = kept.map { it.id }.toSet()
-            val inferredColor = kept.mapNotNull { it.color }.distinct().singleOrNull()
+            val normalized = kept.map { control ->
+                if (control.type == ControlType.VISIBILITY) {
+                    control.copy(
+                        type = ControlType.BUTTON,
+                        buttonAction = ButtonAction.TOGGLE_VISIBILITY,
+                        binding = ButtonBinding(emptySet()),
+                        targetTemplateId = null
+                    )
+                } else {
+                    control
+                }
+            }
+            val inferredColor = normalized.mapNotNull { it.color }.distinct().singleOrNull()
             template.copy(
-                controls = kept,
+                controls = normalized,
                 globalColor = template.globalColor ?: inferredColor,
                 screens = template.screens.map { screen ->
                     screen.copy(placements = screen.placements.filterKeys { it in ids })

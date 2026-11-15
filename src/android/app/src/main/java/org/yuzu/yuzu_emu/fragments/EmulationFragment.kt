@@ -691,8 +691,11 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 return
             }
             if (!touchTemplateAvailable || library != touchLibrary || workspace.gameId != id) {
+                val activeId = workspace.templateId.takeIf { candidate ->
+                    workspace.gameId == id && library.templates.any { it.id == candidate }
+                } ?: template.id
                 workspace.releaseInputs()
-                workspace.bind(library, template.id, true, TouchNativeSink())
+                workspace.bind(library, activeId, true, TouchNativeSink())
                 workspace.setEditing(false)
                 workspace.gameId = id
                 touchTemplateAvailable = true
