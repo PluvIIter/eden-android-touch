@@ -10,7 +10,7 @@ import kotlin.math.min
 fun newTouchId(): String = UUID.randomUUID().toString()
 
 @Serializable
-enum class ControlType { BUTTON, BUTTON_GROUP, STICK, SWIPE, GESTURE }
+enum class ControlType { BUTTON, BUTTON_GROUP, STICK, SWIPE, GESTURE, VISIBILITY }
 
 @Serializable
 enum class ControlShape { CIRCLE, RECTANGLE }
@@ -81,6 +81,8 @@ data class TouchControl(
     val locked: Boolean = false,
     val opacity: Float = 0.7f,
     val color: Int? = null,
+    val haptics: Boolean = true,
+    val hideSelf: Boolean = false,
     val showBorder: Boolean = false,
     val showText: Boolean = false,
     val showFill: Boolean = false,
@@ -106,6 +108,7 @@ data class TouchControl(
     val gestures: Map<GestureDirection, GestureBinding> = emptyMap(),
     val diagonalGestures: Boolean = false,
     val gestureTiming: GestureTiming = GestureTiming.RELEASE,
+    val gestureHold: Boolean = true,
     val gestureDistance: Float = 32f,
     val gesturePulseMs: Long = 100,
     val tapTimeoutMs: Long = 250,

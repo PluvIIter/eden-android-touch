@@ -1,19 +1,19 @@
 ---
 name: release
-description: 合并 Eden 上游 master，构建签名的 Eden Touch APK，并发布到 GitHub Release。
+description: 检查上游 24 小时同步窗口，构建 Eden Touch 与 Eden-TouchG 两个签名 APK，并发布到 GitHub Release。
 ---
 
 # Eden Touch 发布流程
 
 本文件是 Eden Touch（`Xcom9527/eden-android-touch`）的本地发布 runbook，覆盖：
 
-1. 合并上游 `eden-emu/eden` 的最新 `master`
+1. 检查最近一次上游同步时间，超过 24 小时先同步 `eden-emu/eden`
 2. 跑触摸层测试
-3. 用固定的 release keystore 构建正式 APK
-4. 校验包名、应用名、签名和哈希
-5. 推送合并提交与版本 tag
-6. 创建 GitHub Release 并上传 APK
-7. 同步一份到本机临时目录
+3. 用固定 release keystore 构建普通版和原神版 APK
+4. 校验两个包的包名、应用名、签名和哈希
+5. 推送源码与版本 tag
+6. 创建 GitHub Release 并上传两个 APK
+7. 同步两个 APK 到本机临时目录
 
 > 适用环境：Windows + PowerShell 7，项目位于 `E:\Develop\Code\eden-android-touch`。其他机器请按实际路径调整。
 
@@ -21,14 +21,23 @@ description: 合并 Eden 上游 master，构建签名的 Eden Touch APK，并发
 
 ## 0. 固定信息
 
+| 项 | 普通版 | 原神版 |
+|---|---|---|
+| 应用名 | `Eden Touch` | `Eden-TouchG` |
+| 包名 | `dev.eden.eden_emulator.touch` | `com.miHoYo.Yuanshen` |
+| 构建变体 | `MainlineRelease` + `-PtouchAcceptance=true` | `GenshinSpoofRelease` |
+| minSdk | 33 | 35 |
+| APK 输出 | `apk/mainline/release/app-mainline-release.apk` | `apk/genshinSpoof/release/app-genshinSpoof-release.apk` |
+| 资产名 | `Eden-Touch-arm64-v$version.apk` | `Eden-TouchG-arm64-v$version.apk` |
+| 临时副本名 | `Eden-Touch-$version.apk` | `Eden-TouchG-$version.apk` |
+
+固定路径：
+
 | 项 | 值 |
 |---|---|
 | 工作目录 | `E:\Develop\Code\eden-android-touch` |
 | 上游 | `https://git.eden-emu.dev/eden-emu/eden.git`，分支 `master` |
-| 上游 remote 名 | `upstream` |
-| Release 包名 | `dev.eden.eden_emulator.touch` |
-| 应用名 | `Eden Touch` |
-| 构建变体 | `MainlineRelease` + `-PtouchAcceptance=true` |
+| 上游 remote | `upstream` |
 | 签名文件 | `.signing\eden-touch-release.jks` |
 | 签名凭据 | `.signing\credentials.txt`（key: `alias` / `storePassword`） |
 | 临时 APK 目录 | `E:\File\临时` |
@@ -38,7 +47,83 @@ description: 合并 Eden 上游 master，构建签名的 Eden Touch APK，并发
 
 ---
 
-## 1. 前置检查
+## 1. 检查上游同步时间（发布前必做）
+
+规则：
+
+- 最近一次同步上游代码距今 **不足 24 小时**：可以继续发布。
+- **达到或超过 24 小时**：必须先 `fetch + merge` 上游，再跑测试，然后才能发布。
+- 找不到同步记录时，按“从未同步”处理，先同步。
+
+同步时间优先读取本机标记文件 `.cache/last-upstream-sync`；没有标记时，回退到最近一次 `Merge remote-tracking branch 'upstream/master'` 提交。
+
+```powershell
+Set-Location 'E:\Develop\Code\eden-android-touch'
+
+$marker = '.cache/last-upstream-sync'
+if (Test-Path $marker) {
+    $lastSync = [datetimeoffset]::Parse((Get-Content $marker -Raw).Trim())
+} else {
+    $merge = git log -1 --merges --format='%cI' --grep="upstream/master"
+    if ($merge) {
+        $lastSync = [datetimeoffset]::Parse($merge)
+    } else {
+        $lastSync = [datetimeoffset]::MinValue
+    }
+}
+
+$age = [datetimeoffset]::Now - $lastSync
+Write-Host "Last upstream sync: $lastSync"
+Write-Host "Age: $([math]::Round($age.TotalHours, 1)) hours"
+```
+
+### 1.1 超过 24 小时时同步上游
+
+```powershell
+git fetch upstream master
+
+# 先看上游最新提交
+git log -1 --format='%h %ci %s' --date=iso upstream/master
+
+# 合并上游
+git merge upstream/master
+```
+
+如果已经是最新，`git merge` 会提示 `Already up to date.`；仍然要更新标记时间：
+
+```powershell
+New-Item -ItemType Directory -Path '.cache' -Force | Out-Null
+(Get-Date).ToString('o') | Set-Content '.cache/last-upstream-sync' -Encoding utf8
+```
+
+如果发生冲突，处理完并提交后再写标记：
+
+```powershell
+git add -u
+git diff --cached --check
+git commit --no-edit
+(Get-Date).ToString('o') | Set-Content '.cache/last-upstream-sync' -Encoding utf8
+```
+
+### 1.2 合并冲突原则
+
+最可能冲突的文件：
+
+```
+src/android/app/src/main/java/org/yuzu/yuzu_emu/fragments/EmulationFragment.kt
+```
+
+原则：
+
+- 保留上游的 `combine(emulationStarted, areShadersBuilt)` 等待逻辑；
+- 保留 Touch 的抽屉锁定、`surfaceInputOverlay` 显隐和 `resumeInputs()`；
+- Touch 改动尽量收敛在 `overlay/touch/` 下，减少下次冲突。
+
+同步后必须重新跑第 3 节测试，不能直接沿用同步前的测试结果。
+
+---
+
+## 2. 前置检查
 
 ```powershell
 Set-Location 'E:\Develop\Code\eden-android-touch'
@@ -55,92 +140,6 @@ Get-ChildItem '.signing' | Select-Object Name, Length
 - `git status` 除 `?? docs_touch/` 外没有其它输出；
 - `.signing\eden-touch-release.jks` 和 `credentials.txt` 存在；
 - 如果换了机器，先把这两个文件从备份恢复，**不要重新生成密钥**，否则老用户无法覆盖升级。
-
----
-
-## 2. 合并上游
-
-### 2.1 配置 upstream remote
-
-首次执行：
-
-```powershell
-git remote add upstream https://git.eden-emu.dev/eden-emu/eden.git
-```
-
-已存在会报错，可忽略或先检查：
-
-```powershell
-git remote -v
-```
-
-### 2.2 拉取并合并
-
-```powershell
-git fetch upstream master
-git log -1 --format='%h %cd %s' --date=iso upstream/master
-git merge upstream/master
-```
-
-如果 `git merge` 直接成功，跳到第 3 节。
-
-### 2.3 处理冲突
-
-目前最可能冲突的文件：
-
-```
-src/android/app/src/main/java/org/yuzu/yuzu_emu/fragments/EmulationFragment.kt
-```
-
-原因：上游会改启动/loader 流程，Touch 分支也在同一段代码里控制触摸层。
-
-解决原则：
-
-- 保留上游的 `combine(emulationStarted, areShadersBuilt)` 等待逻辑；
-- 保留 Touch 的抽屉锁定、`surfaceInputOverlay` 显隐和 `resumeInputs()`。
-
-合并后的 collector 应类似：
-
-```kotlin
-combine(
-    emulationViewModel.emulationStarted,
-    emulationViewModel.areShadersBuilt
-) { started, shadersBuilt -> started && shadersBuilt }.collect(viewLifecycleOwner) { isReady ->
-    if (isReady) {
-        binding.drawerLayout.setDrawerLockMode(
-            if (touchWorkspace?.isEditing == true || touchWorkspace?.isTesting == true) {
-                DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-            } else {
-                IntSetting.LOCK_DRAWER.getInt()
-            }
-        )
-        if (touchWorkspace == null) {
-            ViewUtils.showView(binding.surfaceInputOverlay)
-        } else {
-            binding.surfaceInputOverlay.visibility = View.GONE
-            if (!touchPauseRequested && !emulationState.isPaused) {
-                touchWorkspace?.resumeInputs()
-            }
-        }
-        binding.loadingText.setText(R.string.loading)
-        binding.loadingProgressIndicator.isIndeterminate = true
-        ViewUtils.hideView(binding.loadingIndicator)
-        // ... 其余上游 loading 清理逻辑保持不动
-    }
-}
-```
-
-处理完后：
-
-```powershell
-git add -u
-git diff --cached --check
-git commit --no-edit
-```
-
-合并提交信息保持默认的 `Merge remote-tracking branch 'upstream/master'` 即可。
-
-如果冲突涉及 Touch 之外的文件，优先保留上游实现；Touch 的改动应尽量收敛到 `overlay/touch/` 下，减少下次冲突。
 
 ---
 
@@ -169,7 +168,7 @@ Set-Location 'E:\Develop\Code\eden-android-touch\src\android'
   '-PYUZU_ANDROID_ARGS=-DCMAKE_NINJA_FORCE_RESPONSE_FILE=ON'
 ```
 
-当前基线：150 个测试，5 个 Windows `File.renameTo` 平台问题失败，其余必须通过。若出现新的失败，先修复再发布。
+当前基线：162 个测试，5 个 Windows `File.renameTo` 平台问题失败，其余必须通过。若出现新的失败，先修复再发布。
 
 ### 3.3（可选）纯 Kotlin 测试
 
@@ -177,7 +176,7 @@ Set-Location 'E:\Develop\Code\eden-android-touch\src\android'
 & 'E:\Develop\Code\eden-android-touch\.cache\touch-tests-pwsh.ps1'
 ```
 
-该脚本是本地脚本，不在 git 中；没有就跳过。
+当前基线：124 个测试，5 个已知 Windows 失败。该脚本是本地脚本，不在 git 中；没有就跳过。
 
 ---
 
@@ -187,7 +186,7 @@ Set-Location 'E:\Develop\Code\eden-android-touch\src\android'
 
 ```powershell
 Set-Location 'E:\Develop\Code\eden-android-touch'
-$version = '2026.11.14'   # 改成当天日期；同一天第二次发布用 2026.11.14.2
+$version = '2026.11.14.8'   # 改成当天版本；同一天继续发布时递增末位
 $tag = "v$version"
 
 git tag -a $tag -m "Eden Touch $version (upstream $(git rev-parse --short upstream/master))"
@@ -197,14 +196,14 @@ git describe --always --long
 预期 `git describe` 输出形如：
 
 ```
-v2026.11.14-0-g39ffa4bc0b
+v2026.11.14.8-0-g72915069c6
 ```
 
-最终 APK 的 `versionName` 会是 `v2026.11.14-touch`（`-touch` 来自 `touchAcceptance` 构建后缀），`versionCode` 由构建时间自动生成，天然递增。
+普通版 `versionName` 为 `v$version-touch`，原神版为 `v$version`。`versionCode` 由构建时间自动生成，天然递增。
 
 ---
 
-## 5. 构建签名 release APK
+## 5. 构建两个签名 release APK
 
 ### 5.1 读取签名凭据
 
@@ -227,7 +226,7 @@ if ([string]::IsNullOrEmpty($env:ANDROID_KEYSTORE_PASS)) { throw 'keystore 密�
 
 > 构建配置里 `keyPassword` 也读取 `ANDROID_KEYSTORE_PASS`，所以 keystore 密码和 key 密码必须一致。
 
-### 5.2 构建
+### 5.2 构建普通版
 
 ```powershell
 $env:JAVA_HOME='E:\Develop\JDK21'
@@ -250,7 +249,7 @@ $log = 'E:\Develop\Code\eden-android-touch\release-build.log'
 $code = $LASTEXITCODE
 Get-Content $log -Tail 40
 Write-Host "GRADLE_EXIT=$code"
-if ($code -ne 0) { throw 'release 构建失败' }
+if ($code -ne 0) { throw '普通版 release 构建失败' }
 ```
 
 产物：
@@ -259,6 +258,34 @@ if ($code -ne 0) { throw 'release 构建失败' }
 src/android/app/build/outputs/apk/mainline/release/app-mainline-release.apk
 ```
 
+### 5.3 构建原神版 Eden-TouchG
+
+**不要加 `-PtouchAcceptance=true`**，否则包名会变成 `com.miHoYo.Yuanshen.touch`，Genshin Spoof 失效。
+
+```powershell
+Set-Location 'E:\Develop\Code\eden-android-touch\src\android'
+$log = 'E:\Develop\Code\eden-android-touch\release-build-touchg.log'
+
+.\gradlew.bat :app:assembleGenshinSpoofRelease `
+  --console=plain `
+  '-Pandroid.builder.sdkDownload=false' `
+  '-PYUZU_ANDROID_ARGS=-DCMAKE_NINJA_FORCE_RESPONSE_FILE=ON -DENABLE_LTO=OFF' `
+  *> $log
+
+$code = $LASTEXITCODE
+Get-Content $log -Tail 40
+Write-Host "GRADLE_EXIT=$code"
+if ($code -ne 0) { throw 'Eden-TouchG release 构建失败' }
+```
+
+产物：
+
+```
+src/android/app/build/outputs/apk/genshinSpoof/release/app-genshinSpoof-release.apk
+```
+
+预期：应用名 `Eden-TouchG`，包名 `com.miHoYo.Yuanshen`，minSdk 35。
+
 首次原生 release 构建较慢；之后有缓存通常 1–3 分钟。
 
 ---
@@ -266,21 +293,25 @@ src/android/app/build/outputs/apk/mainline/release/app-mainline-release.apk
 ## 6. APK 校验（必做）
 
 ```powershell
-$apk = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$normal = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$touchg = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\genshinSpoof\release\app-genshinSpoof-release.apk'
 $aapt = 'E:\Develop\Android\Sdk\build-tools\36.1.0\aapt2.exe'
 $apksigner = 'E:\Develop\Android\Sdk\build-tools\36.1.0\apksigner.bat'
 
-& $aapt dump badging $apk | Select-String '^package:|^application-label:'
-& $apksigner verify --print-certs $apk | Select-String 'Signer #1 certificate (DN|SHA-256)'
-Get-Item $apk | Select-Object Length
-(Get-FileHash $apk -Algorithm SHA256).Hash
+foreach ($apk in @($normal, $touchg)) {
+    Write-Host "=== $apk ==="
+    & $aapt dump badging $apk | Select-String '^package:|^application-label:|minSdkVersion'
+    & $apksigner verify --print-certs $apk | Select-String 'Signer #1 certificate (DN|SHA-256)'
+    Get-Item $apk | Select-Object Length
+    (Get-FileHash $apk -Algorithm SHA256).Hash
+}
 ```
 
 必须满足：
 
-- `package: name='dev.eden.eden_emulator.touch'`
-- `application-label:'Eden Touch'`
-- 签名证书 SHA-256 为固定 release 证书：
+- 普通版：`package: name='dev.eden.eden_emulator.touch'`、`application-label:'Eden Touch'`
+- 原神版：`package: name='com.miHoYo.Yuanshen'`、`application-label:'Eden-TouchG'`、`minSdkVersion:'35'`
+- 两个包签名证书 SHA-256 都是固定 release 证书：
   `87cea31d13dcaf994f39b4794376b2d17bb02e8469e4545d20b92b230ba4f279`
 - 不是 `CN=Android Debug` 的 debug 证书
 
@@ -303,24 +334,23 @@ git ls-remote origin refs/heads/master "refs/tags/$tag"
 
 ---
 
-## 8. 创建 GitHub Release 并上传 APK
+## 8. 创建 GitHub Release 并上传两个 APK
 
 > 下面命令需要和前面的构建使用同一个 PowerShell 会话；如果新开窗口，先重新设置本节变量。
 
 ```powershell
 Set-Location 'E:\Develop\Code\eden-android-touch'
-$version = '2026.11.14'   # 与第 4 节保持一致
+$version = '2026.11.14.8'   # 与第 4 节保持一致
 $tag = "v$version"
 $repo = 'Xcom9527/eden-android-touch'
-$apk = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$normal = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$touchg = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\genshinSpoof\release\app-genshinSpoof-release.apk'
 ```
 
 ### 8.1 方式 A：`gh` CLI（如果已安装并登录）
 
 ```powershell
-$asset = "Eden-Touch-arm64-v$version.apk"
-
-gh release create $tag $apk `
+gh release create $tag $normal $touchg `
   --title "Eden Touch $version" `
   --notes-file release-notes.md `
   --latest
@@ -344,20 +374,21 @@ $headers = @{
 }
 ```
 
-创建 release：
+创建 release 并上传两个资产：
 
 ```powershell
-$apk = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
-$sha = (Get-FileHash $apk -Algorithm SHA256).Hash
+$normalSha = (Get-FileHash $normal -Algorithm SHA256).Hash
+$touchgSha = (Get-FileHash $touchg -Algorithm SHA256).Hash
 $body = @"
 Eden Touch $version — unofficial Android touch fork of Eden.
 
 - Upstream: https://git.eden-emu.dev/eden-emu/eden
 - Source commit: https://github.com/$repo/commit/$(git rev-parse HEAD)
-- Package: dev.eden.eden_emulator.touch
-- Version: v$version-touch
-- ABIs: arm64-v8a
-- APK SHA-256: $sha
+- Normal package: dev.eden.eden_emulator.touch
+- Genshin Spoof package: com.miHoYo.Yuanshen
+
+Normal APK SHA-256: $normalSha
+Eden-TouchG APK SHA-256: $touchgSha
 
 Eden Touch is an unofficial fork. Eden is licensed under GPLv3; the complete corresponding source is the linked repository/commit.
 "@
@@ -375,35 +406,44 @@ $payload = @{
 $release = Invoke-RestMethod -Headers $headers -Method Post `
     -ContentType 'application/json' -Body $payload `
     -Uri "https://api.github.com/repos/$repo/releases"
-```
 
-上传资产：
-
-```powershell
-$asset = "Eden-Touch-arm64-v$version.apk"
 $uploadHeaders = @{
     Authorization = "Bearer $($cred['password'])"
     'User-Agent'  = 'eden-touch-release'
     'Content-Type' = 'application/vnd.android.package-archive'
 }
-Invoke-RestMethod -Headers $uploadHeaders -Method Post -InFile $apk `
-    -Uri "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=$asset"
+
+foreach ($item in @(
+    @{ Path = $normal; Name = "Eden-Touch-arm64-v$version.apk" },
+    @{ Path = $touchg; Name = "Eden-TouchG-arm64-v$version.apk" }
+)) {
+    Invoke-RestMethod -Headers $uploadHeaders -Method Post -InFile $item.Path `
+        -Uri "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=$($item.Name)"
+}
 ```
 
 ### 8.3 Release 说明必须包含
 
-可直接把下面模板保存为 `release-notes.md`（替换占位符）：
-
 ```markdown
-Eden Touch 2026.11.14 — unofficial Android touch fork of Eden.
+Eden Touch 2026.11.14.8 — unofficial Android touch fork of Eden.
 
 - Upstream Eden: https://git.eden-emu.dev/eden-emu/eden (synced to <upstream-sha>)
 - Source commit: https://github.com/Xcom9527/eden-android-touch/commit/<merge-sha>
-- Package: dev.eden.eden_emulator.touch
-- Version: v2026.11.14-touch
-- ABIs: arm64-v8a
 - Signed with the Eden Touch release key (SHA-256: 87cea31d13dcaf994f39b4794376b2d17bb02e8469e4545d20b92b230ba4f279)
-- APK SHA-256: <apk-sha256>
+
+## Eden Touch (normal)
+- Package: dev.eden.eden_emulator.touch
+- Version: v2026.11.14.8-touch
+- ABIs: arm64-v8a
+- APK SHA-256: <normal-apk-sha256>
+
+## Eden-TouchG (Genshin Spoof)
+- Package: com.miHoYo.Yuanshen
+- Version: v2026.11.14.8
+- minSdk: 35 (Android 15+)
+- ABIs: arm64-v8a
+- APK SHA-256: <touchg-apk-sha256>
+- 使用国服原神包名以套用系统/GPU 的原神游戏配置；不能与真正的国服原神共存，安装前请卸载原神并备份数据。它不会运行原神，也不会访问原神账号。
 
 Eden Touch is an unofficial fork. Eden is licensed under GPLv3; the complete
 corresponding source for this build is the linked repository/commit.
@@ -417,42 +457,52 @@ $rel.tag_name
 $rel.assets | Select-Object name, size, state, digest
 ```
 
-`state` 必须是 `uploaded`，`digest` 必须与本地 SHA-256 一致。
+`state` 必须是 `uploaded`，两个 asset 的 `digest` 必须分别与本地 SHA-256 一致。
 
 ---
 
 ## 9. 同步到本机临时目录
 
-固定规则：每次构建后把最新 APK 放到 `E:\File\临时`，并删除上一版本项目 APK；不要删无关文件。
+固定规则：每次构建后把两个最新 APK 放到 `E:\File\临时`，删除上一版项目 APK；不要删无关文件。
 
 ```powershell
-$version = '2026.11.14'   # 与第 4 节保持一致
+$version = '2026.11.14.8'   # 与第 4 节保持一致
 $dir = 'E:\File\临时'
-$apk = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$normal = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\mainline\release\app-mainline-release.apk'
+$touchg = 'E:\Develop\Code\eden-android-touch\src\android\app\build\outputs\apk\genshinSpoof\release\app-genshinSpoof-release.apk'
 
 # 只删除本项目旧 APK
 Get-ChildItem $dir -File |
-    Where-Object { $_.Name -like 'Eden-Touch-*.apk' -or $_.Name -like 'app-mainline-relWithDebInfo*.apk' } |
+    Where-Object {
+        $_.Name -like 'Eden-Touch-*.apk' -or
+        $_.Name -like 'Eden-TouchG-*.apk' -or
+        $_.Name -like 'app-mainline-relWithDebInfo*.apk'
+    } |
     Remove-Item -Force
 
-$dst = Join-Path $dir "Eden-Touch-$version.apk"
-Copy-Item $apk $dst -Force
-Get-Item $dst | Select-Object FullName, Length
-(Get-FileHash $dst -Algorithm SHA256).Hash
+Copy-Item $normal (Join-Path $dir "Eden-Touch-$version.apk") -Force
+Copy-Item $touchg (Join-Path $dir "Eden-TouchG-$version.apk") -Force
+
+Get-ChildItem $dir -Filter '*.apk' | Select-Object Name, Length
+(Get-FileHash (Join-Path $dir "Eden-Touch-$version.apk") -Algorithm SHA256).Hash
+(Get-FileHash (Join-Path $dir "Eden-TouchG-$version.apk") -Algorithm SHA256).Hash
 ```
 
 ---
 
 ## 10. 发布后检查
 
-- [ ] `origin/master` 包含合并提交
-- [ ] tag 指向合并提交
+- [ ] 发布前已检查上次上游同步时间；超过 24 小时已同步并重跑测试
+- [ ] `origin/master` 包含发布提交
+- [ ] tag 指向发布提交
 - [ ] Release 为 latest / 非 draft / 非 prerelease
-- [ ] APK 标签为 `Eden Touch`，包名为 `.touch`
-- [ ] 签名证书为 release 证书
-- [ ] Release 资产 SHA-256 与本地一致
-- [ ] 本地临时目录只剩一个本项目 APK
-- [ ] 已提醒测试用户：旧 `relWithDebInfo` 包与新 `.touch` 包是两个独立应用
+- [ ] 普通版标签为 `Eden Touch`，包名为 `.touch`
+- [ ] 原神版标签为 `Eden-TouchG`，包名为 `com.miHoYo.Yuanshen`，minSdk 35
+- [ ] 两个包签名证书均为 release 证书
+- [ ] 两个 Release 资产 SHA-256 与本地一致
+- [ ] 本地临时目录同时有 `Eden-Touch-*.apk` 和 `Eden-TouchG-*.apk`
+- [ ] 已提醒测试用户：旧 `relWithDebInfo` 包与新包是两个独立应用
+- [ ] 已提醒原神版用户：不能与真正的国服原神共存
 
 ---
 
@@ -499,7 +549,8 @@ $ks = Join-Path $signDir 'eden-touch-release.jks'
 
 - 上游是 GitLab，不是 GitHub；`git fetch` 网络需可达 `git.eden-emu.dev`。
 - 上游 `master` 变动频繁时，合并冲突会集中在 `EmulationFragment.kt`；解决时不要把 Touch 逻辑塞进更多上游文件。
-- `-PtouchAcceptance=true` 才会得到 `.touch` 包名和 `Eden Touch` 应用名；不带该参数构建的是官方包名，不能用来发这个分支。
+- `-PtouchAcceptance=true` 才会得到 `.touch` 包名和 `Eden Touch` 应用名；原神版必须**不带**该参数。
+- 原神版构建变体内部仍叫 `genshinSpoof`，但应用名和资产名统一为 `Eden-TouchG`。
 - `relWithDebInfo` 是本地调试包，debug 签名、可调试，不能作为正式发布资产。
 - GitHub 仓库目前是私有仓库；Release 链接需要登录对应账号才能下载。
 - 发布必须遵守 GPLv3：Release 说明中保留上游地址、源码提交和非官方声明。

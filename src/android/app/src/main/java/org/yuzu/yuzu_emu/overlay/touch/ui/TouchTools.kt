@@ -736,7 +736,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ControlType.BUTTON_GROUP to s(R.string.touch_tools_group_description),
             ControlType.STICK to s(R.string.touch_tools_stick_description),
             ControlType.SWIPE to s(R.string.touch_tools_swipe_description),
-            ControlType.GESTURE to s(R.string.touch_tools_gesture_description)
+            ControlType.GESTURE to s(R.string.touch_tools_gesture_description),
+            ControlType.VISIBILITY to s(R.string.touch_tools_visibility_description)
         )
         for ((type, name) in descriptions) body.addView(button(name) { configureNew(type) })
     }
@@ -764,7 +765,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 TouchRect()
             },
             shape = if (type == ControlType.SWIPE || type == ControlType.GESTURE) ControlShape.RECTANGLE else ControlShape.CIRCLE,
-            binding = if (type == ControlType.BUTTON) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),
+            binding = if (type == ControlType.BUTTON || type == ControlType.VISIBILITY) ButtonBinding(emptySet()) else ButtonBinding(setOf(0)),
             groupKeys = if (type == ControlType.BUTTON_GROUP) faceKeys else TouchControl().groupKeys,
             stickTarget = if (type == ControlType.STICK) StickTarget.LEFT else StickTarget.RIGHT,
             swipePresetId = workspace.draft.presets.firstOrNull()?.id,
@@ -780,6 +781,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ControlType.STICK -> stickName(control.stickTarget)
             ControlType.SWIPE -> s(R.string.touch_tools_default_swipe)
             ControlType.GESTURE -> s(R.string.touch_tools_default_gesture)
+            ControlType.VISIBILITY -> s(R.string.touch_tools_default_visibility)
         }
         control = control.copy(name = autoName())
         if (type == ControlType.STICK) control = control.copy(bounds = control.stickBounds(density = resources.displayMetrics.density))
@@ -855,6 +857,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     }
                 }
             )
+            ControlType.VISIBILITY -> toggle(body, s(R.string.touch_tools_hide_self), control.hideSelf) {
+                control = control.copy(hideSelf = it)
+            }
         }
         body.addView(label(s(R.string.touch_tools_place_hint)))
         body.addView(
@@ -1060,12 +1065,22 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     }
                 }
                 number(body, s(R.string.touch_tools_recognition_distance), control.gestureDistance, 1f, 1000f) { change { c -> c.copy(gestureDistance = it) } }
-                choice(body, s(R.string.touch_tools_swipe_timing), GestureTiming.values().toList(), control.gestureTiming) { change { c -> c.copy(gestureTiming = it) } }
+                choice(body, s(R.string.touch_tools_swipe_timing), GestureTiming.values().toList(), control.gestureTiming) {
+                    change { c -> c.copy(gestureTiming = it) }
+                    showProperties()
+                }
+                if (control.gestureTiming == GestureTiming.IMMEDIATE) {
+                    toggle(body, s(R.string.touch_tools_gesture_hold), control.gestureHold) { value ->
+                        change { c -> c.copy(gestureHold = value) }
+                    }
+                    body.addView(label(s(R.string.touch_tools_gesture_hold_hint)))
+                }
                 body.addView(label(s(R.string.touch_tools_gesture_timing_hint)))
                 number(body, s(R.string.touch_tools_gesture_pulse), control.gesturePulseMs.toFloat(), 1f, 10000f) { change { c -> c.copy(gesturePulseMs = it.toLong()) } }
                 number(body, s(R.string.touch_tools_tap_timeout), control.tapTimeoutMs.toFloat(), 1f, 10000f) { change { c -> c.copy(tapTimeoutMs = it.toLong()) } }
                 number(body, s(R.string.touch_tools_tap_tolerance), control.tapSlop, 0f, 500f) { change { c -> c.copy(tapSlop = it) } }
             }
+            ControlType.VISIBILITY -> Unit
         }
     }
 
@@ -1073,7 +1088,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         if (control.type != ControlType.BUTTON_GROUP || childIndex == null) {
             textField(body, s(R.string.touch_tools_control_name), control.name, false) { value -> change { it.copy(name = value) } }
         }
-        if (control.type == ControlType.BUTTON || (control.type == ControlType.BUTTON_GROUP && childIndex != null)) {
+        if (control.type == ControlType.BUTTON || control.type == ControlType.VISIBILITY ||
+            (control.type == ControlType.BUTTON_GROUP && childIndex != null)
+        ) {
             val index = childIndex
             textField(body, s(R.string.touch_tools_display_text), if (index != null) control.groupKeys[index].text else control.text, true) { value ->
                 change { c ->
@@ -1089,7 +1106,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                 }
             }
         }
-        if (control.type == ControlType.BUTTON) {
+        if (control.type == ControlType.BUTTON || control.type == ControlType.VISIBILITY) {
             body.addView(
                 button(s(R.string.touch_tools_shape_value, enumLabel(control.shape))) {
                     val next = if (control.shape == ControlShape.CIRCLE) ControlShape.RECTANGLE else ControlShape.CIRCLE
@@ -1108,7 +1125,15 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     showProperties()
                 }
             })
+            toggle(body, s(R.string.touch_tools_haptics), control.haptics) { value ->
+                change { it.copy(haptics = value) }
+            }
             number(body, s(R.string.touch_tools_opacity), control.opacity * 100, 0f, 100f, true) { value -> change { it.copy(opacity = value / 100) } }
+        }
+        if (control.type == ControlType.VISIBILITY) {
+            toggle(body, s(R.string.touch_tools_hide_self), control.hideSelf) { value ->
+                change { it.copy(hideSelf = value) }
+            }
         }
         if (control.isArea) {
             toggle(body, s(R.string.touch_tools_area_border), control.showBorder) { value ->
@@ -1148,7 +1173,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }) { value ->
             workspace.placements[control.id]?.let { r -> if (!workspace.setGeometry(control.id, r.copy(y = value))) workspace.message(s(R.string.touch_tools_position_error)) }
         }
-        val circle = control.type == ControlType.BUTTON && control.shape == ControlShape.CIRCLE
+        val circle = (control.type == ControlType.BUTTON || control.type == ControlType.VISIBILITY) &&
+            control.shape == ControlShape.CIRCLE
         if (!control.isVisibleStick) {
             number(body, if (circle) s(R.string.touch_tools_diameter) else s(R.string.touch_tools_width), rect.width, 1f, workspace.safe.width(), validate = { value ->
                 val current = workspace.placements[control.id] ?: rect
@@ -2257,6 +2283,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         ControlType.STICK -> s(R.string.touch_tools_enum_controltype_stick)
         ControlType.SWIPE -> s(R.string.touch_tools_enum_controltype_swipe)
         ControlType.GESTURE -> s(R.string.touch_tools_enum_controltype_gesture)
+        ControlType.VISIBILITY -> s(R.string.touch_tools_enum_controltype_visibility)
         ControlShape.CIRCLE -> s(R.string.touch_tools_enum_controlshape_circle)
         ControlShape.RECTANGLE -> s(R.string.touch_tools_enum_controlshape_rectangle)
         GroupStyle.FACE -> s(R.string.touch_tools_enum_groupstyle_face)

@@ -20,15 +20,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -46,6 +49,8 @@ import java.io.File
 import java.io.IOException
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.YuzuApplication
+import org.yuzu.yuzu_emu.model.Game
+import org.yuzu.yuzu_emu.utils.GameHelper
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
@@ -198,10 +203,16 @@ class TouchTemplateActivity : AppCompatActivity() {
     private fun showManager() {
         workspace?.releaseInputs()
         workspace = null
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         val root = FrameLayout(this).apply {
             setBackgroundColor(color(com.google.android.material.R.attr.colorSurface))
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(0, bars.top, 0, bars.bottom)
+            insets
         }
         val page = column()
         root.addView(page, FrameLayout.LayoutParams(-1, -1))
@@ -285,6 +296,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         search.doAfterTextChanged { searchQuery = it?.toString().orEmpty(); render() }
         render()
         setContentView(root)
+        ViewCompat.requestApplyInsets(root)
     }
 
     private fun layoutCard(template: TouchTemplate): MaterialCardView {
@@ -357,7 +369,18 @@ class TouchTemplateActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, -2, 1f)
         )
         if (applyToGame != null) {
-            buttons.addView(textButton(R.string.touch_manager_use_game) { applyToGame() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+            buttons.addView(
+                MaterialButton(
+                    ContextThemeWrapper(this, R.style.TouchButton_Theme_Secondary),
+                    null,
+                    com.google.android.material.R.attr.materialButtonStyle
+                ).apply {
+                    setText(R.string.touch_manager_use_game)
+                    isAllCaps = false
+                    setOnClickListener { applyToGame() }
+                },
+                LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
+            )
         }
         body.addView(buttons)
         card.addView(body)
@@ -369,7 +392,9 @@ class TouchTemplateActivity : AppCompatActivity() {
         isCheckable = false
         isClickable = action != null
         isFocusable = action != null
-        setEnsureMinTouchTargetSize(action != null)
+        setEnsureMinTouchTargetSize(false)
+        chipMinHeight = dp(36).toFloat()
+        gravity = Gravity.CENTER
         if (action != null) setOnClickListener { action() }
     }
 
@@ -396,7 +421,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         )
         if (gameId != null) {
             options += R.string.touch_manager_use_game to {
-                confirm(getString(R.string.touch_manager_apply_named, template.name), getString(R.string.touch_manager_apply_message, gameId)) {
+                confirm(getString(R.string.touch_manager_apply_named, template.name), getString(R.string.touch_manager_apply_message, gameName(gameId!!))) {
                     persist(TouchReferences.associateGame(library, gameId!!, template.id))
                 }
             }
@@ -514,8 +539,23 @@ class TouchTemplateActivity : AppCompatActivity() {
         buildString {
             append(getString(R.string.touch_manager_explicit_games, refs.gameIds.size))
             if (refs.isDefault) append("\n" + getString(R.string.touch_manager_default_impact))
-            refs.gameIds.forEach { append("\n• $it") }
+            refs.gameIds.forEach { append("\n• ${gameName(it)}") }
         }
+    }
+
+    private fun gameName(gameId: String): String {
+        GameHelper.cachedGameList.firstOrNull { TouchGameOverlay.gameId(it.programId) == gameId }
+            ?.title?.takeIf { it.isNotBlank() }?.let { return it }
+        val cached = PreferenceManager.getDefaultSharedPreferences(this)
+            .getStringSet(GameHelper.KEY_GAMES, emptySet())
+            .orEmpty()
+        cached.forEach { raw ->
+            runCatching { Json.decodeFromString<Game>(raw) }
+                .getOrNull()
+                ?.takeIf { TouchGameOverlay.gameId(it.programId) == gameId }
+                ?.title?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return gameId
     }
 
     private fun presetImpact(id: String): String = buildString {

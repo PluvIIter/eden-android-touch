@@ -114,6 +114,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 ControlType.STICK -> R.string.touch_tools_enum_controltype_stick
                 ControlType.SWIPE -> R.string.touch_tools_enum_controltype_swipe
                 ControlType.GESTURE -> R.string.touch_tools_enum_controltype_gesture
+                ControlType.VISIBILITY -> R.string.touch_tools_enum_controltype_visibility
             }
         )
         val mapping = if (control.type == ControlType.STICK || control.type == ControlType.SWIPE) {
@@ -146,7 +147,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         if (workspace.isEditing) drawGrid(canvas, w, h, overlay = workspace.gameAvailable)
         val snapshot = workspace.runtime.snapshot()
         for (control in workspace.template.controls.sortedBy { if (it.isArea) 0 else 1 }) {
-            if (!workspace.controlsVisible && !workspace.isEditing && !workspace.testing) continue
+            if (!workspace.isControlVisible(control)) continue
             if (workspace.isolatedId != null && workspace.isolatedId != control.id) continue
             if (!workspace.isEditing && !control.enabled) continue
             val rect = workspace.placements[control.id] ?: control.bounds
@@ -155,6 +156,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             val opacity = (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
             when (control.type) {
                 ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity, control.color)
+                ControlType.VISIBILITY -> drawButton(canvas, rect, control.text.ifBlank { control.name }, control.shape == ControlShape.CIRCLE, active, opacity, control.color)
                 ControlType.BUTTON_GROUP -> drawGroup(canvas, control, rect, pointers, opacity)
                 ControlType.STICK -> drawStick(canvas, control, rect, pointers, snapshot, opacity, w, h)
                 ControlType.SWIPE, ControlType.GESTURE -> {
@@ -190,7 +192,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     private fun drawGrid(canvas: Canvas, w: Float, h: Float, overlay: Boolean = false) {
         if (!overlay) canvas.drawColor(surface)
         stroke(ink, dp(0.5f), if (overlay) 0.06f else 0.035f)
-        val step = dp(16)
+        val step = workspace.gridStep()
         var x = 0f
         while (x < w) { canvas.drawLine(x, 0f, x, h, paint); x += step }
         var y = 0f

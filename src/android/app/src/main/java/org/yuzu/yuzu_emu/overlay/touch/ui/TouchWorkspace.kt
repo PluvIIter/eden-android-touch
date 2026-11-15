@@ -8,6 +8,7 @@ import org.yuzu.yuzu_emu.R
 import android.graphics.RectF
 import android.os.SystemClock
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.inputmethod.InputMethodManager
@@ -40,6 +41,8 @@ import org.yuzu.yuzu_emu.overlay.touch.store.RemovedControl
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchSanitizer
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationIssue
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidator
+import org.yuzu.yuzu_emu.features.settings.model.BooleanSetting
+import org.yuzu.yuzu_emu.features.settings.model.IntSetting
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -78,13 +81,33 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             field = value
             runtime.setTouchscreenEnabled(value && isolatedId == null)
         }
-    var snapToGrid: Boolean = true
+    private var controlsHidden = false
+    var snapToGrid: Boolean = runCatching {
+        BooleanSetting.OVERLAY_SNAP_TO_GRID.getBoolean()
+    }.getOrDefault(true)
         private set
 
     internal fun toggleSnapToGrid() {
         snapToGrid = !snapToGrid
+        runCatching { BooleanSetting.OVERLAY_SNAP_TO_GRID.setBoolean(snapToGrid) }
         tools.refreshToolbar()
         canvas.invalidate()
+    }
+
+    internal fun gridStep(): Float = runCatching {
+        IntSetting.OVERLAY_GRID_SIZE.getInt().coerceIn(16, 128).toFloat()
+    }.getOrElse { dp(16) }
+
+    internal fun toggleControlsVisibility() {
+        controlsHidden = !controlsHidden
+        canvas.invalidate()
+    }
+
+    internal fun isControlVisible(control: TouchControl): Boolean {
+        if (isEditing || testing) return true
+        if (!controlsVisible) return false
+        if (!controlsHidden) return true
+        return control.type == ControlType.VISIBILITY && !control.hideSelf
     }
 
     fun acceptSaved(library: TouchLibrary) {
@@ -166,6 +189,16 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             if (gameAvailable && !isEditing) output.touchMove(pointerId, x + safe.left, y + safe.top)
         }
         override fun touchUp(pointerId: Int) { if (gameAvailable && !isEditing) output.touchUp(pointerId) }
+        override fun haptic(control: TouchControl, strong: Boolean) {
+            if (!gameAvailable || isEditing || !control.haptics) return
+            if (!BooleanSetting.HAPTIC_FEEDBACK.getBoolean()) return
+            performHapticFeedback(
+                if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY
+            )
+        }
+        override fun toggleVisibility() {
+            if (gameAvailable && !isEditing) toggleControlsVisibility()
+        }
     })
     private var output: InputSink = object : InputSink {}
     private var saved = draft
@@ -280,6 +313,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         selectedId = null
         testing = false
         isolatedId = null
+        controlsHidden = false
         tools.closePanel()
         updateGeometry()
         tools.refreshToolbar()
@@ -1211,7 +1245,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         return if (issues.size > 8) "$lines\n• …" else lines
     }
 
-    private fun gridStep(): Float = dp(16)
     /** Snap to the editing grid; moving keeps the size, resizing snaps every edge. */
     private fun gridRect(rect: TouchRect, resize: Boolean): TouchRect {
         if (!snapToGrid) return rect

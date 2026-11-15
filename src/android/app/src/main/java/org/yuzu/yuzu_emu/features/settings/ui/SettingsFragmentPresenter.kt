@@ -439,14 +439,6 @@ class SettingsFragmentPresenter(
                         menuKey = MenuTag.SECTION_SOC_OVERLAY
                     )
                 )
-                add(
-                    SubmenuSetting(
-                        titleId = R.string.input_overlay_options,
-                        iconId = R.drawable.ic_controller,
-                        descriptionId = R.string.input_overlay_options_description,
-                        menuKey = MenuTag.SECTION_INPUT_OVERLAY
-                    )
-                )
             }
             add(
                 SubmenuSetting(

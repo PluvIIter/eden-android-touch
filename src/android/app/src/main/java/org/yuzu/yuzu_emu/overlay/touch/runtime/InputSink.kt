@@ -4,6 +4,7 @@
 package org.yuzu.yuzu_emu.overlay.touch.runtime
 
 import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
+import org.yuzu.yuzu_emu.overlay.touch.model.TouchControl
 
 interface InputSink {
     fun reset() {}
@@ -13,6 +14,8 @@ interface InputSink {
     fun touchDown(pointerId: Int, x: Float, y: Float) {}
     fun touchMove(pointerId: Int, x: Float, y: Float) {}
     fun touchUp(pointerId: Int) {}
+    fun haptic(control: TouchControl, strong: Boolean = false) {}
+    fun toggleVisibility() {}
 }
 
 data class StickVector(val x: Float = 0f, val y: Float = 0f)

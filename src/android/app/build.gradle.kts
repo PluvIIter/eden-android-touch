@@ -210,10 +210,10 @@ android {
         }
 
         create("genshinSpoof") {
-            manifestPlaceholders += mapOf("appNameBase" to "Eden Optimized")
+            manifestPlaceholders += mapOf("appNameBase" to "Eden-TouchG")
             dimension = "version"
             minSdk = 35
-            resValue("string", "app_name_suffixed", "Eden Optimized")
+            resValue("string", "app_name_suffixed", "Eden-TouchG")
             applicationId = "com.miHoYo.Yuanshen"
 
             externalNativeBuild {

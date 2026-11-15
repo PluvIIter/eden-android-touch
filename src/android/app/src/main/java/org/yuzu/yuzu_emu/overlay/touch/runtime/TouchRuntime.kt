@@ -35,7 +35,8 @@ class TouchRuntime(private val sink: InputSink) {
         var gesture: GestureDirection? = null,
         var activeKeys: Set<Int> = emptySet(),
         var motion: SwipeMotion? = null,
-        var doubleTap: Boolean = false
+        var doubleTap: Boolean = false,
+        var auxiliaryPressed: Boolean = false
     ) {
         val source: String = "pointer:$pointerId"
     }
@@ -163,7 +164,10 @@ class TouchRuntime(private val sink: InputSink) {
         )
         captures[pointerId] = capture
         when (captured?.type) {
-            ControlType.BUTTON -> activate(capture.source, captured.binding, time)
+            ControlType.BUTTON -> {
+                if (captured.haptics) sink.haptic(captured)
+                activate(capture.source, captured.binding, time)
+            }
             ControlType.BUTTON_GROUP -> updateGroup(capture, time)
             ControlType.STICK -> {
                 val tap = taps.remove(captured.id)
@@ -177,6 +181,10 @@ class TouchRuntime(private val sink: InputSink) {
                 aggregate.acquire(capture.source, captured.stickTarget)
             }
             ControlType.GESTURE -> Unit
+            ControlType.VISIBILITY -> {
+                if (captured.haptics) sink.haptic(captured)
+                sink.toggleVisibility()
+            }
             null -> if (native) sink.touchDown(pointerId, x, y)
         }
         aggregate.flush()
@@ -214,10 +222,12 @@ class TouchRuntime(private val sink: InputSink) {
         if (control?.type == ControlType.GESTURE) {
             val gesture = capture.gesture
             if (gesture != null && control.gestureTiming == GestureTiming.RELEASE) {
+                if (control.haptics) sink.haptic(control)
                 pulse(control.id, control.gestures[gesture], control.gesturePulseMs, time)
             } else if (gesture == null && time - capture.started <= control.tapTimeoutMs &&
                 capture.maxDistance <= control.tapSlop * density
             ) {
+                if (control.haptics) sink.haptic(control)
                 pulse(control.id, control.gestures[GestureDirection.TAP], control.gesturePulseMs, time)
             }
         }
@@ -336,7 +346,10 @@ class TouchRuntime(private val sink: InputSink) {
             TouchHitGeometry.dpadKeys(capture.bounds, capture.x, capture.y).filter { it < control.groupKeys.size }.toSet()
         }
         for (key in capture.activeKeys - keys) deactivate("${capture.source}:$key")
-        for (key in keys - capture.activeKeys) activate("${capture.source}:$key", control.groupKeys[key].binding, time)
+        for (key in keys - capture.activeKeys) {
+            if (control.haptics) sink.haptic(control)
+            activate("${capture.source}:$key", control.groupKeys[key].binding, time)
+        }
         capture.activeKeys = keys
     }
 
@@ -370,6 +383,10 @@ class TouchRuntime(private val sink: InputSink) {
         aggregate.vector(capture.source, vector)
         val auxiliary = control.auxiliaryButton
         val pressed = if (control.auxiliaryMode == AuxiliaryMode.PUSH) magnitude > 0f else capture.doubleTap
+        if (pressed && !capture.auxiliaryPressed && control.haptics) {
+            sink.haptic(control, control.auxiliaryMode == AuxiliaryMode.DOUBLE_TAP)
+        }
+        capture.auxiliaryPressed = pressed
         aggregate.buttons(capture.source, if (pressed && auxiliary != null) setOf(auxiliary) else emptySet())
     }
 
@@ -380,7 +397,14 @@ class TouchRuntime(private val sink: InputSink) {
         if (allowed.isEmpty()) return
         val direction = TouchHitGeometry.direction(capture.x - capture.startX, capture.y - capture.startY, allowed) ?: return
         capture.gesture = direction
-        if (control.gestureTiming == GestureTiming.IMMEDIATE) applyGesture(capture.source, control.gestures[direction])
+        if (control.gestureTiming == GestureTiming.IMMEDIATE) {
+            if (control.haptics) sink.haptic(control)
+            if (control.gestureHold) {
+                applyGesture(capture.source, control.gestures[direction])
+            } else {
+                pulse(control.id, control.gestures[direction], control.gesturePulseMs, currentTime)
+            }
+        }
     }
 
     private fun applyGesture(source: String, binding: GestureBinding?) {

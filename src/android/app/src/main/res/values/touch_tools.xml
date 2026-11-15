@@ -30,6 +30,12 @@
     <string name="touch_tools_stick_description">Stick · fixed or free movement</string>
     <string name="touch_tools_swipe_description">Swipe area · relative camera motion</string>
     <string name="touch_tools_gesture_description">Gesture area · tap or directional actions</string>
+    <string name="touch_tools_visibility_description">Visibility button · hides or shows all other controls</string>
+    <string name="touch_tools_default_visibility">Hide/Show</string>
+    <string name="touch_tools_haptics">Vibration</string>
+    <string name="touch_tools_hide_self">Hide this button too</string>
+    <string name="touch_tools_gesture_hold">Hold until release</string>
+    <string name="touch_tools_gesture_hold_hint">After the slide crosses the threshold, keep the mapped buttons held until you lift the finger.</string>
     <string name="touch_tools_name">Name</string>
     <string name="touch_tools_select_mapping">Select button mapping</string>
     <string name="touch_tools_group_style">Group style</string>
@@ -73,7 +79,7 @@
     <string name="touch_tools_recognition_hint">Recognition uses only the directions you mapped; a swipe toward an unmapped direction falls back to the nearest mapped one.</string>
     <string name="touch_tools_recognition_distance">Recognition distance (dp)</string>
     <string name="touch_tools_swipe_timing">Swipe timing</string>
-    <string name="touch_tools_gesture_timing_hint">Immediate: hold until UP. Release: finite pulse. Tap always produces a pulse.</string>
+    <string name="touch_tools_gesture_timing_hint">Immediate: pulse at the threshold, or hold until release when enabled. Release: finite pulse at UP. Tap always produces a pulse.</string>
     <string name="touch_tools_gesture_pulse">Tap / release pulse (ms)</string>
     <string name="touch_tools_tap_timeout">Tap timeout (ms)</string>
     <string name="touch_tools_tap_tolerance">Tap movement tolerance (dp)</string>
@@ -220,6 +226,7 @@
     <string name="touch_tools_enum_controltype_stick">Stick</string>
     <string name="touch_tools_enum_controltype_swipe">Swipe area</string>
     <string name="touch_tools_enum_controltype_gesture">Gesture area</string>
+    <string name="touch_tools_enum_controltype_visibility">Visibility button</string>
     <string name="touch_tools_enum_controlshape_circle">Circle</string>
     <string name="touch_tools_enum_controlshape_rectangle">Rectangle</string>
     <string name="touch_tools_enum_groupstyle_face">Face keys</string>
@@ -228,7 +235,7 @@
     <string name="touch_tools_enum_sticktarget_right">Right stick</string>
     <string name="touch_tools_enum_auxiliarymode_push">Push to hold</string>
     <string name="touch_tools_enum_auxiliarymode_double_tap">Double tap and hold</string>
-    <string name="touch_tools_enum_gesturetiming_immediate">Immediately, hold until release</string>
+    <string name="touch_tools_enum_gesturetiming_immediate">Immediately</string>
     <string name="touch_tools_enum_gesturetiming_release">On release, finite pulse</string>
     <string name="touch_tools_enum_motionscale_dp">Density-independent pixels (dp)</string>
     <string name="touch_tools_enum_motionscale_short_edge">Screen short edge</string>

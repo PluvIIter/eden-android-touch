@@ -30,6 +30,12 @@
     <string name="touch_tools_stick_description">摇杆 · 固定或自由模式</string>
     <string name="touch_tools_swipe_description">滑动区 · 相对位移控制视角</string>
     <string name="touch_tools_gesture_description">手势区 · 点按或方向滑动</string>
+    <string name="touch_tools_visibility_description">显隐按钮 · 隐藏或显示其他所有控件</string>
+    <string name="touch_tools_default_visibility">隐藏/显示</string>
+    <string name="touch_tools_haptics">震动</string>
+    <string name="touch_tools_hide_self">同时隐藏此按钮</string>
+    <string name="touch_tools_gesture_hold">长按保持</string>
+    <string name="touch_tools_gesture_hold_hint">滑动距离达到阈值后，映射按键保持按下，直到松开手指。</string>
     <string name="touch_tools_name">名称</string>
     <string name="touch_tools_select_mapping">选择按钮映射</string>
     <string name="touch_tools_group_style">按键组样式</string>
@@ -81,7 +87,7 @@
     <string name="touch_tools_direction_pad">摇杆方向</string>
     <string name="touch_tools_recognition_distance">识别距离（dp）</string>
     <string name="touch_tools_swipe_timing">滑动触发时机</string>
-    <string name="touch_tools_gesture_timing_hint">立即触发：保持至抬手。松手触发：输出有限脉冲。点按始终输出短脉冲。</string>
+    <string name="touch_tools_gesture_timing_hint">立即触发：达到阈值时输出脉冲；开启长按保持后保持至抬手。松手触发：抬手时输出有限脉冲。点按始终输出短脉冲。</string>
     <string name="touch_tools_gesture_pulse">点按／松手脉冲（毫秒）</string>
     <string name="touch_tools_tap_timeout">点按时限（毫秒）</string>
     <string name="touch_tools_tap_tolerance">点按移动容差（dp）</string>
@@ -220,6 +226,7 @@
     <string name="touch_tools_enum_controltype_stick">摇杆</string>
     <string name="touch_tools_enum_controltype_swipe">滑动区</string>
     <string name="touch_tools_enum_controltype_gesture">手势区</string>
+    <string name="touch_tools_enum_controltype_visibility">显隐按钮</string>
     <string name="touch_tools_enum_controlshape_circle">圆形</string>
     <string name="touch_tools_enum_controlshape_rectangle">矩形</string>
     <string name="touch_tools_enum_groupstyle_face">圆键组</string>
@@ -228,7 +235,7 @@
     <string name="touch_tools_enum_sticktarget_right">右摇杆</string>
     <string name="touch_tools_enum_auxiliarymode_push">推动即按住</string>
     <string name="touch_tools_enum_auxiliarymode_double_tap">双击后按住</string>
-    <string name="touch_tools_enum_gesturetiming_immediate">立即触发，保持至抬手</string>
+    <string name="touch_tools_enum_gesturetiming_immediate">立即触发</string>
     <string name="touch_tools_enum_gesturetiming_release">松手触发，有限脉冲</string>
     <string name="touch_tools_enum_motionscale_dp">密度无关像素（dp）</string>
     <string name="touch_tools_enum_motionscale_short_edge">屏幕短边</string>

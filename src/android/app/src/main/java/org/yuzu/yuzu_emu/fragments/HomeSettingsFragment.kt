@@ -124,6 +124,20 @@ class HomeSettingsFragment : Fragment() {
             )
             add(
                 HomeSetting(
+                    R.string.input_overlay_options,
+                    R.string.input_overlay_options_description,
+                    R.drawable.ic_controller,
+                    {
+                        val action = HomeNavigationDirections.actionGlobalSettingsActivity(
+                            null,
+                            Settings.MenuTag.SECTION_INPUT_OVERLAY
+                        )
+                        binding.root.findNavController().navigate(action)
+                    }
+                )
+            )
+            add(
+                HomeSetting(
                     R.string.profile_manager,
                     R.string.profile_manager_description,
                     R.drawable.ic_account_circle,

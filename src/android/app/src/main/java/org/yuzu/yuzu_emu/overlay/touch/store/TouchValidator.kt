@@ -113,6 +113,7 @@ object TouchValidator {
                 check(!control.showText || control.showBorder, "$c.showText", "Text requires a border")
                 check(!control.showFill || control.showBorder, "$c.showFill", "Fill requires a border")
                 check(!control.triggerOnly || control.type == ControlType.STICK, "$c.triggerOnly", "Trigger-only display requires a stick")
+                check(!control.hideSelf || control.type == ControlType.VISIBILITY, "$c.hideSelf", "Only visibility controls can hide themselves")
                 when (control.type) {
                     ControlType.BUTTON -> binding(control.binding, "$c.binding")
                     ControlType.BUTTON_GROUP -> {
@@ -142,6 +143,7 @@ object TouchValidator {
                             check(target.stick == null || target.direction != GestureDirection.TAP, "$c.gestures.$direction", "Stick output requires one of eight directions")
                         }
                     }
+                    ControlType.VISIBILITY -> Unit
                 }
             }
             val base = template.screens.firstOrNull { it.id == template.baseScreenId }

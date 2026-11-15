@@ -31,6 +31,8 @@ class TouchRuntimeTest {
         val native = mutableListOf<String>()
         val sticks = mutableMapOf<StickTarget, StickVector>()
         val lifecycle = mutableListOf<String>()
+        val haptics = mutableListOf<Pair<String, Boolean>>()
+        var visibilityToggles = 0
         override fun reset() { lifecycle += "reset" }
         override fun sync() { lifecycle += "sync" }
         override fun buttons(pressed: Set<Int>) { this.pressed = pressed; batches += pressed }
@@ -38,6 +40,8 @@ class TouchRuntimeTest {
         override fun touchDown(pointerId: Int, x: Float, y: Float) { native += "down:$pointerId" }
         override fun touchMove(pointerId: Int, x: Float, y: Float) { native += "move:$pointerId" }
         override fun touchUp(pointerId: Int) { native += "up:$pointerId" }
+        override fun haptic(control: TouchControl, strong: Boolean) { haptics += control.id to strong }
+        override fun toggleVisibility() { visibilityToggles++ }
     }
 
     private val sink = Sink()
@@ -486,6 +490,87 @@ class TouchRuntimeTest {
         assertVector(-1f, 0f)
         runtime.up(1, 190f, 50f, 30)
         assertVector(0f, 0f)
+    }
+
+    @Test fun hapticsFireOnPressOnlyAndHonorPerControlFlag() {
+        val enabled = button("enabled", 0f)
+        val disabled = button("disabled", 80f).copy(haptics = false)
+        configure(enabled, disabled)
+        runtime.down(1, 10f, 10f, 0)
+        assertEquals(listOf("enabled" to false), sink.haptics)
+        runtime.tick(100)
+        runtime.up(1, 10f, 10f, 101)
+        assertEquals(listOf("enabled" to false), sink.haptics)
+
+        runtime.down(2, 90f, 10f, 102)
+        assertTrue(sink.haptics.size == 1)
+    }
+
+    @Test fun turboDoesNotRepeatHaptics() {
+        configure(button("turbo", 0f, setOf(0), true))
+        runtime.down(1, 10f, 10f, 0)
+        for (time in 10L..200L step 10) runtime.tick(time)
+        assertEquals(1, sink.haptics.size)
+    }
+
+    @Test fun gestureHapticsFireOnceAtTriggerAndSwipeDoesNotVibrate() {
+        val gesture = area(type = ControlType.GESTURE).copy(
+            gestureTiming = GestureTiming.IMMEDIATE,
+            gestures = mapOf(GestureDirection.UP to GestureBinding(buttons = setOf(0)))
+        )
+        val swipe = area("swipe2", 300f)
+        configure(gesture, swipe)
+        runtime.down(1, 130f, 50f, 0)
+        runtime.move(1, 130f, 0f, 10)
+        runtime.move(1, 130f, 0f, 20)
+        runtime.up(1, 130f, 0f, 30)
+        assertEquals(1, sink.haptics.size)
+
+        sink.haptics.clear()
+        runtime.down(2, 330f, 30f, 40)
+        runtime.move(2, 360f, 30f, 50)
+        runtime.tick(50)
+        runtime.up(2, 360f, 30f, 60)
+        assertTrue(sink.haptics.isEmpty())
+    }
+
+    @Test fun stickDoubleTapUsesStrongHapticAndVisibilityButtonToggles() {
+        val stick = TouchControl(
+            id = "stick",
+            type = ControlType.STICK,
+            bounds = TouchRect(0f, 0f, 100f, 100f),
+            stickDeadzone = 0f,
+            stickDiameter = 100f,
+            auxiliaryButton = 18,
+            auxiliaryMode = AuxiliaryMode.DOUBLE_TAP
+        )
+        val visibility = area("visibility", 200f, ControlType.VISIBILITY)
+        configure(stick, visibility)
+        runtime.down(1, 50f, 50f, 0)
+        runtime.up(1, 50f, 50f, 10)
+        runtime.down(2, 50f, 50f, 20)
+        assertTrue(sink.haptics.any { it.first == "stick" && it.second })
+        runtime.up(2, 50f, 50f, 30)
+
+        runtime.down(3, 250f, 30f, 40)
+        assertEquals(1, sink.visibilityToggles)
+        runtime.up(3, 250f, 30f, 50)
+    }
+
+    @Test fun immediateGestureCanPulseInsteadOfHold() {
+        val gesture = area(type = ControlType.GESTURE).copy(
+            gestureTiming = GestureTiming.IMMEDIATE,
+            gestureHold = false,
+            gesturePulseMs = 100,
+            gestures = mapOf(GestureDirection.UP to GestureBinding(buttons = setOf(0)))
+        )
+        configure(gesture)
+        runtime.down(1, 130f, 50f, 0)
+        runtime.move(1, 130f, 0f, 10)
+        assertEquals(setOf(0), sink.pressed)
+        runtime.tick(110)
+        assertTrue(sink.pressed.isEmpty())
+        runtime.up(1, 130f, 0f, 120)
     }
 
     @Test fun releaseGestureIsFiniteAndCancelNeverFires() {
