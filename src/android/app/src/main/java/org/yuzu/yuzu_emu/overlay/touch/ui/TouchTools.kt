@@ -35,6 +35,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
 import org.yuzu.yuzu_emu.overlay.touch.model.AuxiliaryMode
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
@@ -636,13 +637,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             workspace.applyAllColors(null)
             showAppearance()
         })
-        number(body, s(R.string.touch_tools_global_opacity), template.globalOpacity * 100f, 0f, 100f, true) {
+        number(body, s(R.string.touch_tools_global_opacity), template.globalOpacity * 100f, 0f, 300f, true) {
             workspace.updateGlobalOpacity(it / 100f)
         }
-        body.addView(button(s(R.string.touch_tools_override_opacity)) {
-            workspace.overrideGlobalOpacity()
-            showAppearance()
-        })
+        number(body, s(R.string.touch_tools_control_opacity), workspace.effectiveControlOpacity() * 100f, 0f, 100f, true) {
+            workspace.updateControlOpacity(it / 100f)
+        }
         body.addView(label(s(R.string.touch_tools_appearance_hint)))
         body.addView(button(s(R.string.touch_tools_done)) { completePanel() })
     }
@@ -770,7 +770,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             name = "",
             text = "",
             type = type,
-            opacity = (workspace.template.defaultOpacity ?: workspace.template.globalOpacity).coerceIn(0f, 1f),
+            opacity = workspace.effectiveControlOpacity(),
             color = workspace.template.globalColor,
             bounds = previous?.bounds ?: if (type == ControlType.STICK) {
                 TouchRect(0f, 0f, 96f * resources.displayMetrics.density, 96f * resources.displayMetrics.density)
@@ -1078,6 +1078,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             showProperties()
                         })
                     }
+                    ButtonAction.APPEARANCE -> {
+                        appearanceGroupsEditor(body)
+                        body.addView(button(s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_appearance))) {
+                            change { it.copy(buttonAction = ButtonAction.NONE) }
+                            showProperties()
+                        })
+                    }
                 }
             }
             ControlType.BUTTON_GROUP -> {
@@ -1352,6 +1359,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         ButtonAction.NONE -> s(R.string.touch_tools_action_normal)
         ButtonAction.TOGGLE_VISIBILITY -> s(R.string.touch_tools_action_toggle_visibility)
         ButtonAction.SWITCH_TEMPLATE -> s(R.string.touch_tools_action_switch_template)
+        ButtonAction.APPEARANCE -> s(R.string.touch_tools_action_appearance)
     }
 
     private fun chooseNewButtonTemplate(onPick: (String) -> Unit) {
@@ -1367,6 +1375,48 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             }
             .setNegativeButton(R.string.touch_tools_cancel, null)
             .show()
+    }
+
+    private fun appearanceGroupsEditor(body: LinearLayout) {
+        val groups = workspace.template.appearanceGroups
+        body.addView(label(s(R.string.touch_tools_appearance_original)))
+        body.addView(
+            label(
+                s(
+                    R.string.touch_tools_appearance_original_value,
+                    colorLabel(workspace.template.globalColor),
+                    (workspace.template.globalOpacity * 100f).roundToInt()
+                )
+            )
+        )
+        for (index in 1 until groups.size) {
+            val group = groups[index]
+            body.addView(label(s(R.string.touch_tools_appearance_group, index + 1)))
+            body.addView(button(s(R.string.touch_tools_color, colorLabel(group.color))) {
+                chooseColor(group.color) { color ->
+                    workspace.updateAppearanceGroup(index, group.copy(color = color))
+                    showProperties()
+                }
+            })
+            number(
+                body,
+                s(R.string.touch_tools_global_opacity),
+                group.overlayOpacity * 100f,
+                0f,
+                300f,
+                true
+            ) {
+                workspace.updateAppearanceGroup(index, group.copy(overlayOpacity = it / 100f))
+            }
+            body.addView(button(s(R.string.touch_tools_appearance_delete)) {
+                workspace.removeAppearanceGroup(index)
+                showProperties()
+            })
+        }
+        body.addView(button(s(R.string.touch_tools_appearance_add)) {
+            workspace.addAppearanceGroup()
+            showProperties()
+        })
     }
 
     private fun chooseButtonTemplate(controlId: String) {
@@ -1818,8 +1868,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             emptyList()
         } else {
             listOf(
-                MappingSlot(SPECIAL_VISIBILITY, 0.42f, 0.40f),
-                MappingSlot(SPECIAL_SWITCH_TEMPLATE, 0.58f, 0.40f)
+                MappingSlot(SPECIAL_VISIBILITY, 0.34f, 0.40f),
+                MappingSlot(SPECIAL_SWITCH_TEMPLATE, 0.50f, 0.40f),
+                MappingSlot(SPECIAL_APPEARANCE, 0.66f, 0.40f)
             )
         }
         val picker = GamepadPicker(context, mappingSlots + specialSlots)
@@ -1870,6 +1921,13 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             ) {
                 dialog.dismiss()
                 within(owner) { special(ButtonAction.SWITCH_TEMPLATE) }
+            })
+            picker.addView(mappingKey(
+                s(R.string.touch_tools_action_appearance_short),
+                s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_appearance))
+            ) {
+                dialog.dismiss()
+                within(owner) { special(ButtonAction.APPEARANCE) }
             })
         }
         refresh()
@@ -1924,6 +1982,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     private val SPECIAL_VISIBILITY = -101
     private val SPECIAL_SWITCH_TEMPLATE = -102
+    private val SPECIAL_APPEARANCE = -103
 
     private val mappingSlots = listOf(
         MappingSlot(8, 0.07f, 0.14f),

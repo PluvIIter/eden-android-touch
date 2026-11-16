@@ -154,10 +154,11 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
             val pointers = snapshot.pointers.filter { it.controlId == control.id }
             val active = pointers.isNotEmpty()
             val opacity = if (workspace.isEditing && !workspace.gameAvailable) 1f
-            else (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
+            else (control.opacity * workspace.effectiveGlobalOpacity()).coerceIn(0f, 1f)
+            val color = workspace.effectiveColor(control)
             when (control.type) {
-                ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity, control.color)
-                ControlType.VISIBILITY -> drawButton(canvas, rect, control.text.ifBlank { control.name }, control.shape == ControlShape.CIRCLE, active, opacity, control.color)
+                ControlType.BUTTON -> drawButton(canvas, rect, control.text, control.shape == ControlShape.CIRCLE, active, opacity, color)
+                ControlType.VISIBILITY -> drawButton(canvas, rect, control.text.ifBlank { control.name }, control.shape == ControlShape.CIRCLE, active, opacity, color)
                 ControlType.BUTTON_GROUP -> drawGroup(canvas, control, rect, pointers, opacity)
                 ControlType.STICK -> drawStick(canvas, control, rect, pointers, snapshot, opacity, w, h)
                 ControlType.SWIPE, ControlType.GESTURE -> {
@@ -265,7 +266,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
                 control.groupStyle == GroupStyle.FACE,
                 pointers.any { index in it.activeKeys },
                 opacity,
-                control.color
+                workspace.effectiveColor(control)
             )
         }
     }
@@ -297,8 +298,8 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
     }
 
     private fun drawAreaOverlay(canvas: Canvas, control: TouchControl, rect: TouchRect) {
-        val opacity = (control.opacity * workspace.template.globalOpacity).coerceIn(0f, 1f)
-        val color = control.color ?: ink
+        val opacity = (control.opacity * workspace.effectiveGlobalOpacity()).coerceIn(0f, 1f)
+        val color = workspace.effectiveColor(control) ?: ink
         if (control.showFill) {
             fill(color, opacity * 0.1f)
             shape(canvas, rect, false)
@@ -346,7 +347,7 @@ internal class TouchCanvas(context: Context, private val workspace: TouchWorkspa
         val centerY = if (p != null) p.centerY else rect.y + rect.height / 2
         val cx = centerX.coerceIn(min(radius, w / 2), (w - radius).coerceAtLeast(w / 2))
         val cy = centerY.coerceIn(min(radius, h / 2), (h - radius).coerceAtLeast(h / 2))
-        val tint = control.color
+        val tint = workspace.effectiveColor(control)
         fill(tint?.let { ColorUtils.blendARGB(variant, it, 0.4f) } ?: variant, opacity * 0.7f)
         canvas.drawCircle(cx, cy, radius, paint)
         stroke(tint ?: outline, dp(1.5f), opacity)

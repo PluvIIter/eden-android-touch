@@ -62,6 +62,7 @@ object TouchSanitizer {
                 controls = normalized,
                 globalColor = template.globalColor ?: inferredColor,
                 defaultOpacity = template.defaultOpacity ?: inferredOpacity,
+                appearanceGroups = template.appearanceGroups.ifEmpty { listOf(org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup()) },
                 screens = template.screens.map { screen ->
                     screen.copy(placements = screen.placements.filterKeys { it in ids })
                 }

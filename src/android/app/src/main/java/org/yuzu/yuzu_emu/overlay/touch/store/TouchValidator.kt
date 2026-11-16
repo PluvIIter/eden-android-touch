@@ -99,7 +99,13 @@ object TouchValidator {
         library.templates.forEach { template ->
             val t = "templates.${template.id}"
             check(template.name.isNotBlank(), "$t.name", "Name must not be blank")
-            range(template.globalOpacity, 0f, 1f, "$t.globalOpacity")
+            range(template.globalOpacity, 0f, 3f, "$t.globalOpacity")
+            template.defaultOpacity?.let { range(it, 0f, 1f, "$t.defaultOpacity") }
+            template.controlOpacity?.let { range(it, 0f, 1f, "$t.controlOpacity") }
+            check(template.appearanceGroups.isNotEmpty(), "$t.appearanceGroups", "At least one appearance group is required")
+            template.appearanceGroups.forEachIndexed { index, group ->
+                range(group.overlayOpacity, 0f, 3f, "$t.appearanceGroups.$index.overlayOpacity")
+            }
             ids(template.controls.map { it.id }, "$t.controls")
             ids(template.screens.map { it.id }, "$t.screens")
             check(template.screens.isNotEmpty(), "$t.screens", "At least one saved screen is required")
@@ -121,6 +127,7 @@ object TouchValidator {
                         when (control.buttonAction) {
                             ButtonAction.NONE -> binding(control.binding, "$c.binding")
                             ButtonAction.TOGGLE_VISIBILITY -> check(control.binding.buttons.isEmpty(), "$c.binding", "Visibility action takes no buttons")
+                            ButtonAction.APPEARANCE -> check(control.binding.buttons.isEmpty(), "$c.binding", "Appearance action takes no buttons")
                             ButtonAction.SWITCH_TEMPLATE -> {
                                 check(control.targetTemplateId != null && control.targetTemplateId in templateIds, "$c.targetTemplateId", "Missing template")
                                 check(control.targetTemplateId != template.id, "$c.targetTemplateId", "Cannot switch to itself")

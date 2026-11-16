@@ -35,6 +35,7 @@ class TouchRuntimeTest {
         val haptics = mutableListOf<Pair<String, Boolean>>()
         val switches = mutableListOf<String>()
         var visibilityToggles = 0
+        var appearanceCycles = 0
         override fun reset() { lifecycle += "reset" }
         override fun sync() { lifecycle += "sync" }
         override fun buttons(pressed: Set<Int>) { this.pressed = pressed; batches += pressed }
@@ -45,6 +46,7 @@ class TouchRuntimeTest {
         override fun haptic(control: TouchControl, strong: Boolean) { haptics += control.id to strong }
         override fun toggleVisibility() { visibilityToggles++ }
         override fun switchTemplate(templateId: String) { switches += templateId }
+        override fun appearance() { appearanceCycles++ }
     }
 
     private val sink = Sink()
@@ -611,6 +613,18 @@ class TouchRuntimeTest {
         runtime.up(1, 40f, 30f, 1)
         assertEquals(listOf("other-template"), sink.switches)
         assertTrue(sink.pressed.isEmpty())
+    }
+
+    @Test fun appearanceActionRequestsTheNextAppearanceGroup() {
+        val control = button("appearance", 10f).copy(
+            binding = ButtonBinding(emptySet()),
+            buttonAction = ButtonAction.APPEARANCE
+        )
+        configure(control)
+        runtime.down(1, 40f, 30f, 0)
+        assertEquals(1, sink.appearanceCycles)
+        assertTrue(sink.pressed.isEmpty())
+        runtime.up(1, 40f, 30f, 1)
     }
 
     @Test fun releaseGestureIsFiniteAndCancelNeverFires() {

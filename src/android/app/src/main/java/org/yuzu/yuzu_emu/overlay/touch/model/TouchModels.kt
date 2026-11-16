@@ -13,7 +13,13 @@ fun newTouchId(): String = UUID.randomUUID().toString()
 enum class ControlType { BUTTON, BUTTON_GROUP, STICK, SWIPE, GESTURE, VISIBILITY }
 
 @Serializable
-enum class ButtonAction { NONE, TOGGLE_VISIBILITY, SWITCH_TEMPLATE }
+enum class ButtonAction { NONE, TOGGLE_VISIBILITY, SWITCH_TEMPLATE, APPEARANCE }
+
+@Serializable
+data class AppearanceGroup(
+    val color: Int? = null,
+    val overlayOpacity: Float = 1f
+)
 
 @Serializable
 enum class ControlShape { CIRCLE, RECTANGLE }
@@ -181,7 +187,9 @@ data class TouchTemplate(
     val baseScreenId: String = screens.first().id,
     val globalOpacity: Float = 1f,
     val globalColor: Int? = null,
-    val defaultOpacity: Float? = null
+    val defaultOpacity: Float? = null,
+    val controlOpacity: Float? = null,
+    val appearanceGroups: List<AppearanceGroup> = listOf(AppearanceGroup())
 )
 
 @Serializable

@@ -600,20 +600,46 @@ class TouchWorkspaceInteractionTest {
         workspace.applyAllColors(color)
         assertTrue(workspace.template.controls.all { it.color == color })
 
-        workspace.updateGlobalOpacity(0.5f)
-        assertEquals(0.5f, workspace.template.globalOpacity, 0.001f)
-        assertEquals(0.5f, workspace.template.defaultOpacity ?: -1f, 0.001f)
-        workspace.overrideGlobalOpacity()
-        assertEquals(1f, workspace.template.globalOpacity, 0.001f)
+        val initialDefaultOpacity = workspace.template.defaultOpacity
+        workspace.updateGlobalOpacity(1.5f)
+        assertEquals(1.5f, workspace.template.globalOpacity, 0.001f)
+        assertEquals(initialDefaultOpacity, workspace.template.defaultOpacity)
+        workspace.updateControlOpacity(0.5f)
+        assertEquals(0.5f, workspace.template.controlOpacity ?: -1f, 0.001f)
         assertEquals(0.5f, workspace.template.defaultOpacity ?: -1f, 0.001f)
         assertTrue(workspace.template.controls.all { kotlin.math.abs(it.opacity - 0.5f) < 0.001f })
     }
 
     @Test
+    fun appearanceGroupsCycleColorAndOverlay() = withWorkspace(gameAvailable = true) { workspace ->
+        workspace.addAppearanceGroup()
+        val group = workspace.template.appearanceGroups[1]
+        val color = 0xFF12AB34.toInt()
+        workspace.updateAppearanceGroup(1, group.copy(color = color, overlayOpacity = 1.5f))
+        workspace.cycleAppearance()
+        assertEquals(1.5f, workspace.effectiveGlobalOpacity(), 0.001f)
+        assertEquals(color, workspace.effectiveColor(workspace.template.controls.first()))
+        workspace.cycleAppearance()
+        assertEquals(workspace.template.globalOpacity, workspace.effectiveGlobalOpacity(), 0.001f)
+    }
+
+    @Test
+    fun controlOpacitySyncSkipsEndpointControls() = withWorkspace { workspace ->
+        val controls = workspace.template.controls
+        val intermediate = controls[0]
+        val opaque = controls[1]
+        workspace.updateControl(intermediate.copy(opacity = 0.4f))
+        workspace.updateControl(opaque.copy(opacity = 1f))
+        workspace.updateControlOpacity(0.25f)
+        assertEquals(0.25f, workspace.template.controls.first { it.id == intermediate.id }.opacity, 0.001f)
+        assertEquals(1f, workspace.template.controls.first { it.id == opaque.id }.opacity, 0.001f)
+    }
+
+    @Test
     fun newControlUsesTheLastAppliedGlobalOpacity() = withWorkspace { workspace ->
         val before = workspace.template.controls.map { it.id }.toSet()
-        workspace.updateGlobalOpacity(0.15f)
-        workspace.overrideGlobalOpacity()
+        workspace.updateControlOpacity(0.15f)
+        workspace.updateGlobalOpacity(1.5f)
         toolbarClick(workspace, R.string.touch_tools_add)
         click(workspace, topCard(workspace), R.string.touch_tools_button_description)
         action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()

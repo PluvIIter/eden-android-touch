@@ -26,6 +26,7 @@ import kotlinx.serialization.json.Json
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
 import org.yuzu.yuzu_emu.overlay.touch.model.ScreenLayout
 import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
@@ -88,6 +89,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             runtime.setTouchscreenEnabled(value && isolatedId == null)
         }
     private var controlsHidden = false
+    private var appearanceIndex = 0
+    private var appearanceActive = false
+    private var appearanceColor: Int? = null
+    private var appearanceOverlay = 1f
     internal data class LastGeometry(
         val bounds: TouchRect,
         val shape: ControlShape,
@@ -129,6 +134,33 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private fun nativeTouchY(value: Float): Float =
         if (!value.isFinite()) 0f else (value + safe.top).coerceIn(0f, (height - 1).coerceAtLeast(0).toFloat())
 
+    internal fun effectiveGlobalOpacity(): Float =
+        if (appearanceActive) appearanceOverlay else template.globalOpacity
+
+    internal fun effectiveColor(control: TouchControl): Int? =
+        if (appearanceActive) appearanceColor else control.color
+
+    internal fun effectiveControlOpacity(): Float =
+        (template.controlOpacity ?: template.defaultOpacity ?: 1f).coerceIn(0f, 1f)
+
+    private fun resetAppearance() {
+        appearanceIndex = 0
+        appearanceActive = false
+        appearanceColor = null
+        appearanceOverlay = 1f
+    }
+
+    internal fun cycleAppearance() {
+        val groups = template.appearanceGroups.ifEmpty { listOf(AppearanceGroup()) }
+        if (groups.size <= 1) return
+        appearanceIndex = (appearanceIndex + 1) % groups.size
+        val group = groups[appearanceIndex]
+        appearanceActive = appearanceIndex != 0
+        appearanceColor = if (appearanceActive) group.color else null
+        appearanceOverlay = if (appearanceActive) group.overlayOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY) else 1f
+        canvas.invalidate()
+    }
+
     internal fun switchGameTemplate(id: String) {
         if (!gameAvailable || isEditing || id == templateId) return
         if (draft.templates.none { it.id == id }) return
@@ -136,6 +168,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         templateId = id
         selectedId = null
         controlsHidden = false
+        resetAppearance()
         updateGeometry()
         tools.refreshToolbar()
         canvas.invalidate()
@@ -243,6 +276,9 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             if (gameAvailable && !isEditing) {
                 post { if (gameAvailable && !isEditing) switchGameTemplate(templateId) }
             }
+        }
+        override fun appearance() {
+            if (gameAvailable && !isEditing) cycleAppearance()
         }
     })
     private var output: InputSink = object : InputSink {}
@@ -364,6 +400,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         testing = false
         isolatedId = null
         controlsHidden = false
+        resetAppearance()
         tools.closePanel()
         updateGeometry()
         tools.refreshToolbar()
@@ -605,28 +642,65 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     }
 
     internal fun updateGlobalOpacity(value: Float) {
-        val normalized = value.coerceIn(0f, 1f)
-        replaceTemplate(template.copy(globalOpacity = normalized, defaultOpacity = normalized))
+        resetAppearance()
+        replaceTemplate(template.copy(globalOpacity = value.coerceIn(0f, MAX_OVERLAY_OPACITY)))
         canvas.invalidate()
     }
 
-    internal fun applyAllColors(color: Int?) {
+    internal fun updateControlOpacity(value: Float) {
+        val normalized = value.coerceIn(0f, 1f)
+        resetAppearance()
         replaceTemplate(
             template.copy(
-                globalColor = color,
-                controls = template.controls.map { it.copy(color = color) }
+                controlOpacity = normalized,
+                defaultOpacity = normalized,
+                controls = template.controls.map { control ->
+                    if (control.opacity > 0f && control.opacity < 1f) {
+                        control.copy(opacity = normalized)
+                    } else {
+                        control
+                    }
+                }
             )
         )
         canvas.invalidate()
     }
 
-    internal fun overrideGlobalOpacity() {
-        val opacity = template.globalOpacity
+    internal fun addAppearanceGroup() {
+        val group = AppearanceGroup(template.globalColor, template.globalOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY))
+        resetAppearance()
+        replaceTemplate(template.copy(appearanceGroups = template.appearanceGroups + group))
+        canvas.invalidate()
+    }
+
+    internal fun updateAppearanceGroup(index: Int, group: AppearanceGroup) {
+        if (index <= 0 || index >= template.appearanceGroups.size) return
+        resetAppearance()
         replaceTemplate(
             template.copy(
-                globalOpacity = 1f,
-                defaultOpacity = template.defaultOpacity ?: opacity,
-                controls = template.controls.map { it.copy(opacity = opacity) }
+                appearanceGroups = template.appearanceGroups.mapIndexed { current, value ->
+                    if (current == index) group.copy(overlayOpacity = group.overlayOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY)) else value
+                }
+            )
+        )
+        canvas.invalidate()
+    }
+
+    internal fun removeAppearanceGroup(index: Int) {
+        if (index <= 0 || index >= template.appearanceGroups.size) return
+        resetAppearance()
+        replaceTemplate(
+            template.copy(appearanceGroups = template.appearanceGroups.filterIndexed { current, _ -> current != index })
+        )
+        canvas.invalidate()
+    }
+
+    internal fun applyAllColors(color: Int?) {
+        resetAppearance()
+        replaceTemplate(
+            template.copy(
+                globalColor = color,
+                controls = template.controls.map { it.copy(color = color) }
             )
         )
         canvas.invalidate()
@@ -1355,5 +1429,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     companion object {
         private const val NORMAL_HAPTIC_MS = 20L
         private const val DOUBLE_TAP_HAPTIC_MS = 30L
+        const val MAX_OVERLAY_OPACITY = 3f
     }
 }
