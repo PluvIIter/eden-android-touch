@@ -156,13 +156,12 @@ class TouchTemplateActivity : AppCompatActivity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         repository = repository(this)
         runCatching { library = repository.load() }.onFailure { report(it); finish(); return }
-        val sanitized = TouchSanitizer.sanitize(library, resources.displayMetrics.density)
-        if (sanitized.removed.isNotEmpty()) {
-            library = sanitized.library
-            pendingRemoved = sanitized.removed
-            if (TouchValidator.validate(library).isEmpty()) {
-                runCatching { library = repository.save(library, library.revision) }
-            }
+        val loaded = library
+        val sanitized = TouchSanitizer.sanitize(loaded, resources.displayMetrics.density)
+        library = sanitized.library
+        pendingRemoved = sanitized.removed
+        if (library != loaded && TouchValidator.validate(library).isEmpty()) {
+            runCatching { library = repository.save(library, loaded.revision) }
         }
         onBackPressedDispatcher.addCallback(
             this,
