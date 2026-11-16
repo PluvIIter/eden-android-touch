@@ -35,7 +35,6 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
 import org.yuzu.yuzu_emu.overlay.touch.model.AuxiliaryMode
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
@@ -856,6 +855,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                                 updateMappingLabel()
                                 renameIfAuto()
                             }
+                        } else if (action == ButtonAction.APPEARANCE) {
+                            chooseNewAppearancePreset { preset ->
+                                control = control.copy(appearancePresetId = preset)
+                                updateMappingLabel()
+                                renameIfAuto()
+                            }
                         }
                     }) {
                         val action = control.buttonAction
@@ -863,6 +868,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                             binding = control.binding.copy(buttons = it),
                             buttonAction = if (action == ButtonAction.SWITCH_TEMPLATE) action else ButtonAction.NONE,
                             targetTemplateId = if (action == ButtonAction.SWITCH_TEMPLATE) control.targetTemplateId else null,
+                            appearancePresetId = null,
                             hideSelf = false,
                             shape = defaultButtonShape(it),
                             text = mappingLabel(it)
@@ -921,6 +927,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     }
                     if (control.buttonAction == ButtonAction.SWITCH_TEMPLATE && control.targetTemplateId == null) {
                         workspace.message(s(R.string.touch_tools_missing_template)); return@button
+                    }
+                    if (control.buttonAction == ButtonAction.APPEARANCE && control.appearancePresetId == null) {
+                        workspace.message(s(R.string.touch_tools_appearance_preset_missing)); return@button
                     }
                 }
                 if (control.type == ControlType.SWIPE && control.swipePresetId == null) {
@@ -1050,21 +1059,20 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                                     buttonAction = action,
                                     binding = if (action == ButtonAction.SWITCH_TEMPLATE) c.binding else ButtonBinding(emptySet()),
                                     targetTemplateId = null,
-                                    hideSelf = if (action == ButtonAction.TOGGLE_VISIBILITY) c.hideSelf else false
+                                    appearancePresetId = null,
+                                    hideSelf = false
                                 )
                             }
-                            if (action == ButtonAction.SWITCH_TEMPLATE) chooseButtonTemplate(control.id) else showProperties()
+                            if (action == ButtonAction.SWITCH_TEMPLATE) {
+                                chooseButtonTemplate(control.id)
+                            } else if (action == ButtonAction.APPEARANCE) {
+                                chooseAppearancePreset(control.id)
+                            } else {
+                                showProperties()
+                            }
                         }
                     )
-                    ButtonAction.TOGGLE_VISIBILITY -> {
-                        body.addView(button(s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_toggle_visibility))) {
-                            change { it.copy(buttonAction = ButtonAction.NONE, hideSelf = false) }
-                            showProperties()
-                        })
-                        toggle(body, s(R.string.touch_tools_hide_self), control.hideSelf) { value ->
-                            change { it.copy(hideSelf = value) }
-                        }
-                    }
+                    ButtonAction.TOGGLE_VISIBILITY -> Unit
                     ButtonAction.SWITCH_TEMPLATE -> {
                         val target = workspace.draft.templates.firstOrNull { it.id == control.targetTemplateId }
                         body.addView(button(s(R.string.touch_tools_target_template, target?.name ?: s(R.string.touch_tools_missing_template))) {
@@ -1082,9 +1090,12 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                         })
                     }
                     ButtonAction.APPEARANCE -> {
-                        appearanceGroupsEditor(body)
+                        val preset = workspace.draft.appearancePresets.firstOrNull { it.id == control.appearancePresetId }
+                        body.addView(button(s(R.string.touch_tools_appearance_preset, preset?.name ?: s(R.string.touch_tools_appearance_preset_missing))) {
+                            chooseAppearancePreset(control.id)
+                        })
                         body.addView(button(s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_appearance))) {
-                            change { it.copy(buttonAction = ButtonAction.NONE) }
+                            change { it.copy(buttonAction = ButtonAction.NONE, appearancePresetId = null) }
                             showProperties()
                         })
                     }
@@ -1380,67 +1391,36 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             .show()
     }
 
-    private fun appearanceGroupsEditor(body: LinearLayout) {
-        val groups = workspace.template.appearanceGroups
-        body.addView(label(s(R.string.touch_tools_appearance_original)))
-        body.addView(
-            label(
-                s(
-                    R.string.touch_tools_appearance_original_value,
-                    colorLabel(workspace.template.globalColor),
-                    (workspace.template.globalOpacity * 100f).roundToInt()
-                )
-            )
-        )
-        for (index in 1 until groups.size) {
-            val group = groups[index]
-            body.addView(label(s(R.string.touch_tools_appearance_group, index + 1)))
-            body.addView(button(s(R.string.touch_tools_color, appearanceColorLabel(group.color))) {
-                chooseColor(group.color) { color ->
-                    workspace.updateAppearanceGroup(index, group.copy(color = color))
-                    showProperties()
-                }
-            })
-            if (group.color != null) {
-                body.addView(button(s(R.string.touch_tools_appearance_clear_color)) {
-                    workspace.updateAppearanceGroup(index, group.copy(color = null))
-                    showProperties()
-                })
-            }
-            toggle(body, s(R.string.touch_tools_appearance_overlay_enabled), group.overlayOpacity != null) { enabled ->
-                workspace.updateAppearanceGroup(
-                    index,
-                    group.copy(
-                        overlayOpacity = if (enabled) {
-                            workspace.template.globalOpacity.coerceIn(0f, TouchWorkspace.MAX_OVERLAY_OPACITY)
-                        } else {
-                            null
-                        }
-                    )
-                )
-                showProperties()
-            }
-            group.overlayOpacity?.let { overlay ->
-                number(
-                    body,
-                    s(R.string.touch_tools_global_opacity),
-                    overlay * 100f,
-                    0f,
-                    300f,
-                    true
-                ) {
-                    workspace.updateAppearanceGroup(index, group.copy(overlayOpacity = it / 100f))
-                }
-            }
-            body.addView(button(s(R.string.touch_tools_appearance_delete)) {
-                workspace.removeAppearanceGroup(index)
-                showProperties()
-            })
+    private fun chooseAppearancePreset(controlId: String) {
+        val presets = workspace.draft.appearancePresets
+        if (presets.isEmpty()) {
+            workspace.message(s(R.string.touch_tools_no_appearance_presets))
+            return
         }
-        body.addView(button(s(R.string.touch_tools_appearance_add)) {
-            workspace.addAppearanceGroup()
-            showProperties()
-        })
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.touch_tools_appearance_preset_missing)
+            .setItems(presets.map { it.name }.toTypedArray()) { _, index ->
+                val preset = presets[index]
+                change { it.copy(appearancePresetId = preset.id) }
+                showProperties()
+            }
+            .setNegativeButton(R.string.touch_tools_cancel, null)
+            .show()
+    }
+
+    private fun chooseNewAppearancePreset(onPick: (String) -> Unit) {
+        val presets = workspace.draft.appearancePresets
+        if (presets.isEmpty()) {
+            workspace.message(s(R.string.touch_tools_no_appearance_presets))
+            return
+        }
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.touch_tools_appearance_preset_missing)
+            .setItems(presets.map { it.name }.toTypedArray()) { _, index ->
+                onPick(presets[index].id)
+            }
+            .setNegativeButton(R.string.touch_tools_cancel, null)
+            .show()
     }
 
     private fun chooseButtonTemplate(controlId: String) {
@@ -1892,9 +1872,8 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             emptyList()
         } else {
             listOf(
-                MappingSlot(SPECIAL_VISIBILITY, 0.34f, 0.40f),
-                MappingSlot(SPECIAL_SWITCH_TEMPLATE, 0.50f, 0.40f),
-                MappingSlot(SPECIAL_APPEARANCE, 0.66f, 0.40f)
+                MappingSlot(SPECIAL_SWITCH_TEMPLATE, 0.42f, 0.40f),
+                MappingSlot(SPECIAL_APPEARANCE, 0.58f, 0.40f)
             )
         }
         val picker = GamepadPicker(context, mappingSlots + specialSlots)
@@ -1932,13 +1911,6 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
             picker.addView(key)
         }
         if (special != null) {
-            picker.addView(mappingKey(
-                s(R.string.touch_tools_action_toggle_short),
-                s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_toggle_visibility))
-            ) {
-                dialog.dismiss()
-                within(owner) { special(ButtonAction.TOGGLE_VISIBILITY) }
-            })
             picker.addView(mappingKey(
                 s(R.string.touch_tools_action_switch_short),
                 s(R.string.touch_tools_action_value, s(R.string.touch_tools_action_switch_template))
@@ -2004,7 +1976,6 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     private data class MappingSlot(val id: Int, val x: Float, val y: Float)
 
-    private val SPECIAL_VISIBILITY = -101
     private val SPECIAL_SWITCH_TEMPLATE = -102
     private val SPECIAL_APPEARANCE = -103
 

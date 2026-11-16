@@ -26,7 +26,6 @@ import kotlinx.serialization.json.Json
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlShape
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
-import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
 import org.yuzu.yuzu_emu.overlay.touch.model.ScreenLayout
 import org.yuzu.yuzu_emu.overlay.touch.model.StickTarget
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
@@ -89,7 +88,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
             runtime.setTouchscreenEnabled(value && isolatedId == null)
         }
     private var controlsHidden = false
-    private var appearanceIndex = 0
+    private val appearanceIndexes = mutableMapOf<String, Int>()
     private var appearanceActive = false
     private var appearanceColor: Int? = null
     private var appearanceOverlay: Float? = null
@@ -144,18 +143,20 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         (template.controlOpacity ?: template.defaultOpacity ?: 1f).coerceIn(0f, 1f)
 
     private fun resetAppearance() {
-        appearanceIndex = 0
+        appearanceIndexes.clear()
         appearanceActive = false
         appearanceColor = null
         appearanceOverlay = null
     }
 
-    internal fun cycleAppearance() {
-        val groups = template.appearanceGroups.ifEmpty { listOf(AppearanceGroup()) }
+    internal fun cycleAppearance(presetId: String) {
+        val preset = draft.appearancePresets.firstOrNull { it.id == presetId } ?: return
+        val groups = preset.groups
         if (groups.size <= 1) return
-        appearanceIndex = (appearanceIndex + 1) % groups.size
-        val group = groups[appearanceIndex]
-        appearanceActive = appearanceIndex != 0
+        val index = ((appearanceIndexes[presetId] ?: 0) + 1) % groups.size
+        appearanceIndexes[presetId] = index
+        val group = groups[index]
+        appearanceActive = index != 0
         appearanceColor = if (appearanceActive) group.color else null
         appearanceOverlay = if (appearanceActive) group.overlayOpacity?.coerceIn(0f, MAX_OVERLAY_OPACITY) else null
         canvas.invalidate()
@@ -168,7 +169,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         templateId = id
         selectedId = null
         controlsHidden = false
-        resetAppearance()
         updateGeometry()
         tools.refreshToolbar()
         canvas.invalidate()
@@ -277,8 +277,8 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                 post { if (gameAvailable && !isEditing) switchGameTemplate(templateId) }
             }
         }
-        override fun appearance() {
-            if (gameAvailable && !isEditing) cycleAppearance()
+        override fun appearance(presetId: String) {
+            if (gameAvailable && !isEditing) cycleAppearance(presetId)
         }
     })
     private var output: InputSink = object : InputSink {}
@@ -662,35 +662,6 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
                     }
                 }
             )
-        )
-        canvas.invalidate()
-    }
-
-    internal fun addAppearanceGroup() {
-        val group = AppearanceGroup(template.globalColor, template.globalOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY))
-        resetAppearance()
-        replaceTemplate(template.copy(appearanceGroups = template.appearanceGroups + group))
-        canvas.invalidate()
-    }
-
-    internal fun updateAppearanceGroup(index: Int, group: AppearanceGroup) {
-        if (index <= 0 || index >= template.appearanceGroups.size) return
-        resetAppearance()
-        replaceTemplate(
-            template.copy(
-                appearanceGroups = template.appearanceGroups.mapIndexed { current, value ->
-                    if (current == index) group.copy(overlayOpacity = group.overlayOpacity?.coerceIn(0f, MAX_OVERLAY_OPACITY)) else value
-                }
-            )
-        )
-        canvas.invalidate()
-    }
-
-    internal fun removeAppearanceGroup(index: Int) {
-        if (index <= 0 || index >= template.appearanceGroups.size) return
-        resetAppearance()
-        replaceTemplate(
-            template.copy(appearanceGroups = template.appearanceGroups.filterIndexed { current, _ -> current != index })
         )
         canvas.invalidate()
     }

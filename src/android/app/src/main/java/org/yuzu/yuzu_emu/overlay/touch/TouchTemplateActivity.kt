@@ -51,6 +51,8 @@ import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.YuzuApplication
 import org.yuzu.yuzu_emu.model.Game
 import org.yuzu.yuzu_emu.utils.GameHelper
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
@@ -71,6 +73,7 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationException
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchDraftRevisionConflict
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchWorkspace
 import org.yuzu.yuzu_emu.utils.ThemeHelper
+import kotlin.math.roundToInt
 
 class TouchTemplateActivity : AppCompatActivity() {
     private lateinit var repository: TouchRepository
@@ -268,6 +271,7 @@ class TouchTemplateActivity : AppCompatActivity() {
             tabMode = TabLayout.MODE_FIXED
             addTab(newTab().setText(R.string.touch_manager_layouts), selectedTab == 0)
             addTab(newTab().setText(R.string.touch_manager_presets), selectedTab == 1)
+            addTab(newTab().setText(R.string.touch_manager_appearances), selectedTab == 2)
         }
         page.addView(tabs, LinearLayout.LayoutParams(-1, -2))
         val searchLayout = TextInputLayout(this, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
@@ -293,16 +297,28 @@ class TouchTemplateActivity : AppCompatActivity() {
         )
         fun render() {
             list.removeAllViews()
-            create.setText(if (selectedTab == 0) R.string.touch_manager_create_layout else R.string.touch_manager_create_preset)
-            val hint = if (selectedTab == 0) R.string.touch_manager_shared_layout_hint else R.string.touch_manager_shared_preset_hint
+            create.setText(
+                when (selectedTab) {
+                    0 -> R.string.touch_manager_create_layout
+                    1 -> R.string.touch_manager_create_preset
+                    else -> R.string.touch_manager_create_appearance
+                }
+            )
+            val hint = when (selectedTab) {
+                0 -> R.string.touch_manager_shared_layout_hint
+                1 -> R.string.touch_manager_shared_preset_hint
+                else -> R.string.touch_manager_shared_appearance_hint
+            }
             val cards = mutableListOf<View>()
-            if (selectedTab == 0) {
-                library.templates.filter { it.name.contains(searchQuery, true) }.forEach { template ->
+            when (selectedTab) {
+                0 -> library.templates.filter { it.name.contains(searchQuery, true) }.forEach { template ->
                     cards += layoutCard(template)
                 }
-            } else {
-                library.presets.filter { it.name.contains(searchQuery, true) }.forEach { preset ->
+                1 -> library.presets.filter { it.name.contains(searchQuery, true) }.forEach { preset ->
                     cards += presetCard(preset)
+                }
+                else -> library.appearancePresets.filter { it.name.contains(searchQuery, true) }.forEach { preset ->
+                    cards += appearanceCard(preset)
                 }
             }
             addCardRows(list, cards)
@@ -387,6 +403,66 @@ class TouchTemplateActivity : AppCompatActivity() {
             list.addView(row, LinearLayout.LayoutParams(-1, -2))
         }
     }
+
+    private fun appearanceCard(preset: AppearancePreset): MaterialCardView = objectCard(
+        preset.name,
+        getString(R.string.touch_manager_appearance_metadata, preset.groups.size),
+        { editAppearancePreset(preset) },
+        { anchor -> appearanceMenu(preset, anchor) }
+    ) { tags ->
+        val refs = TouchReferences.appearancePreset(library, preset.id)
+        tags.addView(
+            tag(getString(R.string.touch_manager_appearance_references, refs.size)) {
+                showDetails(
+                    getString(R.string.touch_manager_appearance_using, preset.name),
+                    refs.joinToString("\n") { reference ->
+                        val template = library.templates.firstOrNull { it.id == reference.templateId }
+                        val control = template?.controls?.firstOrNull { it.id == reference.controlId }
+                        "${template?.name ?: reference.templateId} / ${control?.name?.ifBlank { control.id } ?: reference.controlId}"
+                    }
+                )
+            }
+        )
+    }
+
+    private fun appearanceMenu(preset: AppearancePreset, anchor: View) = overflow(
+        anchor,
+        listOf(
+            R.string.touch_manager_appearance_using to {
+                showDetails(
+                    getString(R.string.touch_manager_appearance_using, preset.name),
+                    TouchReferences.appearancePreset(library, preset.id).size.toString()
+                )
+            },
+            R.string.touch_manager_rename to {
+                nameDialog(getString(R.string.touch_manager_rename_appearance), preset.name) { name ->
+                    if (name != preset.name) {
+                        persist(library.copy(appearancePresets = library.appearancePresets.map {
+                            if (it.id == preset.id) it.copy(name = name) else it
+                        }))
+                    }
+                }
+            },
+            R.string.touch_manager_duplicate to {
+                persist(library.copy(appearancePresets = library.appearancePresets + preset.copy(id = newTouchId(), name = copyName(preset.name))))
+            },
+            R.string.touch_manager_export to {
+                exporting = repository.exportAppearancePreset(preset.id)
+                exportFile.launch("${preset.name}.json")
+            },
+            R.string.touch_manager_delete to {
+                val refs = TouchReferences.appearancePreset(library, preset.id)
+                val message = if (refs.isEmpty()) {
+                    getString(R.string.touch_manager_no_appearance_references)
+                } else {
+                    refs.joinToString("\n") { "${it.templateId} / ${it.controlId}" }
+                }
+                confirm(getString(R.string.touch_manager_delete_named, preset.name), message) {
+                    persist(TouchReferences.deleteAppearancePreset(library, preset.id))
+                }
+            }
+        )
+    )
 
     private fun layoutCard(template: TouchTemplate): MaterialCardView {
         val refs = TouchReferences.template(library, template.id)
@@ -585,10 +661,17 @@ class TouchTemplateActivity : AppCompatActivity() {
                         }
                     }
                 }.show()
-        } else {
+        } else if (selectedTab == 1) {
             nameDialog(getString(R.string.touch_manager_create_preset), getString(R.string.touch_manager_new_preset)) { name ->
                 val preset = SwipePreset(name = name)
                 if (persist(library.copy(presets = library.presets + preset))) editPreset(preset.id)
+            }
+        } else {
+            nameDialog(getString(R.string.touch_manager_create_appearance), getString(R.string.touch_manager_new_appearance)) { name ->
+                val preset = AppearancePreset(name = name)
+                if (persist(library.copy(appearancePresets = library.appearancePresets + preset))) {
+                    editAppearancePreset(preset)
+                }
             }
         }
     }
@@ -657,6 +740,16 @@ class TouchTemplateActivity : AppCompatActivity() {
         }
     }
 
+    private fun appearanceImpact(id: String): String = buildString {
+        val refs = TouchReferences.appearancePreset(library, id)
+        append(getString(R.string.touch_manager_appearance_references, refs.size))
+        refs.forEach { reference ->
+            val template = library.templates.firstOrNull { it.id == reference.templateId }
+            val control = template?.controls?.firstOrNull { it.id == reference.controlId }
+            append("\n• ${template?.name ?: reference.templateId} / ${control?.name?.ifBlank { control.id } ?: reference.controlId}")
+        }
+    }
+
     private fun confirm(title: String, message: String, action: () -> Unit) {
         MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(title).setMessage(message)
             .setPositiveButton(R.string.touch_manager_confirm) { _, _ -> runCatching(action).onFailure { report(it) } }
@@ -665,6 +758,119 @@ class TouchTemplateActivity : AppCompatActivity() {
 
     private fun showDetails(title: String, message: String) {
         MaterialAlertDialogBuilder(this@TouchTemplateActivity).setTitle(title).setMessage(message).setPositiveButton(R.string.touch_manager_close, null).show()
+    }
+
+    private fun appearanceButton(text: String, action: () -> Unit) =
+        MaterialButton(ContextThemeWrapper(this, R.style.TouchButton_Theme_Secondary), null, com.google.android.material.R.attr.materialButtonStyle).apply {
+            this.text = text
+            isAllCaps = false
+            setOnClickListener { action() }
+        }
+
+    private fun editAppearancePreset(preset: AppearancePreset) {
+        var groups = preset.groups.ifEmpty { listOf(AppearanceGroup()) }
+        var dismissCurrent: (() -> Unit)? = null
+        fun reopen() {
+            dismissCurrent?.invoke()
+            editAppearancePreset(preset.copy(groups = groups))
+        }
+        fun editColor(index: Int) {
+            val group = groups[index]
+            val input = TextInputEditText(this).apply {
+                hint = getString(R.string.touch_manager_appearance_color_prompt)
+                setText(group.color?.let { String.format(java.util.Locale.ROOT, "%08X", it) }.orEmpty())
+                setSingleLine()
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.touch_manager_appearance_color)
+                .setView(input)
+                .setPositiveButton(R.string.touch_manager_save) { _, _ ->
+                    val text = input.text?.toString()?.trim()?.removePrefix("#").orEmpty()
+                    val normalized = if (text.length == 6) "FF$text" else text
+                    val color = if (normalized.length == 8) normalized.toLongOrNull(16)?.toInt() else null
+                    groups = groups.toMutableList().also { it[index] = group.copy(color = color) }
+                    reopen()
+                }
+                .setNeutralButton(R.string.touch_manager_appearance_clear_color) { _, _ ->
+                    groups = groups.toMutableList().also { it[index] = group.copy(color = null) }
+                    reopen()
+                }
+                .setNegativeButton(R.string.touch_manager_cancel, null)
+                .show()
+        }
+        fun editOverlay(index: Int) {
+            val group = groups[index]
+            val input = TextInputEditText(this).apply {
+                hint = getString(R.string.touch_manager_appearance_overlay_prompt)
+                setText(group.overlayOpacity?.let { (it * 100f).roundToInt().toString() }.orEmpty())
+                setSingleLine()
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.touch_manager_appearance_overlay)
+                .setView(input)
+                .setPositiveButton(R.string.touch_manager_save) { _, _ ->
+                    val value = input.text?.toString()?.toFloatOrNull()?.div(100f)
+                    groups = groups.toMutableList().also { it[index] = group.copy(overlayOpacity = value?.coerceIn(0f, 3f)) }
+                    reopen()
+                }
+                .setNeutralButton(R.string.touch_manager_appearance_clear_overlay) { _, _ ->
+                    groups = groups.toMutableList().also { it[index] = group.copy(overlayOpacity = null) }
+                    reopen()
+                }
+                .setNegativeButton(R.string.touch_manager_cancel, null)
+                .show()
+        }
+        val content = column().apply { setPadding(dp(20), dp(12), dp(20), dp(8)) }
+        content.addView(label(getString(R.string.touch_manager_appearance_original)))
+        for (index in 1 until groups.size) {
+            val group = groups[index]
+            content.addView(label(getString(R.string.touch_manager_appearance_group, index + 1)))
+            content.addView(
+                appearanceButton(
+                    getString(
+                        R.string.touch_manager_appearance_color,
+                        group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
+                            ?: getString(R.string.touch_manager_appearance_unset)
+                    )
+                ) { editColor(index) }
+            )
+            content.addView(
+                appearanceButton(
+                    getString(
+                        R.string.touch_manager_appearance_overlay,
+                        group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
+                            ?: getString(R.string.touch_manager_appearance_unset)
+                    )
+                ) { editOverlay(index) }
+            )
+            content.addView(appearanceButton(getString(R.string.touch_manager_appearance_delete_group)) {
+                groups = groups.filterIndexed { current, _ -> current != index }
+                if (groups.isEmpty()) groups = listOf(AppearanceGroup())
+                reopen()
+            })
+        }
+        content.addView(appearanceButton(getString(R.string.touch_manager_appearance_add_group)) {
+            val template = library.templateFor(gameId) ?: library.templates.firstOrNull()
+            groups = groups + AppearanceGroup(template?.globalColor, template?.globalOpacity)
+            reopen()
+        })
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.touch_manager_appearance_editor, preset.name))
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(R.string.touch_manager_save) { _, _ ->
+                persist(
+                    library.copy(
+                        appearancePresets = library.appearancePresets.map {
+                            if (it.id == preset.id) it.copy(groups = groups) else it
+                        }
+                    )
+                )
+            }
+            .setNegativeButton(R.string.touch_manager_cancel, null)
+            .create()
+        dialog.show()
+        dismissCurrent = { dialog.dismiss() }
     }
 
     private fun editPreset(presetId: String) {
@@ -719,9 +925,19 @@ class TouchTemplateActivity : AppCompatActivity() {
         append("\n\n" + getString(R.string.touch_manager_import_conflicts, preview.conflicts.size))
         preview.conflicts.forEach { conflict ->
             val layout = conflict.kind == TouchObjectKind.TEMPLATE
-            val name = if (layout) preview.bundle.templates.first { it.id == conflict.id }.name else preview.bundle.presets.first { it.id == conflict.id }.name
+            val name = when (conflict.kind) {
+                TouchObjectKind.TEMPLATE -> preview.bundle.templates.first { it.id == conflict.id }.name
+                TouchObjectKind.PRESET -> preview.bundle.presets.first { it.id == conflict.id }.name
+                TouchObjectKind.APPEARANCE -> preview.bundle.appearancePresets.first { it.id == conflict.id }.name
+            }
             append("\n\n" + getString(if (layout) R.string.touch_manager_conflicting_layout else R.string.touch_manager_conflicting_preset, name))
-            append("\n" + if (layout) templateImpact(conflict.id) else presetImpact(conflict.id))
+            append(
+                "\n" + when (conflict.kind) {
+                    TouchObjectKind.TEMPLATE -> templateImpact(conflict.id)
+                    TouchObjectKind.PRESET -> presetImpact(conflict.id)
+                    TouchObjectKind.APPEARANCE -> appearanceImpact(conflict.id)
+                }
+            )
         }
         append("\n\n" + getString(if (preview.conflicts.isEmpty()) R.string.touch_manager_reuse_identical else R.string.touch_manager_copy_replace_hint))
     }

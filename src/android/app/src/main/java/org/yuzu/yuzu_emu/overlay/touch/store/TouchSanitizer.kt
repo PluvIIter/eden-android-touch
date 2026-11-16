@@ -8,7 +8,10 @@ import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchTemplate
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction
 import org.yuzu.yuzu_emu.overlay.touch.model.ButtonBinding
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
+import org.yuzu.yuzu_emu.overlay.touch.model.newTouchId
 import kotlin.math.abs
 
 data class RemovedControl(val id: String, val name: String, val reason: String)
@@ -23,6 +26,7 @@ object TouchSanitizer {
     fun sanitize(library: TouchLibrary, density: Float = 1f): SanitizedLibrary {
         var current = library
         val removed = linkedMapOf<String, RemovedControl>()
+        val appearancePresets = library.appearancePresets.toMutableList()
         current = current.copy(templates = current.templates.map { template ->
             val seen = mutableSetOf<String>()
             val kept = template.controls.filter { control ->
@@ -40,14 +44,43 @@ object TouchSanitizer {
                 }
             }
             val ids = kept.map { it.id }.toSet()
+            var legacyAppearancePresetId: String? = null
             val normalized = kept.map { control ->
-                if (control.type == ControlType.VISIBILITY) {
+                if (control.type == ControlType.VISIBILITY ||
+                    control.buttonAction == ButtonAction.TOGGLE_VISIBILITY
+                ) {
                     control.copy(
                         type = ControlType.BUTTON,
-                        buttonAction = ButtonAction.TOGGLE_VISIBILITY,
-                        binding = ButtonBinding(emptySet()),
-                        targetTemplateId = null
+                        buttonAction = ButtonAction.NONE,
+                        binding = ButtonBinding(setOf(0)),
+                        targetTemplateId = null,
+                        appearancePresetId = null,
+                        enabled = false,
+                        hideSelf = false
                     )
+                } else if (control.buttonAction == ButtonAction.APPEARANCE) {
+                    val presetId = control.appearancePresetId
+                    if (presetId != null && appearancePresets.any { it.id == presetId }) {
+                        control
+                    } else if (template.appearanceGroups.isNotEmpty()) {
+                        if (legacyAppearancePresetId == null) {
+                            val preset = AppearancePreset(
+                                id = newTouchId(),
+                                name = "${template.name} appearance",
+                                groups = template.appearanceGroups
+                            )
+                            appearancePresets += preset
+                            legacyAppearancePresetId = preset.id
+                        }
+                        control.copy(appearancePresetId = legacyAppearancePresetId)
+                    } else {
+                        control.copy(
+                            buttonAction = ButtonAction.NONE,
+                            binding = ButtonBinding(setOf(0)),
+                            appearancePresetId = null,
+                            enabled = false
+                        )
+                    }
                 } else {
                     control
                 }
@@ -62,12 +95,13 @@ object TouchSanitizer {
                 controls = normalized,
                 globalColor = template.globalColor ?: inferredColor,
                 defaultOpacity = template.defaultOpacity ?: inferredOpacity,
-                appearanceGroups = template.appearanceGroups.ifEmpty { listOf(org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup()) },
+                appearanceGroups = emptyList(),
                 screens = template.screens.map { screen ->
                     screen.copy(placements = screen.placements.filterKeys { it in ids })
                 }
             )
         })
+        current = current.copy(appearancePresets = appearancePresets)
         repeat(4) {
             val issues = TouchValidator.validate(current)
             val visibleMismatch = mutableMapOf<String, String>()

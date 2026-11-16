@@ -22,6 +22,13 @@ data class AppearanceGroup(
 )
 
 @Serializable
+data class AppearancePreset(
+    val id: String = newTouchId(),
+    val name: String = "Default appearance",
+    val groups: List<AppearanceGroup> = listOf(AppearanceGroup())
+)
+
+@Serializable
 enum class ControlShape { CIRCLE, RECTANGLE }
 
 @Serializable
@@ -100,6 +107,7 @@ data class TouchControl(
     val binding: ButtonBinding = ButtonBinding(setOf(0)),
     val buttonAction: ButtonAction = ButtonAction.NONE,
     val targetTemplateId: String? = null,
+    val appearancePresetId: String? = null,
     val groupStyle: GroupStyle = GroupStyle.FACE,
     val groupKeys: List<GroupKey> = listOf(
         GroupKey(text = "X", binding = ButtonBinding(setOf(2))),
@@ -189,7 +197,7 @@ data class TouchTemplate(
     val globalColor: Int? = null,
     val defaultOpacity: Float? = null,
     val controlOpacity: Float? = null,
-    val appearanceGroups: List<AppearanceGroup> = listOf(AppearanceGroup())
+    val appearanceGroups: List<AppearanceGroup> = emptyList()
 )
 
 @Serializable
@@ -198,6 +206,7 @@ data class TouchLibrary(
     val revision: Long = 0,
     val templates: List<TouchTemplate> = emptyList(),
     val presets: List<SwipePreset> = emptyList(),
+    val appearancePresets: List<AppearancePreset> = emptyList(),
     val defaultTemplateId: String? = null,
     val gameTemplates: Map<String, String> = emptyMap()
 ) {

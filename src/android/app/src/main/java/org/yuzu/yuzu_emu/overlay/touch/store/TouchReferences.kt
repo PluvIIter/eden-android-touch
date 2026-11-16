@@ -33,6 +33,35 @@ object TouchReferences {
                 .map { PresetReference(template.id, it.id) }
         }
 
+    fun appearancePreset(library: TouchLibrary, id: String): List<PresetReference> =
+        library.templates.flatMap { template ->
+            template.controls.filter { it.appearancePresetId == id }
+                .map { PresetReference(template.id, it.id) }
+        }
+
+    fun deleteAppearancePreset(library: TouchLibrary, id: String): TouchLibrary {
+        require(library.appearancePresets.any { it.id == id }) { "Unknown appearance preset" }
+        return library.copy(
+            appearancePresets = library.appearancePresets.filterNot { it.id == id },
+            templates = library.templates.map { template ->
+                template.copy(
+                    controls = template.controls.map { control ->
+                        if (control.appearancePresetId == id) {
+                            control.copy(
+                                buttonAction = org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction.NONE,
+                                appearancePresetId = null,
+                                enabled = false,
+                                binding = ButtonBinding(setOf(0))
+                            )
+                        } else {
+                            control
+                        }
+                    }
+                )
+            }
+        ).immutableSnapshot()
+    }
+
     fun associateGame(library: TouchLibrary, titleId: String, templateId: String?): TouchLibrary {
         require(templateId == null || library.templates.any { it.id == templateId }) { "Unknown template" }
         val game = baseGameId(titleId)
@@ -110,5 +139,6 @@ internal fun TouchTemplate.immutableSnapshot(): TouchTemplate = copy(
 internal fun TouchLibrary.immutableSnapshot(): TouchLibrary = copy(
     templates = templates.map { it.immutableSnapshot() }.frozen(),
     presets = presets.map { it.copy(curve = it.curve.frozen()) }.frozen(),
+    appearancePresets = appearancePresets.map { it.copy(groups = it.groups.frozen()) }.frozen(),
     gameTemplates = gameTemplates.frozen()
 )

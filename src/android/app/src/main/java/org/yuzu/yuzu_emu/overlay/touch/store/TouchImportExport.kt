@@ -12,6 +12,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.ControlType
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
@@ -23,11 +24,12 @@ data class TouchBundle(
     val format: String = "eden-touch-bundle",
     val version: Int = TouchValidator.VERSION,
     val templates: List<TouchTemplate> = emptyList(),
-    val presets: List<SwipePreset> = emptyList()
+    val presets: List<SwipePreset> = emptyList(),
+    val appearancePresets: List<AppearancePreset> = emptyList()
 )
 
 enum class ImportConflictResolution { COPY, REPLACE }
-enum class TouchObjectKind { TEMPLATE, PRESET }
+enum class TouchObjectKind { TEMPLATE, PRESET, APPEARANCE }
 data class TouchImportConflict(
     val kind: TouchObjectKind,
     val id: String,
@@ -39,7 +41,8 @@ data class TouchImportPreview(val bundle: TouchBundle, val conflicts: List<Touch
 data class TouchImportResult(
     val library: TouchLibrary,
     val templateIds: Map<String, String>,
-    val presetIds: Map<String, String>
+    val presetIds: Map<String, String>,
+    val appearancePresetIds: Map<String, String> = emptyMap()
 )
 
 object TouchImportExport {
@@ -49,7 +52,20 @@ object TouchImportExport {
         TouchValidator.requireValid(library)
         val template = library.templates.firstOrNull { it.id == templateId } ?: error("Unknown template")
         val referenced = template.controls.filter { it.type == ControlType.SWIPE }.mapNotNull { it.swipePresetId }.toSet()
-        return json.encodeToString(TouchBundle(templates = listOf(template), presets = library.presets.filter { it.id in referenced }))
+        val referencedAppearance = template.controls.mapNotNull { it.appearancePresetId }.toSet()
+        return json.encodeToString(
+            TouchBundle(
+                templates = listOf(template),
+                presets = library.presets.filter { it.id in referenced },
+                appearancePresets = library.appearancePresets.filter { it.id in referencedAppearance }
+            )
+        )
+    }
+
+    fun exportAppearancePreset(library: TouchLibrary, presetId: String): String {
+        TouchValidator.requireValid(library)
+        val preset = library.appearancePresets.firstOrNull { it.id == presetId } ?: error("Unknown appearance preset")
+        return json.encodeToString(TouchBundle(appearancePresets = listOf(preset)))
     }
 
     fun exportPreset(library: TouchLibrary, presetId: String): String {
@@ -65,8 +81,12 @@ object TouchImportExport {
         require(root["version"]?.jsonPrimitive?.content == TouchValidator.VERSION.toString()) { "Unsupported touch bundle version" }
         requireStableIds(root)
         val bundle = json.decodeFromString<TouchBundle>(text)
-        require(bundle.templates.isNotEmpty() || bundle.presets.isNotEmpty()) { "Bundle is empty" }
-        val snapshot = TouchLibrary(templates = bundle.templates, presets = bundle.presets).immutableSnapshot()
+        require(bundle.templates.isNotEmpty() || bundle.presets.isNotEmpty() || bundle.appearancePresets.isNotEmpty()) { "Bundle is empty" }
+        val snapshot = TouchLibrary(
+            templates = bundle.templates,
+            presets = bundle.presets,
+            appearancePresets = bundle.appearancePresets
+        ).immutableSnapshot()
         TouchValidator.requireValid(snapshot)
         val conflicts = mutableListOf<TouchImportConflict>()
         snapshot.templates.forEach { incoming ->
@@ -86,7 +106,24 @@ object TouchImportExport {
                 )
             }
         }
-        return TouchImportPreview(bundle.copy(templates = snapshot.templates, presets = snapshot.presets), conflicts.frozen())
+        snapshot.appearancePresets.forEach { incoming ->
+            val existing = library.appearancePresets.firstOrNull { it.id == incoming.id }
+            if (existing != null && existing != incoming) {
+                conflicts += TouchImportConflict(
+                    TouchObjectKind.APPEARANCE,
+                    incoming.id,
+                    regions = TouchReferences.appearancePreset(library, incoming.id)
+                )
+            }
+        }
+        return TouchImportPreview(
+            bundle.copy(
+                templates = snapshot.templates,
+                presets = snapshot.presets,
+                appearancePresets = snapshot.appearancePresets
+            ),
+            conflicts.frozen()
+        )
     }
 
     internal fun requireStableIds(root: JsonObject) {
@@ -94,6 +131,7 @@ object TouchImportExport {
             require(!value["id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()) { "Missing stable object ID" }
         }
         root["presets"]?.jsonArray?.forEach { requireId(it.jsonObject) }
+        root["appearancePresets"]?.jsonArray?.forEach { requireId(it.jsonObject) }
         root["templates"]?.jsonArray?.forEach { element ->
             val template = element.jsonObject
             requireId(template)
@@ -126,12 +164,29 @@ object TouchImportExport {
             val index = presets.indexOfFirst { it.id == rewritten.id }
             if (index < 0) presets += rewritten else presets[index] = rewritten
         }
+        val appearancePresets = library.appearancePresets.toMutableList()
+        val appearancePresetIds = incoming.appearancePresets.associate { preset ->
+            val existing = library.appearancePresets.firstOrNull { it.id == preset.id }
+            preset.id to if (existing != null && existing != preset && resolution == ImportConflictResolution.COPY) newTouchId() else preset.id
+        }
+        incoming.appearancePresets.forEach { preset ->
+            val rewritten = preset.copy(id = appearancePresetIds.getValue(preset.id))
+            val index = appearancePresets.indexOfFirst { it.id == rewritten.id }
+            if (index < 0) appearancePresets += rewritten else appearancePresets[index] = rewritten
+        }
         val templates = library.templates.toMutableList()
         val templateIds = linkedMapOf<String, String>()
         incoming.templates.forEach { template ->
             var rewritten = template.copy(
                 controls = template.controls.map { control ->
-                    if (control.type == ControlType.SWIPE) control.copy(swipePresetId = presetIds[control.swipePresetId] ?: control.swipePresetId) else control
+                    control.copy(
+                        swipePresetId = if (control.type == ControlType.SWIPE) {
+                            presetIds[control.swipePresetId] ?: control.swipePresetId
+                        } else {
+                            control.swipePresetId
+                        },
+                        appearancePresetId = appearancePresetIds[control.appearancePresetId] ?: control.appearancePresetId
+                    )
                 }
             )
             val index = templates.indexOfFirst { it.id == rewritten.id }
@@ -142,8 +197,12 @@ object TouchImportExport {
             val replacement = templates.indexOfFirst { it.id == rewritten.id }
             if (replacement < 0) templates += rewritten else templates[replacement] = rewritten
         }
-        val result = library.copy(templates = templates, presets = presets).immutableSnapshot()
+        val result = library.copy(
+            templates = templates,
+            presets = presets,
+            appearancePresets = appearancePresets
+        ).immutableSnapshot()
         TouchValidator.requireValid(result)
-        return TouchImportResult(result, templateIds.frozen(), presetIds.frozen())
+        return TouchImportResult(result, templateIds.frozen(), presetIds.frozen(), appearancePresetIds.frozen())
     }
 }

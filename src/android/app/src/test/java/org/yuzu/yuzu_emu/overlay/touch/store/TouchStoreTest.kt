@@ -320,6 +320,29 @@ class TouchStoreTest {
         assertEquals(library.revision, error.currentRevision)
     }
 
+    @Test fun sanitizerMigratesLegacyAppearanceGroupsIntoSharedPreset() {
+        val color = 0xFF123456.toInt()
+        val appearance = TouchControl(
+            bounds = TouchRect(0f, 0f, 64f, 64f),
+            binding = ButtonBinding(emptySet()),
+            buttonAction = ButtonAction.APPEARANCE
+        )
+        val original = TouchDefaults.library()
+        val template = original.templates.first().copy(
+            controls = listOf(appearance),
+            appearanceGroups = listOf(
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(),
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(color = color, overlayOpacity = 1.2f)
+            )
+        )
+        val result = TouchSanitizer.sanitize(original.copy(templates = listOf(template)))
+        val preset = result.library.appearancePresets.single()
+        assertEquals(preset.id, result.library.templates.single().controls.single().appearancePresetId)
+        assertEquals(1.2f, preset.groups[1].overlayOpacity ?: -1f, 0.001f)
+        assertTrue(result.library.templates.single().appearanceGroups.isEmpty())
+        assertTrue(TouchValidator.validate(result.library).isEmpty())
+    }
+
     @Test fun sanitizerMigratesLegacyVisibilityControlsToButtonAction() {
         val visibility = TouchControl(
             type = ControlType.VISIBILITY,
@@ -330,8 +353,9 @@ class TouchStoreTest {
         val result = TouchSanitizer.sanitize(library(listOf(visibility)))
         val migrated = result.library.templates.single().controls.single()
         assertEquals(ControlType.BUTTON, migrated.type)
-        assertEquals(ButtonAction.TOGGLE_VISIBILITY, migrated.buttonAction)
-        assertTrue(migrated.hideSelf)
+        assertEquals(ButtonAction.NONE, migrated.buttonAction)
+        assertFalse(migrated.enabled)
+        assertFalse(migrated.hideSelf)
         assertTrue(TouchValidator.validate(result.library).isEmpty())
     }
 

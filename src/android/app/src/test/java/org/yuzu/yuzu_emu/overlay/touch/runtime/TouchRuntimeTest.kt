@@ -46,7 +46,7 @@ class TouchRuntimeTest {
         override fun haptic(control: TouchControl, strong: Boolean) { haptics += control.id to strong }
         override fun toggleVisibility() { visibilityToggles++ }
         override fun switchTemplate(templateId: String) { switches += templateId }
-        override fun appearance() { appearanceCycles++ }
+        override fun appearance(presetId: String) { appearanceCycles++ }
     }
 
     private val sink = Sink()
@@ -539,7 +539,7 @@ class TouchRuntimeTest {
         assertTrue(sink.haptics.isEmpty())
     }
 
-    @Test fun stickDoubleTapUsesStrongHapticAndVisibilityButtonToggles() {
+    @Test fun stickDoubleTapUsesStrongHaptic() {
         val stick = TouchControl(
             id = "stick",
             type = ControlType.STICK,
@@ -549,17 +549,12 @@ class TouchRuntimeTest {
             auxiliaryButton = 18,
             auxiliaryMode = AuxiliaryMode.DOUBLE_TAP
         )
-        val visibility = area("visibility", 200f, ControlType.VISIBILITY)
-        configure(stick, visibility)
+        configure(stick)
         runtime.down(1, 50f, 50f, 0)
         runtime.up(1, 50f, 50f, 10)
         runtime.down(2, 50f, 50f, 20)
         assertTrue(sink.haptics.any { it.first == "stick" && it.second })
         runtime.up(2, 50f, 50f, 30)
-
-        runtime.down(3, 250f, 30f, 40)
-        assertEquals(1, sink.visibilityToggles)
-        runtime.up(3, 250f, 30f, 50)
     }
 
     @Test fun immediateGestureCanPulseInsteadOfHold() {
@@ -579,21 +574,12 @@ class TouchRuntimeTest {
     }
 
     @Test fun specialButtonActionsDispatchWithoutButtonOutput() {
-        val toggle = button("toggle", 0f).copy(
-            binding = ButtonBinding(emptySet()),
-            buttonAction = ButtonAction.TOGGLE_VISIBILITY
-        )
         val switch = button("switch", 80f).copy(
             binding = ButtonBinding(emptySet()),
             buttonAction = ButtonAction.SWITCH_TEMPLATE,
             targetTemplateId = "other-template"
         )
-        configure(toggle, switch)
-        runtime.down(1, 10f, 10f, 0)
-        assertEquals(1, sink.visibilityToggles)
-        assertTrue(sink.pressed.isEmpty())
-        runtime.up(1, 10f, 10f, 1)
-
+        configure(switch)
         runtime.down(2, 90f, 10f, 10)
         assertEquals(listOf("other-template"), sink.switches)
         assertTrue(sink.pressed.isEmpty())
@@ -618,7 +604,8 @@ class TouchRuntimeTest {
     @Test fun appearanceActionRequestsTheNextAppearanceGroup() {
         val control = button("appearance", 10f).copy(
             binding = ButtonBinding(emptySet()),
-            buttonAction = ButtonAction.APPEARANCE
+            buttonAction = ButtonAction.APPEARANCE,
+            appearancePresetId = "appearance-template"
         )
         configure(control)
         runtime.down(1, 40f, 30f, 0)

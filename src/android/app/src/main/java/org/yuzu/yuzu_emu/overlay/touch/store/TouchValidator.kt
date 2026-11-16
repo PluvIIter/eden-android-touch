@@ -60,8 +60,18 @@ object TouchValidator {
         check(library.revision >= 0, "revision", "Revision must not be negative")
         ids(library.templates.map { it.id }, "templates")
         ids(library.presets.map { it.id }, "presets")
+        ids(library.appearancePresets.map { it.id }, "appearancePresets")
         val templateIds = library.templates.map { it.id }.toSet()
         val presetIds = library.presets.map { it.id }.toSet()
+        val appearancePresetIds = library.appearancePresets.map { it.id }.toSet()
+        library.appearancePresets.forEach { preset ->
+            val p = "appearancePresets.${preset.id}"
+            check(preset.name.isNotBlank(), "$p.name", "Name must not be blank")
+            check(preset.groups.isNotEmpty(), "$p.groups", "At least one appearance group is required")
+            preset.groups.forEachIndexed { index, group ->
+                group.overlayOpacity?.let { range(it, 0f, 3f, "$p.groups.$index.overlayOpacity") }
+            }
+        }
         check(library.defaultTemplateId == null || library.defaultTemplateId in templateIds, "defaultTemplateId", "Missing template")
         library.gameTemplates.forEach { (game, template) ->
             check(runCatching { TouchReferences.baseGameId(game) == game }.getOrDefault(false), "gameTemplates.$game", "Expected canonical base Title ID")
@@ -102,7 +112,6 @@ object TouchValidator {
             range(template.globalOpacity, 0f, 3f, "$t.globalOpacity")
             template.defaultOpacity?.let { range(it, 0f, 1f, "$t.defaultOpacity") }
             template.controlOpacity?.let { range(it, 0f, 1f, "$t.controlOpacity") }
-            check(template.appearanceGroups.isNotEmpty(), "$t.appearanceGroups", "At least one appearance group is required")
             template.appearanceGroups.forEachIndexed { index, group ->
                 group.overlayOpacity?.let { range(it, 0f, 3f, "$t.appearanceGroups.$index.overlayOpacity") }
             }
@@ -122,12 +131,17 @@ object TouchValidator {
                 check(!control.triggerOnly || control.type == ControlType.STICK, "$c.triggerOnly", "Trigger-only display requires a stick")
                 check(!control.hideSelf || control.buttonAction == ButtonAction.TOGGLE_VISIBILITY ||
                     control.type == ControlType.VISIBILITY, "$c.hideSelf", "Only visibility actions can hide themselves")
+                check(control.buttonAction != ButtonAction.TOGGLE_VISIBILITY, "$c.buttonAction", "Visibility action is retired")
                 when (control.type) {
                     ControlType.BUTTON -> {
                         when (control.buttonAction) {
                             ButtonAction.NONE -> binding(control.binding, "$c.binding")
-                            ButtonAction.TOGGLE_VISIBILITY -> check(control.binding.buttons.isEmpty(), "$c.binding", "Visibility action takes no buttons")
-                            ButtonAction.APPEARANCE -> check(control.binding.buttons.isEmpty(), "$c.binding", "Appearance action takes no buttons")
+                            ButtonAction.TOGGLE_VISIBILITY -> Unit
+                            ButtonAction.APPEARANCE -> {
+                                check(control.appearancePresetId != null && control.appearancePresetId in appearancePresetIds,
+                                    "$c.appearancePresetId", "Missing appearance preset")
+                                check(control.binding.buttons.isEmpty(), "$c.binding", "Appearance action takes no buttons")
+                            }
                             ButtonAction.SWITCH_TEMPLATE -> {
                                 check(control.targetTemplateId != null && control.targetTemplateId in templateIds, "$c.targetTemplateId", "Missing template")
                                 check(control.targetTemplateId != template.id, "$c.targetTemplateId", "Cannot switch to itself")

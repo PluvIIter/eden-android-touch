@@ -168,8 +168,8 @@ class TouchRuntime(private val sink: InputSink) {
             ControlType.BUTTON -> {
                 if (captured.haptics) sink.haptic(captured)
                 when (captured.buttonAction) {
-                    ButtonAction.TOGGLE_VISIBILITY -> sink.toggleVisibility()
-                    ButtonAction.APPEARANCE -> sink.appearance()
+                    ButtonAction.TOGGLE_VISIBILITY -> Unit
+                    ButtonAction.APPEARANCE -> captured.appearancePresetId?.let(sink::appearance)
                     ButtonAction.SWITCH_TEMPLATE -> {
                         val target = captured.targetTemplateId
                         if (captured.binding.buttons.isEmpty()) {

@@ -38,6 +38,8 @@ class TouchRepository(file: File, private val createDefaults: () -> TouchLibrary
 
     fun exportPreset(presetId: String): String = TouchImportExport.exportPreset(load(), presetId)
 
+    fun exportAppearancePreset(presetId: String): String = TouchImportExport.exportAppearancePreset(load(), presetId)
+
     fun previewImport(text: String): TouchImportPreview = TouchImportExport.preview(load(), text)
 
     fun importBundle(text: String, expectedRevision: Long, resolution: ImportConflictResolution? = null): TouchImportResult = locked {

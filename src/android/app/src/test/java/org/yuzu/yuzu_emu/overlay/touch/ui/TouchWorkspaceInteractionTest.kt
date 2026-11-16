@@ -33,6 +33,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadows.ShadowAlertDialog
 import org.robolectric.shadows.ShadowDialog
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.overlay.touch.TouchDefaultLibrary
@@ -362,14 +363,25 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
-    fun newButtonCanUseVisibilityActionFromTheMappingGrid() = withWorkspace { workspace ->
+    fun newButtonCanUseAnAppearancePresetFromTheMappingGrid() = withWorkspace { workspace ->
+        val preset = org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset(
+            id = "appearance-new",
+            name = "Appearance new",
+            groups = listOf(org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup())
+        )
+        workspace.replaceDraft(workspace.draft.copy(appearancePresets = listOf(preset)))
         val before = workspace.template.controls.map { it.id }.toSet()
         toolbarClick(workspace, R.string.touch_tools_add)
         click(workspace, topCard(workspace), R.string.touch_tools_button_description)
         action(topCard(workspace), workspace.context.getString(R.string.touch_tools_select_mapping)).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         val dialogRoot = ShadowDialog.getLatestDialog().window!!.decorView
-        action(dialogRoot, workspace.context.getString(R.string.touch_tools_action_toggle_short)).performClick()
+        action(dialogRoot, workspace.context.getString(R.string.touch_tools_action_appearance_short)).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        val presetDialog = ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+        val list = presetDialog.listView
+        list.performItemClick(list.adapter.getView(0, null, list), 0, 0)
+        shadowOf(Looper.getMainLooper()).idle()
         click(workspace, topCard(workspace), R.string.touch_tools_place)
         settle(workspace)
         val downTime = SystemClock.uptimeMillis()
@@ -379,7 +391,8 @@ class TouchWorkspaceInteractionTest {
         }
         settle(workspace)
         val placed = workspace.template.controls.first { it.id !in before }
-        assertEquals(org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction.TOGGLE_VISIBILITY, placed.buttonAction)
+        assertEquals(org.yuzu.yuzu_emu.overlay.touch.model.ButtonAction.APPEARANCE, placed.buttonAction)
+        assertEquals(preset.id, placed.appearancePresetId)
     }
 
     @Test
@@ -612,27 +625,67 @@ class TouchWorkspaceInteractionTest {
 
     @Test
     fun appearanceGroupsCycleColorAndOverlay() = withWorkspace(gameAvailable = true) { workspace ->
-        workspace.addAppearanceGroup()
-        val group = workspace.template.appearanceGroups[1]
         val color = 0xFF12AB34.toInt()
-        workspace.updateAppearanceGroup(1, group.copy(color = color, overlayOpacity = 1.5f))
-        workspace.cycleAppearance()
+        val preset = org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset(
+            id = "appearance-test",
+            name = "Appearance test",
+            groups = listOf(
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(),
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(color = color, overlayOpacity = 1.5f)
+            )
+        )
+        workspace.replaceDraft(workspace.draft.copy(appearancePresets = listOf(preset)))
+        workspace.cycleAppearance(preset.id)
         assertEquals(1.5f, workspace.effectiveGlobalOpacity(), 0.001f)
         assertEquals(color, workspace.effectiveColor(workspace.template.controls.first()))
-        workspace.cycleAppearance()
+        workspace.cycleAppearance(preset.id)
         assertEquals(workspace.template.globalOpacity, workspace.effectiveGlobalOpacity(), 0.001f)
     }
 
     @Test
     fun appearanceGroupUnsetPartsLeaveControlAppearanceUntouched() = withWorkspace(gameAvailable = true) { workspace ->
-        workspace.addAppearanceGroup()
         val control = workspace.template.controls.first()
         val originalColor = control.color
         val originalOverlay = workspace.template.globalOpacity
-        workspace.updateAppearanceGroup(1, workspace.template.appearanceGroups[1].copy(color = null, overlayOpacity = null))
-        workspace.cycleAppearance()
+        val preset = org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset(
+            id = "appearance-unset",
+            name = "Appearance unset",
+            groups = listOf(
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(),
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(color = null, overlayOpacity = null)
+            )
+        )
+        workspace.replaceDraft(workspace.draft.copy(appearancePresets = listOf(preset)))
+        workspace.cycleAppearance(preset.id)
         assertEquals(originalColor, workspace.effectiveColor(control))
         assertEquals(originalOverlay, workspace.effectiveGlobalOpacity(), 0.001f)
+    }
+
+    @Test
+    fun appearanceCycleStateSurvivesLayoutSwitchAndIsSharedByPreset() = withWorkspace(gameAvailable = true) { workspace ->
+        val color = 0xFF336699.toInt()
+        val preset = org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset(
+            id = "shared-appearance",
+            name = "Shared appearance",
+            groups = listOf(
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(),
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(overlayOpacity = 1.5f),
+                org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup(color = color)
+            )
+        )
+        val alternate = workspace.template.copy(id = "alternate-layout", name = "Alternate")
+        workspace.replaceDraft(
+            workspace.draft.copy(
+                templates = workspace.draft.templates + alternate,
+                appearancePresets = listOf(preset)
+            )
+        )
+        workspace.setEditing(false)
+        workspace.cycleAppearance(preset.id)
+        assertEquals(1.5f, workspace.effectiveGlobalOpacity(), 0.001f)
+        workspace.switchGameTemplate(alternate.id)
+        workspace.cycleAppearance(preset.id)
+        assertEquals(color, workspace.effectiveColor(workspace.template.controls.first()))
     }
 
     @Test
