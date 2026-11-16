@@ -20,8 +20,10 @@
     <string name="touch_manager_appearance_add_group">添加外观组</string>
     <string name="touch_manager_appearance_delete_group">删除外观组</string>
     <string name="touch_manager_appearance_color">颜色：%1$s</string>
+    <string name="touch_manager_appearance_color_title">选择颜色</string>
     <string name="touch_manager_appearance_clear_color">清除颜色</string>
     <string name="touch_manager_appearance_overlay">叠加透明度：%1$s</string>
+    <string name="touch_manager_appearance_overlay_title">叠加透明度</string>
     <string name="touch_manager_appearance_clear_overlay">清除叠加透明度</string>
     <string name="touch_manager_appearance_unset">未设置</string>
     <string name="touch_manager_appearance_overlay_prompt">叠加透明度百分比（留空清除）</string>

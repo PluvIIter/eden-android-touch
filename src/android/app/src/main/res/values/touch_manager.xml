@@ -20,8 +20,10 @@
     <string name="touch_manager_appearance_add_group">Add group</string>
     <string name="touch_manager_appearance_delete_group">Delete group</string>
     <string name="touch_manager_appearance_color">Color: %1$s</string>
+    <string name="touch_manager_appearance_color_title">Choose color</string>
     <string name="touch_manager_appearance_clear_color">Clear color</string>
     <string name="touch_manager_appearance_overlay">Overlay opacity: %1$s</string>
+    <string name="touch_manager_appearance_overlay_title">Overlay opacity</string>
     <string name="touch_manager_appearance_clear_overlay">Clear overlay opacity</string>
     <string name="touch_manager_appearance_unset">Not set</string>
     <string name="touch_manager_appearance_overlay_prompt">Overlay opacity % (empty to clear)</string>

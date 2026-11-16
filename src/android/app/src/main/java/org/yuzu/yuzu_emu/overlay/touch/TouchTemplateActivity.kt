@@ -781,7 +781,7 @@ class TouchTemplateActivity : AppCompatActivity() {
                 setSingleLine()
             }
             MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.touch_manager_appearance_color)
+                .setTitle(R.string.touch_manager_appearance_color_title)
                 .setView(input)
                 .setPositiveButton(R.string.touch_manager_save) { _, _ ->
                     val text = input.text?.toString()?.trim()?.removePrefix("#").orEmpty()
@@ -806,7 +806,7 @@ class TouchTemplateActivity : AppCompatActivity() {
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
             }
             MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.touch_manager_appearance_overlay)
+                .setTitle(R.string.touch_manager_appearance_overlay_title)
                 .setView(input)
                 .setPositiveButton(R.string.touch_manager_save) { _, _ ->
                     val value = input.text?.toString()?.toFloatOrNull()?.div(100f)
