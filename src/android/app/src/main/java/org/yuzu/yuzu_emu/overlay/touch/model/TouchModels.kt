@@ -18,7 +18,7 @@ enum class ButtonAction { NONE, TOGGLE_VISIBILITY, SWITCH_TEMPLATE, APPEARANCE }
 @Serializable
 data class AppearanceGroup(
     val color: Int? = null,
-    val overlayOpacity: Float = 1f
+    val overlayOpacity: Float? = null
 )
 
 @Serializable

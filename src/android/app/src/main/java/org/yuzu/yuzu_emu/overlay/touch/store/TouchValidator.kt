@@ -104,7 +104,7 @@ object TouchValidator {
             template.controlOpacity?.let { range(it, 0f, 1f, "$t.controlOpacity") }
             check(template.appearanceGroups.isNotEmpty(), "$t.appearanceGroups", "At least one appearance group is required")
             template.appearanceGroups.forEachIndexed { index, group ->
-                range(group.overlayOpacity, 0f, 3f, "$t.appearanceGroups.$index.overlayOpacity")
+                group.overlayOpacity?.let { range(it, 0f, 3f, "$t.appearanceGroups.$index.overlayOpacity") }
             }
             ids(template.controls.map { it.id }, "$t.controls")
             ids(template.screens.map { it.id }, "$t.screens")

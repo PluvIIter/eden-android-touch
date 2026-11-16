@@ -125,6 +125,9 @@
     <string name="touch_tools_appearance_group">Appearance group %1$d</string>
     <string name="touch_tools_appearance_add">Add appearance group</string>
     <string name="touch_tools_appearance_delete">Delete appearance group</string>
+    <string name="touch_tools_appearance_unset">Not set</string>
+    <string name="touch_tools_appearance_clear_color">Clear color override</string>
+    <string name="touch_tools_appearance_overlay_enabled">Apply overlay opacity</string>
     <string name="touch_tools_appearance_original_value">%1$s · overlay %2$d%%</string>
     <string name="touch_tools_color">Color: %1$s</string>
     <string name="touch_tools_color_default">Default</string>

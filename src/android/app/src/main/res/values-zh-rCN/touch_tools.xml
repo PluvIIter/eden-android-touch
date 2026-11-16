@@ -125,6 +125,9 @@
     <string name="touch_tools_appearance_group">外观组 %1$d</string>
     <string name="touch_tools_appearance_add">添加外观组</string>
     <string name="touch_tools_appearance_delete">删除外观组</string>
+    <string name="touch_tools_appearance_unset">未设置</string>
+    <string name="touch_tools_appearance_clear_color">清除颜色覆盖</string>
+    <string name="touch_tools_appearance_overlay_enabled">应用叠加透明度</string>
     <string name="touch_tools_appearance_original_value">%1$s · 叠加 %2$d%%</string>
     <string name="touch_tools_color">颜色：%1$s</string>
     <string name="touch_tools_color_default">默认</string>

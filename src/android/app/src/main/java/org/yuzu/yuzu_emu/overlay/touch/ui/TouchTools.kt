@@ -650,6 +650,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
     private fun colorLabel(color: Int?): String =
         color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) } ?: s(R.string.touch_tools_color_default)
 
+    private fun appearanceColorLabel(color: Int?): String =
+        color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) } ?: s(R.string.touch_tools_appearance_unset)
+
     private fun chooseColor(currentColor: Int?, onPick: (Int?) -> Unit) {
         val owner = current
         val content = column()
@@ -1392,21 +1395,42 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         for (index in 1 until groups.size) {
             val group = groups[index]
             body.addView(label(s(R.string.touch_tools_appearance_group, index + 1)))
-            body.addView(button(s(R.string.touch_tools_color, colorLabel(group.color))) {
+            body.addView(button(s(R.string.touch_tools_color, appearanceColorLabel(group.color))) {
                 chooseColor(group.color) { color ->
                     workspace.updateAppearanceGroup(index, group.copy(color = color))
                     showProperties()
                 }
             })
-            number(
-                body,
-                s(R.string.touch_tools_global_opacity),
-                group.overlayOpacity * 100f,
-                0f,
-                300f,
-                true
-            ) {
-                workspace.updateAppearanceGroup(index, group.copy(overlayOpacity = it / 100f))
+            if (group.color != null) {
+                body.addView(button(s(R.string.touch_tools_appearance_clear_color)) {
+                    workspace.updateAppearanceGroup(index, group.copy(color = null))
+                    showProperties()
+                })
+            }
+            toggle(body, s(R.string.touch_tools_appearance_overlay_enabled), group.overlayOpacity != null) { enabled ->
+                workspace.updateAppearanceGroup(
+                    index,
+                    group.copy(
+                        overlayOpacity = if (enabled) {
+                            workspace.template.globalOpacity.coerceIn(0f, TouchWorkspace.MAX_OVERLAY_OPACITY)
+                        } else {
+                            null
+                        }
+                    )
+                )
+                showProperties()
+            }
+            group.overlayOpacity?.let { overlay ->
+                number(
+                    body,
+                    s(R.string.touch_tools_global_opacity),
+                    overlay * 100f,
+                    0f,
+                    300f,
+                    true
+                ) {
+                    workspace.updateAppearanceGroup(index, group.copy(overlayOpacity = it / 100f))
+                }
             }
             body.addView(button(s(R.string.touch_tools_appearance_delete)) {
                 workspace.removeAppearanceGroup(index)

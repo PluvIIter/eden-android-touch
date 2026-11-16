@@ -92,7 +92,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
     private var appearanceIndex = 0
     private var appearanceActive = false
     private var appearanceColor: Int? = null
-    private var appearanceOverlay = 1f
+    private var appearanceOverlay: Float? = null
     internal data class LastGeometry(
         val bounds: TouchRect,
         val shape: ControlShape,
@@ -135,10 +135,10 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         if (!value.isFinite()) 0f else (value + safe.top).coerceIn(0f, (height - 1).coerceAtLeast(0).toFloat())
 
     internal fun effectiveGlobalOpacity(): Float =
-        if (appearanceActive) appearanceOverlay else template.globalOpacity
+        if (appearanceActive && appearanceOverlay != null) appearanceOverlay!! else template.globalOpacity
 
     internal fun effectiveColor(control: TouchControl): Int? =
-        if (appearanceActive) appearanceColor else control.color
+        if (appearanceActive && appearanceColor != null) appearanceColor else control.color
 
     internal fun effectiveControlOpacity(): Float =
         (template.controlOpacity ?: template.defaultOpacity ?: 1f).coerceIn(0f, 1f)
@@ -147,7 +147,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         appearanceIndex = 0
         appearanceActive = false
         appearanceColor = null
-        appearanceOverlay = 1f
+        appearanceOverlay = null
     }
 
     internal fun cycleAppearance() {
@@ -157,7 +157,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         val group = groups[appearanceIndex]
         appearanceActive = appearanceIndex != 0
         appearanceColor = if (appearanceActive) group.color else null
-        appearanceOverlay = if (appearanceActive) group.overlayOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY) else 1f
+        appearanceOverlay = if (appearanceActive) group.overlayOpacity?.coerceIn(0f, MAX_OVERLAY_OPACITY) else null
         canvas.invalidate()
     }
 
@@ -679,7 +679,7 @@ class TouchWorkspace(context: Context) : FrameLayout(context) {
         replaceTemplate(
             template.copy(
                 appearanceGroups = template.appearanceGroups.mapIndexed { current, value ->
-                    if (current == index) group.copy(overlayOpacity = group.overlayOpacity.coerceIn(0f, MAX_OVERLAY_OPACITY)) else value
+                    if (current == index) group.copy(overlayOpacity = group.overlayOpacity?.coerceIn(0f, MAX_OVERLAY_OPACITY)) else value
                 }
             )
         )

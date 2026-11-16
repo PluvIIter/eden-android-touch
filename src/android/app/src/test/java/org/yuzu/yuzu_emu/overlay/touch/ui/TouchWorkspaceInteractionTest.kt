@@ -624,6 +624,18 @@ class TouchWorkspaceInteractionTest {
     }
 
     @Test
+    fun appearanceGroupUnsetPartsLeaveControlAppearanceUntouched() = withWorkspace(gameAvailable = true) { workspace ->
+        workspace.addAppearanceGroup()
+        val control = workspace.template.controls.first()
+        val originalColor = control.color
+        val originalOverlay = workspace.template.globalOpacity
+        workspace.updateAppearanceGroup(1, workspace.template.appearanceGroups[1].copy(color = null, overlayOpacity = null))
+        workspace.cycleAppearance()
+        assertEquals(originalColor, workspace.effectiveColor(control))
+        assertEquals(originalOverlay, workspace.effectiveGlobalOpacity(), 0.001f)
+    }
+
+    @Test
     fun controlOpacitySyncSkipsEndpointControls() = withWorkspace { workspace ->
         val controls = workspace.template.controls
         val intermediate = controls[0]
