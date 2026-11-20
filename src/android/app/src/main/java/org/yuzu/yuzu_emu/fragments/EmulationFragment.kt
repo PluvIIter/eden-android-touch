@@ -82,7 +82,6 @@ import org.yuzu.yuzu_emu.features.settings.model.IntSetting
 import org.yuzu.yuzu_emu.features.settings.model.Settings
 import org.yuzu.yuzu_emu.features.settings.model.Settings.EmulationOrientation
 import org.yuzu.yuzu_emu.features.settings.model.Settings.EmulationVerticalAlignment
-import org.yuzu.yuzu_emu.overlay.OverlayColorActivity
 import org.yuzu.yuzu_emu.overlay.OverlayColors
 import org.yuzu.yuzu_emu.features.settings.model.ShortSetting
 import org.yuzu.yuzu_emu.features.settings.utils.SettingsFile
@@ -183,13 +182,6 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     var shouldUseCustom = false
     private var isQuickSettingsMenuOpen = false
     private val quickSettings = QuickSettings(this)
-
-    private val overlayColorLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (_binding != null) {
-                binding.surfaceInputOverlay.refreshControls()
-            }
-        }
 
     private val exportConflictDraft = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val token = pendingConflictToken
@@ -2468,12 +2460,6 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
                 R.id.menu_adjust_overlay -> {
                     adjustOverlay()
-                    true
-                }
-
-                R.id.menu_overlay_color -> {
-                    binding.drawerLayout.close()
-                    overlayColorLauncher.launch(OverlayColorActivity.createIntent(requireContext()))
                     true
                 }
 

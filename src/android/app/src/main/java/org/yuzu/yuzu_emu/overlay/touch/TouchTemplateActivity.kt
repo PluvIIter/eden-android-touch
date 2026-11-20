@@ -3,17 +3,21 @@
 
 package org.yuzu.yuzu_emu.overlay.touch
 
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
+import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -53,6 +57,8 @@ import org.yuzu.yuzu_emu.model.Game
 import org.yuzu.yuzu_emu.utils.GameHelper
 import org.yuzu.yuzu_emu.overlay.touch.model.AppearanceGroup
 import org.yuzu.yuzu_emu.overlay.touch.model.AppearancePreset
+import org.yuzu.yuzu_emu.overlay.touch.model.CurvePoint
+import org.yuzu.yuzu_emu.overlay.touch.model.MotionScale
 import org.yuzu.yuzu_emu.overlay.touch.model.SwipePreset
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchDefaults
 import org.yuzu.yuzu_emu.overlay.touch.model.TouchLibrary
@@ -485,7 +491,7 @@ class TouchTemplateActivity : AppCompatActivity() {
     private fun presetCard(preset: SwipePreset): MaterialCardView = objectCard(
         preset.name,
         getString(R.string.touch_manager_preset_metadata, preset.sensitivityX, preset.sensitivityY),
-        { editPreset(preset.id) },
+        { editSwipePreset(preset) },
         { anchor -> presetMenu(preset, anchor) }
     ) { tags ->
         tags.addView(
@@ -663,7 +669,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         } else if (selectedTab == 1) {
             nameDialog(getString(R.string.touch_manager_create_preset), getString(R.string.touch_manager_new_preset)) { name ->
                 val preset = SwipePreset(name = name)
-                if (persist(library.copy(presets = library.presets + preset))) editPreset(preset.id)
+                if (persist(library.copy(presets = library.presets + preset))) editSwipePreset(preset)
             }
         } else {
             nameDialog(getString(R.string.touch_manager_create_appearance), getString(R.string.touch_manager_new_appearance)) { name ->
@@ -766,6 +772,163 @@ class TouchTemplateActivity : AppCompatActivity() {
             setOnClickListener { action() }
         }
 
+    private fun editorPrimaryButton(text: String, action: () -> Unit) =
+        MaterialButton(ContextThemeWrapper(this, R.style.TouchButton_Theme_Primary), null, com.google.android.material.R.attr.materialButtonStyle).apply {
+            this.text = text
+            isAllCaps = false
+            setOnClickListener { action() }
+        }
+
+    private fun showEdenEditor(
+        title: String,
+        content: View,
+        onSave: () -> Boolean
+    ): Dialog {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        val page = column().apply {
+            setBackgroundColor(color(com.google.android.material.R.attr.colorSurface))
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+        }
+        page.addView(
+            label(title).apply {
+                textSize = 22f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+        )
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            addView(content)
+        }
+        page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val actions = row()
+        actions.addView(
+            appearanceButton(getString(R.string.touch_manager_cancel)) { dialog.dismiss() },
+            LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        )
+        actions.addView(
+            editorPrimaryButton(getString(R.string.touch_manager_save)) {
+                if (onSave()) dialog.dismiss()
+            },
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        page.addView(actions)
+        dialog.setContentView(page, ViewGroup.LayoutParams(-1, -1))
+        dialog.show()
+        dialog.window?.apply {
+            setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+            setBackgroundDrawable(ColorDrawable(color(com.google.android.material.R.attr.colorSurface)))
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
+        return dialog
+    }
+
+    private fun editorNumberField(
+        labelText: String,
+        value: Float,
+        onValue: (Float) -> Unit
+    ): TextInputLayout {
+        val field = TextInputLayout(this, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = labelText
+        }
+        val input = TextInputEditText(field.context).apply {
+            setText(value.toString())
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            doAfterTextChanged { editable ->
+                editable?.toString()?.toFloatOrNull()?.let(onValue)
+            }
+        }
+        field.addView(input, LinearLayout.LayoutParams(-1, -2))
+        return field
+    }
+
+    private fun editorTextField(
+        labelText: String,
+        value: String,
+        multiline: Boolean = false,
+        onValue: (String) -> Unit
+    ): TextInputLayout {
+        val field = TextInputLayout(this, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = labelText
+        }
+        val input = TextInputEditText(field.context).apply {
+            setText(value)
+            if (multiline) {
+                minLines = 3
+                gravity = Gravity.TOP
+            } else {
+                setSingleLine()
+            }
+            doAfterTextChanged { editable -> onValue(editable?.toString().orEmpty()) }
+        }
+        field.addView(input, LinearLayout.LayoutParams(-1, -2))
+        return field
+    }
+
+    private fun editorToggle(title: String, checked: Boolean, onChange: (Boolean) -> Unit): LinearLayout {
+        val line = row()
+        line.addView(label(title), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(MaterialSwitch(this).apply {
+            isChecked = checked
+            setOnCheckedChangeListener { _, value -> onChange(value) }
+        })
+        return line
+    }
+
+    private fun appearanceTextLink(text: String, color: Int? = null, action: () -> Unit) =
+        MaterialButton(ContextThemeWrapper(this, R.style.TouchButton_Theme_TextLink), null, com.google.android.material.R.attr.materialButtonStyle).apply {
+            this.text = text
+            isAllCaps = false
+            color?.let { setTextColor(it) }
+            setOnClickListener { action() }
+        }
+
+    private fun appearanceSettingRow(
+        title: String,
+        value: String,
+        swatch: Int? = null,
+        action: () -> Unit
+    ): LinearLayout {
+        val line = row().apply {
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            minimumHeight = dp(48)
+            isClickable = true
+            isFocusable = true
+            val attributes = obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground))
+            background = attributes.getDrawable(0)
+            attributes.recycle()
+            setOnClickListener { action() }
+        }
+        if (swatch != null) {
+            line.addView(
+                View(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(swatch)
+                        setStroke(dp(1), color(com.google.android.material.R.attr.colorOutline))
+                    }
+                },
+                LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginEnd = dp(10) }
+            )
+        } else {
+            line.addView(
+                View(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(android.graphics.Color.TRANSPARENT)
+                        setStroke(dp(1), color(com.google.android.material.R.attr.colorOutline))
+                    }
+                },
+                LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginEnd = dp(10) }
+            )
+        }
+        line.addView(label(title), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(label(value, true).apply { gravity = Gravity.END })
+        return line
+    }
+
     private fun appearanceGroupCard(
         title: String,
         original: Boolean,
@@ -776,10 +939,10 @@ class TouchTemplateActivity : AppCompatActivity() {
             cardElevation = 0f
             strokeWidth = dp(1)
             setStrokeColor(color(if (original) com.google.android.material.R.attr.colorPrimary else com.google.android.material.R.attr.colorOutline))
-            setCardBackgroundColor(color(com.google.android.material.R.attr.colorSurface))
+            setCardBackgroundColor(android.graphics.Color.TRANSPARENT)
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
         }
-        val body = column().apply { setPadding(dp(16), dp(14), dp(16), dp(8)) }
+        val body = column().apply { setPadding(dp(16), dp(14), dp(16), dp(10)) }
         body.addView(
             label(title).apply {
                 textSize = 16f
@@ -864,24 +1027,21 @@ class TouchTemplateActivity : AppCompatActivity() {
                     original = false
                 ) { body ->
                     body.addView(
-                        appearanceButton(
-                            getString(
-                                R.string.touch_manager_appearance_color,
-                                group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
-                                    ?: getString(R.string.touch_manager_appearance_unset)
-                            )
+                        appearanceSettingRow(
+                            getString(R.string.touch_manager_appearance_color_label),
+                            group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
+                                ?: getString(R.string.touch_manager_appearance_unset),
+                            group.color
                         ) { editColor(index) }
                     )
                     body.addView(
-                        appearanceButton(
-                            getString(
-                                R.string.touch_manager_appearance_overlay,
-                                group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
-                                    ?: getString(R.string.touch_manager_appearance_unset)
-                            )
+                        appearanceSettingRow(
+                            getString(R.string.touch_manager_appearance_overlay_label),
+                            group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
+                                ?: getString(R.string.touch_manager_appearance_unset)
                         ) { editOverlay(index) }
                     )
-                    body.addView(appearanceButton(getString(R.string.touch_manager_appearance_delete_group)) {
+                    body.addView(appearanceTextLink(getString(R.string.touch_manager_appearance_delete_group), color(com.google.android.material.R.attr.colorError)) {
                         groups = groups.filterIndexed { current, _ -> current != index }
                         if (groups.isEmpty()) groups = listOf(AppearanceGroup())
                         reopen()
@@ -894,29 +1054,134 @@ class TouchTemplateActivity : AppCompatActivity() {
             groups = groups + AppearanceGroup(template?.globalColor, template?.globalOpacity)
             reopen()
         })
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.touch_manager_appearance_editor, preset.name))
-            .setView(ScrollView(this).apply { addView(content) })
-            .setPositiveButton(R.string.touch_manager_save) { _, _ ->
-                persist(
-                    library.copy(
-                        appearancePresets = library.appearancePresets.map {
-                            if (it.id == preset.id) it.copy(groups = groups) else it
-                        }
-                    )
+        val dialog = showEdenEditor(
+            getString(R.string.touch_manager_appearance_editor, preset.name),
+            content
+        ) {
+            persist(
+                library.copy(
+                    appearancePresets = library.appearancePresets.map {
+                        if (it.id == preset.id) it.copy(groups = groups) else it
+                    }
                 )
-            }
-            .setNegativeButton(R.string.touch_manager_cancel, null)
-            .create()
-        dialog.show()
+            )
+            true
+        }
         dismissCurrent = { dialog.dismiss() }
     }
 
-    private fun editPreset(presetId: String) {
-        val owner = library.templates.firstOrNull { template -> template.controls.any { it.swipePresetId == presetId } }
-            ?: library.templates.first()
-        edit(owner.id)
-        workspace?.editPreset(presetId, standalone = true)
+    private fun editSwipePreset(preset: SwipePreset) {
+        var draft = preset
+        var dismissCurrent: (() -> Unit)? = null
+        var curveText = preset.curve.joinToString(", ") { "${it.input}:${it.output}" }
+        fun reopen() {
+            dismissCurrent?.invoke()
+            editSwipePreset(draft.copy(curve = parseCurve(curveText) ?: draft.curve))
+        }
+        val content = column().apply { setPadding(dp(4), dp(8), dp(4), dp(8)) }
+        content.addView(label(getString(R.string.touch_tools_basic_intro), true))
+        content.addView(editorNumberField(getString(R.string.touch_tools_sensitivity_x), draft.sensitivityX) {
+            draft = draft.copy(sensitivityX = it)
+        })
+        content.addView(editorNumberField(getString(R.string.touch_tools_sensitivity_y), draft.sensitivityY) {
+            draft = draft.copy(sensitivityY = it)
+        })
+        val shortEdgeDp = (minOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels) /
+            resources.displayMetrics.density).coerceAtLeast(1f)
+        content.addView(
+            editorNumberField(
+                getString(
+                    if (draft.scale == MotionScale.DP) R.string.touch_tools_speed_dp else R.string.touch_tools_speed_edge
+                ),
+                draft.maximumSpeed
+            ) { draft = draft.copy(maximumSpeed = it) }
+        )
+        content.addView(editorNumberField(getString(R.string.touch_tools_compensation), draft.deadzone) {
+            draft = draft.copy(deadzone = it)
+        })
+        content.addView(editorNumberField(getString(R.string.touch_tools_smoothing), draft.smoothingMs) {
+            draft = draft.copy(smoothingMs = it)
+        })
+        content.addView(editorNumberField(getString(R.string.touch_tools_turn_smoothing), draft.turnSmoothingMs) {
+            draft = draft.copy(turnSmoothingMs = it)
+        })
+        content.addView(label(getString(R.string.touch_tools_response_curve)))
+        content.addView(editorToggle(getString(R.string.touch_tools_invert_x), draft.invertX) {
+            draft = draft.copy(invertX = it)
+        })
+        content.addView(editorToggle(getString(R.string.touch_tools_invert_y), draft.invertY) {
+            draft = draft.copy(invertY = it)
+        })
+        content.addView(editorToggle(getString(R.string.touch_tools_swap_axes), draft.swapAxes) {
+            draft = draft.copy(swapAxes = it)
+        })
+        val scales = row()
+        MotionScale.values().forEach { next ->
+            val selected = draft.scale == next
+            val title = getString(
+                when (next) {
+                    MotionScale.DP -> R.string.touch_tools_enum_motionscale_dp
+                    MotionScale.SHORT_EDGE -> R.string.touch_tools_enum_motionscale_short_edge
+                }
+            )
+            scales.addView(editorPrimaryButton(if (selected) "✓ $title" else title) {
+                if (draft.scale != next) {
+                    val speed = when {
+                        next == MotionScale.DP -> draft.maximumSpeed * shortEdgeDp
+                        draft.scale == MotionScale.DP -> draft.maximumSpeed / shortEdgeDp
+                        else -> draft.maximumSpeed
+                    }
+                    draft = draft.copy(scale = next, maximumSpeed = speed)
+                    reopen()
+                }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (next != MotionScale.values().last()) marginEnd = dp(8)
+            })
+        }
+        content.addView(scales)
+        content.addView(editorNumberField(getString(R.string.touch_tools_exponent), draft.exponent) {
+            draft = draft.copy(exponent = it, curve = emptyList())
+            curveText = ""
+        })
+        content.addView(editorTextField(getString(R.string.touch_tools_curve_points), curveText) {
+            curveText = it
+        })
+        content.addView(editorNumberField(getString(R.string.touch_tools_stop_timeout), draft.stopTimeoutMs.toFloat()) {
+            draft = draft.copy(stopTimeoutMs = it.toLong())
+        })
+        content.addView(editorTextField(getString(R.string.touch_tools_calibration_notes), draft.notes, multiline = true) {
+            draft = draft.copy(notes = it)
+        })
+        val dialog = showEdenEditor(
+            getString(R.string.touch_manager_swipe_editor, preset.name),
+            content
+        ) {
+            val curve = parseCurve(curveText)
+            if (curve == null) {
+                Toast.makeText(this, R.string.touch_tools_curve_error, Toast.LENGTH_SHORT).show()
+                return@showEdenEditor false
+            }
+            draft = draft.copy(curve = curve)
+            persist(library.copy(presets = library.presets.map { if (it.id == draft.id) draft else it }))
+        }
+        dismissCurrent = { dialog.dismiss() }
+    }
+
+    private fun parseCurve(value: String): List<CurvePoint>? {
+        if (value.isBlank()) return emptyList()
+        return runCatching {
+            val points = value.split(',').map { pair ->
+                val parts = pair.trim().split(':')
+                require(parts.size == 2)
+                CurvePoint(parts[0].toFloat(), parts[1].toFloat())
+            }
+            require(points.size >= 2)
+            require(points.first() == CurvePoint(0f, 0f))
+            require(points.last() == CurvePoint(1f, 1f))
+            require(points.all { it.input.isFinite() && it.output.isFinite() && it.input in 0f..1f && it.output in 0f..1f })
+            require(points.zipWithNext().all { (a, b) -> a.input < b.input && a.output <= b.output })
+            points
+        }.getOrNull()
     }
 
     private fun edit(templateId: String) {
@@ -1072,6 +1337,10 @@ class TouchTemplateActivity : AppCompatActivity() {
     }
 
     private fun column() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    private fun row() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
     private fun label(value: String, secondary: Boolean = false) = MaterialTextView(this).apply {
         text = value
         setTextAppearance(if (secondary) R.style.SynthwaveText_Body else com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
