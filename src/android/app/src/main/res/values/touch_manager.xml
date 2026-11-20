@@ -16,6 +16,7 @@
     <string name="touch_manager_appearance_using">Controls using %1$s</string>
     <string name="touch_manager_appearance_editor">Appearance: %1$s</string>
     <string name="touch_manager_appearance_original">Original group (locked)</string>
+    <string name="touch_manager_appearance_original_hint">Uses each control\'s own color and opacity. It does not override them.</string>
     <string name="touch_manager_appearance_group">Appearance group %1$d</string>
     <string name="touch_manager_appearance_add_group">Add group</string>
     <string name="touch_manager_appearance_delete_group">Delete group</string>

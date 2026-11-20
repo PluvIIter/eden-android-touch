@@ -766,6 +766,35 @@ class TouchTemplateActivity : AppCompatActivity() {
             setOnClickListener { action() }
         }
 
+    private fun appearanceGroupCard(
+        title: String,
+        original: Boolean,
+        build: (LinearLayout) -> Unit
+    ): MaterialCardView {
+        val card = MaterialCardView(ContextThemeWrapper(this, R.style.EdenCard)).apply {
+            radius = dp(16).toFloat()
+            cardElevation = 0f
+            strokeWidth = dp(1)
+            setStrokeColor(color(if (original) com.google.android.material.R.attr.colorPrimary else com.google.android.material.R.attr.colorOutline))
+            setCardBackgroundColor(color(com.google.android.material.R.attr.colorSurface))
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
+        }
+        val body = column().apply { setPadding(dp(16), dp(14), dp(16), dp(8)) }
+        body.addView(
+            label(title).apply {
+                textSize = 16f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+        )
+        if (original) {
+            body.addView(label(getString(R.string.touch_manager_appearance_original_hint), true))
+        } else {
+            build(body)
+        }
+        card.addView(body)
+        return card
+    }
+
     private fun editAppearancePreset(preset: AppearancePreset) {
         var groups = preset.groups.ifEmpty { listOf(AppearanceGroup()) }
         var dismissCurrent: (() -> Unit)? = null
@@ -820,34 +849,45 @@ class TouchTemplateActivity : AppCompatActivity() {
                 .setNegativeButton(R.string.touch_manager_cancel, null)
                 .show()
         }
-        val content = column().apply { setPadding(dp(20), dp(12), dp(20), dp(8)) }
-        content.addView(label(getString(R.string.touch_manager_appearance_original)))
+        val content = column().apply { setPadding(dp(16), dp(12), dp(16), dp(8)) }
+        content.addView(
+            appearanceGroupCard(
+                getString(R.string.touch_manager_appearance_original),
+                original = true
+            ) {}
+        )
         for (index in 1 until groups.size) {
             val group = groups[index]
-            content.addView(label(getString(R.string.touch_manager_appearance_group, index + 1)))
             content.addView(
-                appearanceButton(
-                    getString(
-                        R.string.touch_manager_appearance_color,
-                        group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
-                            ?: getString(R.string.touch_manager_appearance_unset)
+                appearanceGroupCard(
+                    getString(R.string.touch_manager_appearance_group, index + 1),
+                    original = false
+                ) { body ->
+                    body.addView(
+                        appearanceButton(
+                            getString(
+                                R.string.touch_manager_appearance_color,
+                                group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
+                                    ?: getString(R.string.touch_manager_appearance_unset)
+                            )
+                        ) { editColor(index) }
                     )
-                ) { editColor(index) }
-            )
-            content.addView(
-                appearanceButton(
-                    getString(
-                        R.string.touch_manager_appearance_overlay,
-                        group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
-                            ?: getString(R.string.touch_manager_appearance_unset)
+                    body.addView(
+                        appearanceButton(
+                            getString(
+                                R.string.touch_manager_appearance_overlay,
+                                group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
+                                    ?: getString(R.string.touch_manager_appearance_unset)
+                            )
+                        ) { editOverlay(index) }
                     )
-                ) { editOverlay(index) }
+                    body.addView(appearanceButton(getString(R.string.touch_manager_appearance_delete_group)) {
+                        groups = groups.filterIndexed { current, _ -> current != index }
+                        if (groups.isEmpty()) groups = listOf(AppearanceGroup())
+                        reopen()
+                    })
+                }
             )
-            content.addView(appearanceButton(getString(R.string.touch_manager_appearance_delete_group)) {
-                groups = groups.filterIndexed { current, _ -> current != index }
-                if (groups.isEmpty()) groups = listOf(AppearanceGroup())
-                reopen()
-            })
         }
         content.addView(appearanceButton(getString(R.string.touch_manager_appearance_add_group)) {
             val template = library.templateFor(gameId) ?: library.templates.firstOrNull()
