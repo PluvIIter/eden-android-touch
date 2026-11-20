@@ -190,7 +190,8 @@
     <string name="touch_tools_left_direction">左摇杆方向</string>
     <string name="touch_tools_right_direction">右摇杆方向</string>
     <string name="touch_tools_unassigned">未设置</string>
-    <string name="touch_tools_gesture_output">手势输出 · 单一目标</string>
+    <string name="touch_tools_gesture_output">手势输出 · 按键与/或方向</string>
+    <string name="touch_tools_gesture_combined_hint">可同时选择手柄按键和一个摇杆方向。</string>
     <string name="touch_tools_output_hint">输出向量 · 选择一个方向</string>
     <string name="touch_tools_left_output">左摇杆输出</string>
     <string name="touch_tools_right_output">右摇杆输出</string>

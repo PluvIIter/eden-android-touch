@@ -460,7 +460,7 @@ class TouchRuntime(private val sink: InputSink) {
         val targets = (0..15).toSet() + setOf(18, 19)
         require(control.auxiliaryButton == null || control.auxiliaryButton in targets)
         control.gestures.values.forEach {
-            require((it.buttons.isNotEmpty()) xor (it.stick != null))
+            require(it.buttons.isNotEmpty() || it.stick != null)
             require(it.buttons.all { button -> button in targets })
             require(it.stick == null || it.direction != GestureDirection.TAP)
         }

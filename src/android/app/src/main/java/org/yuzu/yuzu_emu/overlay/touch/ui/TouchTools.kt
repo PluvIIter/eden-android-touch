@@ -1644,6 +1644,7 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         root.addView(label(s(R.string.touch_tools_gesture_output), 16f))
         val summary = label(gestureSummary(selected), 12f)
         root.addView(summary)
+        root.addView(label(s(R.string.touch_tools_gesture_combined_hint), 11f))
         val content = column()
         val scroll = ScrollView(context).apply { addView(content) }
 
@@ -1660,9 +1661,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         val picker = GamepadPicker(context, mappingSlots, 36f, 4.4f)
         for (slot in mappingSlots) {
             val key = mappingKey(slot.id) {
-                val buttons = selected?.buttons.orEmpty().toMutableSet()
+                val binding = selected ?: GestureBinding()
+                val buttons = binding.buttons.toMutableSet()
                 if (!buttons.add(slot.id)) buttons.remove(slot.id)
-                selected = if (buttons.isEmpty()) null else GestureBinding(buttons = buttons)
+                selected = if (buttons.isEmpty() && binding.stick == null) {
+                    null
+                } else {
+                    binding.copy(buttons = buttons)
+                }
                 refresh()
             }
             controllerKeys[slot.id] = key
@@ -1685,7 +1691,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
                     } else {
                         val arrow = directionArrow(direction)
                         val key = directionKey(arrow) {
-                            selected = GestureBinding(stick = target, direction = direction)
+                            val binding = selected ?: GestureBinding()
+                            val sameDirection = binding.stick == target && binding.direction == direction
+                            val next = if (sameDirection) {
+                                binding.copy(stick = null)
+                            } else {
+                                binding.copy(stick = target, direction = direction)
+                            }
+                            selected = if (next.buttons.isEmpty() && next.stick == null) null else next
                             refresh()
                         }
                         directionKeys[target to direction] = key
@@ -2038,10 +2051,14 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
         }
     }
 
-    private fun gestureSummary(value: GestureBinding?): String = when {
-        value == null -> s(R.string.touch_tools_unassigned)
-        value.buttons.isNotEmpty() -> mappingLabel(value.buttons)
-        else -> s(R.string.touch_tools_stick_direction, enumLabel(value.stick), enumLabel(value.direction))
+    private fun gestureSummary(value: GestureBinding?): String {
+        if (value == null) return s(R.string.touch_tools_unassigned)
+        val parts = mutableListOf<String>()
+        if (value.buttons.isNotEmpty()) parts += mappingLabel(value.buttons)
+        value.stick?.let { target ->
+            parts += s(R.string.touch_tools_stick_direction, enumLabel(target), enumLabel(value.direction))
+        }
+        return parts.joinToString(" + ")
     }
 
     private fun mappingLabel(buttons: Set<Int>): String =

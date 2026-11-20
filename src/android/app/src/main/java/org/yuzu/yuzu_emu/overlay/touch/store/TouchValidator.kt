@@ -170,7 +170,7 @@ object TouchValidator {
                         check(control.tapTimeoutMs in 1..10000, "$c.tapTimeoutMs", "Must be 1..10000 ms")
                         range(control.tapSlop, 0f, Float.MAX_VALUE, "$c.tapSlop")
                         control.gestures.forEach { (direction, target) ->
-                            check((target.buttons.isNotEmpty()) xor (target.stick != null), "$c.gestures.$direction", "Choose exactly one button set or stick target")
+                            check(target.buttons.isNotEmpty() || target.stick != null, "$c.gestures.$direction", "Choose buttons and/or a stick direction")
                             check(target.buttons.all { it in buttonTargets }, "$c.gestures.$direction", "Invalid button")
                             check(target.stick == null || target.direction != GestureDirection.TAP, "$c.gestures.$direction", "Stick output requires one of eight directions")
                         }

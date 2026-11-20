@@ -392,10 +392,15 @@ class TouchStoreTest {
             TouchControl(binding = ButtonBinding(setOf(0), true, Float.POSITIVE_INFINITY)),
             TouchControl(binding = ButtonBinding(setOf(0), true, 61f)),
             TouchControl(type = ControlType.SWIPE, swipePresetId = "missing"),
-            TouchControl(type = ControlType.GESTURE, gestures = mapOf(GestureDirection.UP to GestureBinding(buttons = setOf(0), stick = StickTarget.RIGHT))),
             TouchControl(type = ControlType.GESTURE, gesturePulseMs = 0, gestures = mapOf(GestureDirection.TAP to GestureBinding(buttons = setOf(0))))
         )
         bad.forEach { control -> assertTrue("Expected validation error for $control", TouchValidator.validate(library(listOf(control))).isNotEmpty()) }
+        val combinedGesture = TouchControl(
+            type = ControlType.GESTURE,
+            gestures = mapOf(GestureDirection.UP to GestureBinding(buttons = setOf(0), stick = StickTarget.RIGHT))
+        )
+        val combinedIssues = TouchValidator.validate(library(listOf(combinedGesture)))
+        assertTrue("Combined button and stick gestures must be valid: $combinedIssues", combinedIssues.isEmpty())
         val fixedTriggerIssues = TouchValidator.validate(library(listOf(TouchControl(type = ControlType.STICK, triggerOnly = true))))
         assertTrue("$fixedTriggerIssues", fixedTriggerIssues.isEmpty())
         val control = TouchControl()

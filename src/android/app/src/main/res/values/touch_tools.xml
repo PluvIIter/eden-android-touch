@@ -190,7 +190,8 @@
     <string name="touch_tools_left_direction">Left stick direction</string>
     <string name="touch_tools_right_direction">Right stick direction</string>
     <string name="touch_tools_unassigned">Unassigned</string>
-    <string name="touch_tools_gesture_output">Gesture output · single target</string>
+    <string name="touch_tools_gesture_output">Gesture output · buttons and/or direction</string>
+    <string name="touch_tools_gesture_combined_hint">You can combine controller buttons with one stick direction.</string>
     <string name="touch_tools_output_hint">Output vector · choose one direction</string>
     <string name="touch_tools_left_output">Left stick output</string>
     <string name="touch_tools_right_output">Right stick output</string>

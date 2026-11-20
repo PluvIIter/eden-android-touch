@@ -497,6 +497,27 @@ class TouchRuntimeTest {
         assertVector(0f, 0f)
     }
 
+    @Test fun gestureCanPressButtonsAndMoveAStickTogether() {
+        val gesture = area(type = ControlType.GESTURE).copy(
+            gestureTiming = GestureTiming.IMMEDIATE,
+            gestures = mapOf(
+                GestureDirection.UP to GestureBinding(
+                    buttons = setOf(0),
+                    stick = StickTarget.RIGHT,
+                    direction = GestureDirection.LEFT
+                )
+            )
+        )
+        configure(gesture)
+        runtime.down(1, 150f, 50f, 0)
+        runtime.move(1, 150f, 10f, 10)
+        assertEquals(setOf(0), sink.pressed)
+        assertVector(-1f, 0f)
+        runtime.up(1, 150f, 10f, 20)
+        assertTrue(sink.pressed.isEmpty())
+        assertVector(0f, 0f)
+    }
+
     @Test fun hapticsFireOnPressOnlyAndHonorPerControlFlag() {
         val enabled = button("enabled", 0f)
         val disabled = button("disabled", 80f).copy(haptics = false)
