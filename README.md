@@ -2,88 +2,378 @@
 # SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# SPDX-FileCopyrightText: 2018 yuzu Emulator Project
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-FileCopyrightText: Copyright 2026 Eden Touch contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 -->
-<!-- lang: en-GB -->
 
-<h1 align="center">
-  <br>
-  <a href="https://git.eden-emu.dev/eden-emu/eden"><img src="./dist/qt_themes/default/icons/256x256/eden.png" alt="Eden" width="200"></a>
-  <br>
-  <b>Eden</b>
-  <br>
-</h1>
+# Eden Touch 使用说明
 
-<h4 align="center"><b>Eden</b> is a free and open-source (FOSS) Switch 1 emulator started by developer Camille LaVey.
-<br>
-Written in C++, with builds for Windows, Linux, macOS, Android, FreeBSD and more.
-</h4>
+Eden Touch 是基于 [Eden](https://git.eden-emu.dev/eden-emu/eden) 的 Android 触控增强版本，提供自定义触控布局、手柄按键映射、组合键、摇杆、划屏、手势和外观预设。
 
-<p align="center">
-    </a>
-    <a href="https://discord.gg/HstXbPch7X">
-        <img src="https://img.shields.io/discord/1367654015269339267?color=5865F2&label=Eden&logo=discord&logoColor=white"
-            alt="Discord">
-    </a>
-    <a href="https://stt.gg/qKgFEAbH">
-        <img src="https://img.shields.io/revolt/invite/qKgFEAbH?color=d61f3a&label=Stoat"
-            alt="Stoat">
-    </a>
-</p>
+下载地址：<https://github.com/PluvIIter/eden-android-touch/releases>
 
-<p align="center">
-  <a href="#compatibility">Compatibility</a> |
-  <a href="#contribute">Contribute</a> |
-  <a href="#building">Building</a> |
-  <a href="#download">Download</a> |
-  <a href="#license">License</a>
-</p>
+> Eden Touch 是非官方分支，与 Eden 官方无直接关系。
 
-## Compatibility
+## 1. 安装与版本
 
-The emulator is capable of running most commercial games at full speed, provided you meet the necessary hardware requirements.
+Android 触控功能有两个安装包：
 
-A list of supported games will be available in future. Please be patient.
+| 版本 | 包名 | 应用名称 | 系统要求 |
+|---|---|---|---|
+| 普通版 | `dev.eden.eden_emulator.touch` | Eden Touch | Android 13+ |
+| Genshin Spoof 版 | `com.miHoYo.Yuanshen` | Eden-TouchG | Android 15+ |
 
-Check out our [website](https://eden-emu.dev) for the latest news on exciting features, monthly progress reports, and more!
+### 普通版
 
-[![Packaging status](https://repology.org/badge/vertical-allrepos/eden-emulator.svg)](https://repology.org/project/eden-emulator/versions)
+适合大多数设备，直接安装使用。
 
-## Contribute
+### Eden-TouchG
 
-To contribute to Eden; be it financially, code, bug reports, or otherwise, see our [Contributing guidelines](./CONTRIBUTING.md).
+使用《原神》国服的包名，以便继承部分厂商针对该包名的游戏优化。它：
 
-## Documentation
+- 不能与真正的国服《原神》同时安装；
+- 不会启动或运行《原神》；
+- 适合明确需要该包名兼容性的设备。
 
-We have a user manual! See our [User Handbook](./docs/user/README.md).
+如果不需要这种包名兼容，优先使用普通版。
 
-## Building
+## 2. 快速开始
 
-See the [General Build Guide](docs/Build.md)
+1. 安装并打开 Eden Touch。
+2. 完成模拟器基础设置并添加游戏。
+3. 在游戏中打开侧边菜单，选择触控叠加层相关选项。
+4. 如果当前游戏还没有布局，进入“触控模板”新建或选择一个布局。
+5. 进入布局编辑器，添加控件并调整位置、大小和映射。
+6. 保存后返回游戏，触控布局即可使用。
 
-For information on provided development tooling, see the [Tools directory](./tools)
+第一次使用时建议：
 
-## Download
+- 先使用默认布局或复制默认布局；
+- 在独立模板管理器里调整控件，避免游戏画面干扰；
+- 调整完成后再在游戏里测试实际触控效果。
 
-You can download the latest releases from [our release page](https://git.eden-emu.dev/eden-emu/eden/releases).
+## 3. 触控模板管理
 
-Save us some bandwidth! We have [mirrors available](./docs/user/ThirdParty.md#mirrors) as well.
+“触控模板”页面有三个页签。
 
-## License
+### 3.1 布局模板
 
-Eden is licensed under the GPLv3 (or any later version). Refer to the [LICENSE.txt](https://git.eden-emu.dev/eden-emu/eden/src/branch/master/LICENSE.txt) file.
+管理整套触控布局：
 
-## Special thanks
+- 新建空白布局；
+- 复制默认布局；
+- 编辑布局；
+- 重命名、复制、删除布局；
+- 设为默认布局；
+- 关联到当前游戏；
+- 导出布局。
 
-Super special thanks to Cloudflare for preventing the git server from blowing up.
+布局卡片会显示：
 
-- Yuzu
-- Ryujinx
-- Sudachi
-- Citron
-- Torzu
-- Suyu
-- Ryubing
+- 控件数量；
+- 屏幕配置数量；
+- 使用该布局的游戏数量；
+- 是否为默认布局；
+- 是否为当前游戏使用中。
 
-And everyone who continues or had contributed to the project! <3
+### 3.2 划屏参数
+
+管理划屏区域的灵敏度参数：
+
+- 新建划屏参数模板；
+- 调整 X/Y 灵敏度；
+- 重命名、复制、删除；
+- 导出划屏参数；
+- 查看哪些划屏区域正在引用该参数。
+
+同一个划屏参数可以被多个布局和多个划屏区域共享。
+
+### 3.3 外观参数
+
+管理外观按钮使用的外观模板：
+
+- 新建外观参数模板；
+- 在卡片中编辑外观组；
+- 重命名、复制、删除；
+- 导出外观参数；
+- 查看哪些外观控件正在引用。
+
+外观组编辑界面以独立卡片显示：
+
+- 原始组锁定，不可删除，使用每个控件自身的外观；
+- 每个自定义组拥有自己的颜色和叠加透明度；
+- 组与组之间有明确分界。
+
+## 4. 新建和编辑布局
+
+### 4.1 创建布局
+
+在“布局模板”页点击“新建布局”：
+
+- **空白布局**：从零开始添加控件；
+- **默认布局**：复制内置默认布局后修改。
+
+新建后进入布局编辑器。
+
+### 4.2 添加控件
+
+点击工具栏“添加”，选择控件类型：
+
+- 普通按钮
+- 组合按键
+- 摇杆
+- 划屏区域
+- 手势区域
+
+选择后在画布上放置：
+
+- **单击**：使用上一次选中的同类型控件大小和形状；
+- **拖动**：拉出新的宽度和高度。
+
+轻微手指移动不会误判为拖拽；单击和拖动是两种不同放置方式。
+
+### 4.3 选择与调整
+
+选中控件后，属性面板会尽量远离控件，避免遮挡。
+
+布局编辑器中可以：
+
+- 移动控件；
+- 拖动边角缩放；
+- 开关网格吸附；
+- 调整控件层级顺序；
+- 启用/禁用或锁定控件；
+- 复制、删除控件；
+- 撤销/重做；
+- 测试布局；
+- 保存或放弃修改。
+
+### 4.4 屏幕配置
+
+一个布局可以保存多种屏幕尺寸的控件位置。
+
+- 编辑当前屏幕时只修改当前屏幕的放置；
+- 可以设置某个屏幕为基准屏幕；
+- 其他屏幕会按比例自动映射；
+- 切换设备方向后可以重新调整对应屏幕。
+
+### 4.5 两种编辑场景
+
+- **从触控模板管理进入编辑器**：
+  - 没有游戏画面背景；
+  - 所有控件以完全不透明方式显示，方便调整。
+- **运行游戏时从侧边菜单编辑当前布局**：
+  - 背景是游戏画面；
+  - 控件应用真实透明度和叠加透明度，方便确认实际效果。
+
+## 5. 控件功能
+
+### 5.1 普通按钮
+
+适合单键、组合键和特殊动作。
+
+可以设置：
+
+- 按键映射：一个或多个手柄按键；
+- Turbo：按住时反复触发；
+- Turbo 频率；
+- 触觉反馈；
+- 文本和形状；
+- 颜色和透明度；
+- 启用/锁定。
+
+按钮动作：
+
+- **普通映射**：按下时触发映射按键。
+- **外观**：循环切换选中的外观参数模板。
+- **切换模板**：切换到目标布局模板。
+
+### 5.2 组合按键
+
+适合 ABXY 或方向键。
+
+两种布局：
+
+- **FACE**：ABXY 菱形组合；
+- **DPAD**：方向键组合。
+
+每个子键可以独立映射，适合格斗、动作或需要组合方向输入的场景。
+
+### 5.3 摇杆
+
+可以设置：
+
+- 目标摇杆：左摇杆或右摇杆；
+- 可见摇杆：圆形显示，直径可调；
+- 隐藏摇杆：只保留矩形触摸区域；
+- 自由摇杆：手指移出范围时中心跟随；
+- 触发区域模式；
+- 死区；
+- 最大偏移；
+- 辅助按键：推动摇杆时同时触发一个按键；
+- 双击辅助模式；
+- 触觉反馈。
+
+可见摇杆始终是圆形；隐藏摇杆可以使用矩形触摸区域。
+
+### 5.4 划屏区域
+
+适合控制相机或视角。
+
+可以设置：
+
+- 目标摇杆；
+- 使用的划屏参数模板；
+- 区域边框、文字和背景填充；
+- 透明度。
+
+划屏参数中可以调整 X/Y 灵敏度和响应曲线。多个区域可以共用同一套划屏参数。
+
+### 5.5 手势区域
+
+适合滑动和点击手势。
+
+支持：
+
+- 上、下、左、右；
+- 四个斜方向；
+- 点击；
+- 触发距离；
+- 立即触发或松开触发；
+- 手势保持；
+- 脉冲时长；
+- 每个方向绑定按键或摇杆方向。
+
+### 5.6 显隐按钮已移除
+
+旧版“显示/隐藏”按钮已不再提供。
+
+隐藏控件请使用外观参数：
+
+1. 新建一个外观参数模板；
+2. 添加一个叠加透明度为 0% 的组；
+3. 给外观按钮选择该模板；
+4. 按外观按钮在原始组和隐藏组之间切换。
+
+旧布局中的显隐控件会变成停用的普通按钮，不再执行显示/隐藏。
+
+## 6. 按钮动作与模板
+
+### 6.1 外观按钮
+
+外观按钮本身不保存外观组，而是选择一个“外观参数模板”。
+
+- 一个外观参数模板可以被多个外观按钮使用；
+- 按顺序循环切换外观组；
+- 引用同一个外观模板的按钮共享轮替进度；
+- 切换布局模板后轮替进度继续保留；
+- 应用重启后从原始组重新开始。
+
+### 6.2 切换模板按钮
+
+用于临时切换当前布局。
+
+- 选择目标布局模板；
+- 可以同时映射普通按键；
+- 按下时先触发映射，抬手后切换布局；
+- 切换后的布局会成为游戏内继续编辑的布局；
+- 不会修改游戏与默认布局的持久关联；
+- 不能把目标设置为当前布局自身。
+
+## 7. 全局外观
+
+### 7.1 控件透明度
+
+设置后会把当前模板中透明度既不是 0% 也不是 100% 的控件同步为该值。
+
+- 0% 和 100% 的控件保持不变；
+- 该值会作为新建控件的默认透明度；
+- 原控件透明度为 0% 或 100% 时不会被覆盖。
+
+### 7.2 叠加透明度
+
+叠加透明度是显示乘数，范围 0–300%。
+
+- 与控件自身透明度相乘；
+- 可以超过 100%，用于提亮低透明度控件；
+- 不会直接改写控件自身的透明度。
+
+例如：
+
+- 控件透明度 20%；
+- 叠加透明度 200%；
+- 最终显示约为 40%。
+
+### 7.3 全局颜色
+
+- 设置后应用到当前布局的所有控件；
+- 新建控件默认使用该颜色；
+- 可以重置所有控件颜色。
+
+### 7.4 外观组
+
+每个外观组可以单独设置：
+
+- 颜色；
+- 叠加透明度。
+
+两者都可以留空：
+
+- 颜色留空：不覆盖颜色，继续使用每个控件自己的颜色；
+- 叠加透明度留空：不覆盖叠加透明度，继续使用当前模板的叠加透明度。
+
+原始组锁定，完全不覆盖控件外观。
+
+## 8. 导入、导出与备份
+
+布局模板、划屏参数和外观参数支持导出为 JSON。
+
+- 导出布局时会一并携带被布局引用的划屏参数和外观参数；
+- 导入时可以预览内容；
+- 相同 ID 的对象可以选择复制或替换；
+- 删除被引用的外观参数或划屏参数时，会清理或停用相关控件。
+
+建议在大量修改布局前先导出备份。
+
+## 9. 常见问题
+
+### 新建外观参数失败
+
+旧版本升级后，管理器会先迁移旧显隐控件和外观组。请更新到最新版本；当前版本会自动保存迁移结果，再允许新建外观参数。
+
+### 输入文字时布局跳动
+
+当前版本在编辑布局、弹出输入法时会保持触控布局几何不变，只调整属性面板位置。
+
+### 控件太亮或太暗
+
+检查：
+
+- 控件自身透明度；
+- 全局“控件透明度”；
+- 全局“叠加透明度”；
+- 当前外观组是否覆盖了颜色或叠加透明度。
+
+### 外观按钮切换没有效果
+
+检查：
+
+- 外观参数模板是否至少有两个组；
+- 当前组是否设置了颜色或叠加透明度；
+- 控件是否引用了正确的外观参数模板。
+
+### 切换布局后外观状态丢失
+
+外观轮替只在当前应用会话内保留。切换布局模板不会重置，但重启应用后会重新从原始组开始。
+
+### 旧显隐按钮无效
+
+显隐动作已移除。请用外观参数中的 0% 叠加透明度组实现隐藏。
+
+## 10. 许可证与致谢
+
+Eden Touch 基于 Eden 和 yuzu 的代码，遵循 GPL-3.0-or-later。完整许可证和上游版权信息请查看仓库中的 `LICENSE.txt` 及相关文件。
+
+感谢 Eden、yuzu、Ryujinx、Sudachi、Citron、Torzu、Suyu、Ryubing 以及所有上游贡献者。
+
+Eden Touch 是非官方分支；分发时请保留上游版权和许可证信息。
