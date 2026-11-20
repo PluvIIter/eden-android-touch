@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+﻿// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 package org.yuzu.yuzu_emu.overlay.touch
@@ -76,6 +76,7 @@ import org.yuzu.yuzu_emu.overlay.touch.store.TouchReferences
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRepository
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchRevisionConflictException
 import org.yuzu.yuzu_emu.overlay.touch.store.TouchValidationException
+import org.yuzu.yuzu_emu.overlay.touch.ui.TouchColorPicker
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchDraftRevisionConflict
 import org.yuzu.yuzu_emu.overlay.touch.ui.TouchWorkspace
 import org.yuzu.yuzu_emu.utils.ThemeHelper
@@ -227,7 +228,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         val removed = pendingRemoved
         pendingRemoved = emptyList()
         if (removed.isEmpty()) return
-        val details = removed.joinToString("\n") { "「${it.name}」：${it.reason}" }
+        val details = removed.joinToString("\n") { "銆?{it.name}銆嶏細${it.reason}" }
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.touch_workspace_removed_title)
             .setMessage(getString(R.string.touch_workspace_removed_message, details))
@@ -716,7 +717,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         buildString {
             append(getString(R.string.touch_manager_explicit_games, refs.gameIds.size))
             if (refs.isDefault) append("\n" + getString(R.string.touch_manager_default_impact))
-            refs.gameIds.forEach { append("\n• ${gameName(it)}") }
+            refs.gameIds.forEach { append("\n鈥?${gameName(it)}") }
         }
     }
 
@@ -741,7 +742,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         refs.forEach { reference ->
             val template = library.templates.first { it.id == reference.templateId }
             val control = template.controls.first { it.id == reference.controlId }
-            append("\n• ${template.name} / ${control.name.ifBlank { control.id }}")
+            append("\n鈥?${template.name} / ${control.name.ifBlank { control.id }}")
         }
     }
 
@@ -751,7 +752,7 @@ class TouchTemplateActivity : AppCompatActivity() {
         refs.forEach { reference ->
             val template = library.templates.firstOrNull { it.id == reference.templateId }
             val control = template?.controls?.firstOrNull { it.id == reference.controlId }
-            append("\n• ${template?.name ?: reference.templateId} / ${control?.name?.ifBlank { control.id } ?: reference.controlId}")
+            append("\n鈥?${template?.name ?: reference.templateId} / ${control?.name?.ifBlank { control.id } ?: reference.controlId}")
         }
     }
 
@@ -778,6 +779,39 @@ class TouchTemplateActivity : AppCompatActivity() {
             isAllCaps = false
             setOnClickListener { action() }
         }
+
+    private fun editorColumns(): Int = if (resources.configuration.screenWidthDp >= 720) 2 else 1
+
+    private fun addResponsiveViews(container: LinearLayout, views: List<View>, bottomMargin: Int = 8) {
+        val columns = editorColumns()
+        if (columns == 1) {
+            views.forEach { container.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+            return
+        }
+        views.chunked(columns).forEach { rowViews ->
+            val line = row()
+            rowViews.forEach { view ->
+                line.addView(
+                    view,
+                    LinearLayout.LayoutParams(0, -2, 1f).apply {
+                        marginStart = dp(4)
+                        marginEnd = dp(4)
+                        this.bottomMargin = dp(bottomMargin)
+                    }
+                )
+            }
+            repeat(columns - rowViews.size) {
+                line.addView(
+                    View(this),
+                    LinearLayout.LayoutParams(0, -2, 1f).apply {
+                        marginStart = dp(4)
+                        marginEnd = dp(4)
+                    }
+                )
+            }
+            container.addView(line, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
 
     private fun showEdenEditor(
         title: String,
@@ -967,27 +1001,10 @@ class TouchTemplateActivity : AppCompatActivity() {
         }
         fun editColor(index: Int) {
             val group = groups[index]
-            val input = TextInputEditText(this).apply {
-                hint = getString(R.string.touch_manager_appearance_color_prompt)
-                setText(group.color?.let { String.format(java.util.Locale.ROOT, "%08X", it) }.orEmpty())
-                setSingleLine()
+            TouchColorPicker.show(this, group.color) { color ->
+                groups = groups.toMutableList().also { it[index] = group.copy(color = color) }
+                reopen()
             }
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.touch_manager_appearance_color_title)
-                .setView(input)
-                .setPositiveButton(R.string.touch_manager_save) { _, _ ->
-                    val text = input.text?.toString()?.trim()?.removePrefix("#").orEmpty()
-                    val normalized = if (text.length == 6) "FF$text" else text
-                    val color = if (normalized.length == 8) normalized.toLongOrNull(16)?.toInt() else null
-                    groups = groups.toMutableList().also { it[index] = group.copy(color = color) }
-                    reopen()
-                }
-                .setNeutralButton(R.string.touch_manager_appearance_clear_color) { _, _ ->
-                    groups = groups.toMutableList().also { it[index] = group.copy(color = null) }
-                    reopen()
-                }
-                .setNegativeButton(R.string.touch_manager_cancel, null)
-                .show()
         }
         fun editOverlay(index: Int) {
             val group = groups[index]
@@ -1019,36 +1036,36 @@ class TouchTemplateActivity : AppCompatActivity() {
                 original = true
             ) {}
         )
+        val groupCards = mutableListOf<View>()
         for (index in 1 until groups.size) {
             val group = groups[index]
-            content.addView(
-                appearanceGroupCard(
-                    getString(R.string.touch_manager_appearance_group, index + 1),
-                    original = false
-                ) { body ->
-                    body.addView(
-                        appearanceSettingRow(
-                            getString(R.string.touch_manager_appearance_color_label),
-                            group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
-                                ?: getString(R.string.touch_manager_appearance_unset),
-                            group.color
-                        ) { editColor(index) }
-                    )
-                    body.addView(
-                        appearanceSettingRow(
-                            getString(R.string.touch_manager_appearance_overlay_label),
-                            group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
-                                ?: getString(R.string.touch_manager_appearance_unset)
-                        ) { editOverlay(index) }
-                    )
-                    body.addView(appearanceTextLink(getString(R.string.touch_manager_appearance_delete_group), color(com.google.android.material.R.attr.colorError)) {
-                        groups = groups.filterIndexed { current, _ -> current != index }
-                        if (groups.isEmpty()) groups = listOf(AppearanceGroup())
-                        reopen()
-                    })
-                }
-            )
+            groupCards += appearanceGroupCard(
+                getString(R.string.touch_manager_appearance_group, index + 1),
+                original = false
+            ) { body ->
+                body.addView(
+                    appearanceSettingRow(
+                        getString(R.string.touch_manager_appearance_color_label),
+                        group.color?.let { String.format(java.util.Locale.ROOT, "#%08X", it) }
+                            ?: getString(R.string.touch_manager_appearance_unset),
+                        group.color
+                    ) { editColor(index) }
+                )
+                body.addView(
+                    appearanceSettingRow(
+                        getString(R.string.touch_manager_appearance_overlay_label),
+                        group.overlayOpacity?.let { "${(it * 100f).roundToInt()}%" }
+                            ?: getString(R.string.touch_manager_appearance_unset)
+                    ) { editOverlay(index) }
+                )
+                body.addView(appearanceTextLink(getString(R.string.touch_manager_appearance_delete_group), color(com.google.android.material.R.attr.colorError)) {
+                    groups = groups.filterIndexed { current, _ -> current != index }
+                    if (groups.isEmpty()) groups = listOf(AppearanceGroup())
+                    reopen()
+                })
+            }
         }
+        addResponsiveViews(content, groupCards, bottomMargin = 12)
         content.addView(appearanceButton(getString(R.string.touch_manager_appearance_add_group)) {
             val template = library.templateFor(gameId) ?: library.templates.firstOrNull()
             groups = groups + AppearanceGroup(template?.globalColor, template?.globalOpacity)
@@ -1080,41 +1097,39 @@ class TouchTemplateActivity : AppCompatActivity() {
         }
         val content = column().apply { setPadding(dp(4), dp(8), dp(4), dp(8)) }
         content.addView(label(getString(R.string.touch_tools_basic_intro), true))
-        content.addView(editorNumberField(getString(R.string.touch_tools_sensitivity_x), draft.sensitivityX) {
+        val fields = mutableListOf<View>()
+        fields += editorNumberField(getString(R.string.touch_tools_sensitivity_x), draft.sensitivityX) {
             draft = draft.copy(sensitivityX = it)
-        })
-        content.addView(editorNumberField(getString(R.string.touch_tools_sensitivity_y), draft.sensitivityY) {
+        }
+        fields += editorNumberField(getString(R.string.touch_tools_sensitivity_y), draft.sensitivityY) {
             draft = draft.copy(sensitivityY = it)
-        })
+        }
         val shortEdgeDp = (minOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels) /
             resources.displayMetrics.density).coerceAtLeast(1f)
-        content.addView(
-            editorNumberField(
-                getString(
-                    if (draft.scale == MotionScale.DP) R.string.touch_tools_speed_dp else R.string.touch_tools_speed_edge
-                ),
-                draft.maximumSpeed
-            ) { draft = draft.copy(maximumSpeed = it) }
-        )
-        content.addView(editorNumberField(getString(R.string.touch_tools_compensation), draft.deadzone) {
+        fields += editorNumberField(
+            getString(
+                if (draft.scale == MotionScale.DP) R.string.touch_tools_speed_dp else R.string.touch_tools_speed_edge
+            ),
+            draft.maximumSpeed
+        ) { draft = draft.copy(maximumSpeed = it) }
+        fields += editorNumberField(getString(R.string.touch_tools_compensation), draft.deadzone) {
             draft = draft.copy(deadzone = it)
-        })
-        content.addView(editorNumberField(getString(R.string.touch_tools_smoothing), draft.smoothingMs) {
+        }
+        fields += editorNumberField(getString(R.string.touch_tools_smoothing), draft.smoothingMs) {
             draft = draft.copy(smoothingMs = it)
-        })
-        content.addView(editorNumberField(getString(R.string.touch_tools_turn_smoothing), draft.turnSmoothingMs) {
+        }
+        fields += editorNumberField(getString(R.string.touch_tools_turn_smoothing), draft.turnSmoothingMs) {
             draft = draft.copy(turnSmoothingMs = it)
-        })
-        content.addView(label(getString(R.string.touch_tools_response_curve)))
-        content.addView(editorToggle(getString(R.string.touch_tools_invert_x), draft.invertX) {
+        }
+        fields += editorToggle(getString(R.string.touch_tools_invert_x), draft.invertX) {
             draft = draft.copy(invertX = it)
-        })
-        content.addView(editorToggle(getString(R.string.touch_tools_invert_y), draft.invertY) {
+        }
+        fields += editorToggle(getString(R.string.touch_tools_invert_y), draft.invertY) {
             draft = draft.copy(invertY = it)
-        })
-        content.addView(editorToggle(getString(R.string.touch_tools_swap_axes), draft.swapAxes) {
+        }
+        fields += editorToggle(getString(R.string.touch_tools_swap_axes), draft.swapAxes) {
             draft = draft.copy(swapAxes = it)
-        })
+        }
         val scales = row()
         MotionScale.values().forEach { next ->
             val selected = draft.scale == next
@@ -1124,7 +1139,7 @@ class TouchTemplateActivity : AppCompatActivity() {
                     MotionScale.SHORT_EDGE -> R.string.touch_tools_enum_motionscale_short_edge
                 }
             )
-            scales.addView(editorPrimaryButton(if (selected) "✓ $title" else title) {
+            scales.addView(editorPrimaryButton(if (selected) "\u2713 $title" else title) {
                 if (draft.scale != next) {
                     val speed = when {
                         next == MotionScale.DP -> draft.maximumSpeed * shortEdgeDp
@@ -1138,16 +1153,18 @@ class TouchTemplateActivity : AppCompatActivity() {
                 if (next != MotionScale.values().last()) marginEnd = dp(8)
             })
         }
-        content.addView(scales)
-        content.addView(editorNumberField(getString(R.string.touch_tools_exponent), draft.exponent) {
+        fields += scales
+        fields += editorNumberField(getString(R.string.touch_tools_exponent), draft.exponent) {
             draft = draft.copy(exponent = it, curve = emptyList())
             curveText = ""
-        })
+        }
+        fields += editorNumberField(getString(R.string.touch_tools_stop_timeout), draft.stopTimeoutMs.toFloat()) {
+            draft = draft.copy(stopTimeoutMs = it.toLong())
+        }
+        addResponsiveViews(content, fields, bottomMargin = 8)
+        content.addView(label(getString(R.string.touch_tools_response_curve)))
         content.addView(editorTextField(getString(R.string.touch_tools_curve_points), curveText) {
             curveText = it
-        })
-        content.addView(editorNumberField(getString(R.string.touch_tools_stop_timeout), draft.stopTimeoutMs.toFloat()) {
-            draft = draft.copy(stopTimeoutMs = it.toLong())
         })
         content.addView(editorTextField(getString(R.string.touch_tools_calibration_notes), draft.notes, multiline = true) {
             draft = draft.copy(notes = it)
@@ -1224,8 +1241,8 @@ class TouchTemplateActivity : AppCompatActivity() {
 
     private fun importSummary(preview: TouchImportPreview): String = buildString {
         append(getString(R.string.touch_manager_import_counts, preview.bundle.templates.size, preview.bundle.presets.size))
-        preview.bundle.templates.forEach { append("\n• " + getString(R.string.touch_manager_import_layout, it.name, it.controls.size, it.screens.size)) }
-        preview.bundle.presets.forEach { append("\n• " + getString(R.string.touch_manager_import_preset, it.name)) }
+        preview.bundle.templates.forEach { append("\n鈥?" + getString(R.string.touch_manager_import_layout, it.name, it.controls.size, it.screens.size)) }
+        preview.bundle.presets.forEach { append("\n鈥?" + getString(R.string.touch_manager_import_preset, it.name)) }
         append("\n\n" + getString(R.string.touch_manager_import_conflicts, preview.conflicts.size))
         preview.conflicts.forEach { conflict ->
             val layout = conflict.kind == TouchObjectKind.TEMPLATE

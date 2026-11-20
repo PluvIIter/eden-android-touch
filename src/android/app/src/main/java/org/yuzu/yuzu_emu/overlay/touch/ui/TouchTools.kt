@@ -654,53 +654,9 @@ internal class TouchTools(context: Context, private val workspace: TouchWorkspac
 
     private fun chooseColor(currentColor: Int?, onPick: (Int?) -> Unit) {
         val owner = current
-        val content = column()
-        val input = TextInputEditText(context).apply {
-            hint = s(R.string.touch_tools_color_hex)
-            setText(currentColor?.let { String.format(java.util.Locale.ROOT, "%08X", it) }.orEmpty())
-            setSingleLine()
+        TouchColorPicker.show(context, currentColor) { color ->
+            within(owner) { onPick(color) }
         }
-        content.addView(input, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        val palette = listOf(
-            0xFFFFFFFF.toInt(), 0xFF000000.toInt(), 0xFFF44336.toInt(), 0xFF4CAF50.toInt(),
-            0xFF2196F3.toInt(), 0xFFFFEB3B.toInt(), 0xFF00BCD4.toInt(), 0xFFE91E63.toInt(),
-            0xFFFF9800.toInt(), 0xFF9C27B0.toInt(), 0xFF9E9E9E.toInt(), 0xFF00E6E6.toInt()
-        )
-        palette.chunked(6).forEach { colors ->
-            val line = row()
-            colors.forEach { value ->
-                line.addView(
-                    android.view.View(context).apply {
-                        setBackgroundColor(value)
-                        contentDescription = String.format(java.util.Locale.ROOT, "#%08X", value)
-                        setOnClickListener {
-                            input.setText(String.format(java.util.Locale.ROOT, "%08X", value))
-                        }
-                    },
-                    LinearLayout.LayoutParams(0, px(34), 1f).apply {
-                        marginStart = px(3)
-                        marginEnd = px(3)
-                        topMargin = px(3)
-                        bottomMargin = px(3)
-                    }
-                )
-            }
-            content.addView(line)
-        }
-        fun parse(): Int? {
-            val text = input.text?.toString()?.trim()?.removePrefix("#").orEmpty()
-            val normalized = if (text.length == 6) "FF$text" else text
-            return if (normalized.length == 8) normalized.toLongOrNull(16)?.toInt() else null
-        }
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.touch_tools_color_pick)
-            .setView(content)
-            .setNeutralButton(R.string.touch_tools_color_default) { _, _ -> within(owner) { onPick(null) } }
-            .setNegativeButton(R.string.touch_tools_cancel, null)
-            .setPositiveButton(R.string.touch_tools_done) { _, _ ->
-                parse()?.let { value -> within(owner) { onPick(value) } }
-            }
-            .show()
     }
 
     private fun showControls() {
